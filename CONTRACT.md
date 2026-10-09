@@ -79,8 +79,9 @@ Every number in `latency` is measured, never set by hand:
 - `l4_ms`: last pipeline or decision call round trip to Abenix.
 - `l5_ms`: last agent run duration in Abenix.
 - Additive: `l1_twin_run_ms` (step compute inside the runner), `l2_tick_ms` (rule evaluation inside one 10 ms tick, p99), `step_hz`, `ticks_per_step`.
+- Optional, agreed with the coordinator for the web latency strip: `l1_p50_ms` to `l5_p50_ms`, the p50 of each layer over the bff's own window. When they are missing the web takes the p50 of the readings it received.
 
-Additive fields elsewhere: `state.ai_offline`, `state.killed`, `state.plan {source, version}`, `state.rules {key: version}`, `state.vecus`, `machines[].ecus`, `workers[].predicted` (worker path model, 1, 2 and 3 s ahead), `cranes[].radius`, `cranes[].chart_t`, `cranes[].kind`; `bus.can_id`, `bus.acronym`, `bus.proto` (`j1939` or `sparkplug_b`), `bus.topic` (Sparkplug); `agent.recorded` and `caption.recorded` (true when Story mode replays a recorded run); `GET /fleet` returns the ISO 15143-3 (AEMP 2.0) fleet snapshot.
+Additive fields elsewhere: `state.ai_offline`, `state.killed`, `state.plan {source, version}`, `state.rules {key: version}`, `state.vecus`, `machines[].ecus`, `workers[].predicted` (worker path model, 1, 2 and 3 s ahead), `cranes[].radius`, `cranes[].chart_t`, `cranes[].kind`; `bus.can_id`, `bus.acronym`, `bus.proto` (`j1939` or `sparkplug_b`), `bus.topic` (Sparkplug); `agent.recorded` and `caption.recorded` (true when Story mode replays a recorded run); `GET /fleet` returns the ISO 15143-3 (AEMP 2.0) fleet snapshot. Optional `kpi.ai_billing`: `subscription` when a Claude subscription serves the agent runs, `metered` when they are paid per token. The web shows "subscription" instead of a zero cost. The bff reads it from Abenix `/api/llm-models` and sends `unknown` when Abenix does not say.
 
 ## Abenix touchpoints
 

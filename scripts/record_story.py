@@ -29,6 +29,8 @@ async def main():
     async with httpx.AsyncClient(base_url=args.bff, timeout=60) as h, websockets.connect(ws_url, max_size=None) as ws:
         r = await h.post("/story/start", json={"mode": "record"})
         print("start", r.status_code, r.text)
+        if r.status_code != 200:
+            raise SystemExit("the story did not start, check GET /health on the bff")
         t0 = time.time()
         while time.time() - t0 < 600:
             m = json.loads(await ws.recv())

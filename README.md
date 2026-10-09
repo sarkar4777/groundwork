@@ -114,7 +114,7 @@ Groundwork talks to Abenix only through the public API and the SDK. Where that w
 
 ## Screenshots
 
-The web half captures these from Story mode with `node web/scripts/capture.mjs`. They live in [docs/screenshots](docs/screenshots).
+The web half captures these from Story mode with `node scripts/capture.mjs`. They live in [docs/screenshots](docs/screenshots).
 
 | | |
 |---|---|

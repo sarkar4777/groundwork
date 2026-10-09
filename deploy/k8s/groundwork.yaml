@@ -1,0 +1,49 @@
+# The bff inside the cluster, next to Abenix. The twin step then avoids the host port-forward.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: groundwork
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: groundwork-bff
+  namespace: groundwork
+  labels: {app: groundwork-bff}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: groundwork-bff}
+  template:
+    metadata:
+      labels: {app: groundwork-bff}
+    spec:
+      securityContext: {runAsNonRoot: true, runAsUser: 10001}
+      containers:
+        - name: bff
+          image: groundwork-bff:local
+          imagePullPolicy: Never
+          ports: [{containerPort: 8710, name: http}]
+          env:
+            - {name: ABENIX_URL, value: "http://abenix-api.abenix.svc.cluster.local:8000"}
+            - {name: ABENIX_WEB_URL, value: "http://localhost:3000"}
+            - {name: GW_RATE_HZ, value: "20"}
+            - {name: GW_FIXED_TICKS, value: "5"}
+            - name: ABENIX_API_KEY
+              valueFrom: {secretKeyRef: {name: groundwork-abenix, key: api-key}}
+          readinessProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 10
+          resources:
+            requests: {cpu: 100m, memory: 128Mi}
+            limits: {cpu: "1", memory: 512Mi}
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: false, capabilities: {drop: [ALL]}}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: groundwork-bff
+  namespace: groundwork
+spec:
+  selector: {app: groundwork-bff}
+  ports: [{name: http, port: 8710, targetPort: http}]

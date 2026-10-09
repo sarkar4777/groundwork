@@ -500,7 +500,7 @@ def _follow(st, m, vmax, accel=1.0):
     for j in range(len(route) - 1):
         pass
     left = sum(dist(route[k][0], route[k][1], route[k + 1][0], route[k + 1][1]) for k in range(len(route) - 1)) - s
-    target = min(vmax, math.sqrt(max(0.0, 2 * 1.5 * max(0.0, left - 0.5))))
+    target = min(vmax, math.sqrt(max(0.0, 2 * 1.5 * max(0.0, left - 0.15))))
     if m["mode"] in ("hold", "offline"):
         target = 0.0
     brake = 4.0 if m["mode"] in ("hold", "offline") else 2.5
@@ -543,7 +543,9 @@ def _ahead_blocked(st, tr):
             continue
         dx, dy = o["x"] - tr["x"], o["y"] - tr["y"]
         fwd = dx * hx + dy * hy
-        if 0 < fwd < 11.0 and abs(-dx * hy + dy * hx) < 3.0:
+        # the haul roads are two lanes, so only traffic going the same way, or standing, holds a truck up
+        same_way = math.cos(o["heading"]) * hx + math.sin(o["heading"]) * hy > 0.3
+        if 0 < fwd < 11.0 and abs(-dx * hy + dy * hx) < 3.0 and (same_way or abs(o.get("speed", 0.0)) < 0.1 and o.get("phase") in ("queue", "loading", "dump")):
             return True
     return False
 
@@ -974,6 +976,7 @@ def safety_tick(st, tabs, ev, stats):
                 rule_stop, rule, reason = True, "no_rules", "Safety rules not loaded from Abenix"
             else:
                 key, out = excl.evaluate({"machine": {"tip_speed_ms": tip}, "worker": {"clearance_m": clearance}})
+                raw = out
                 act = (out or {}).get("action", "stop")
                 sf["exclusion_m"] = radius + float((out or {}).get("margin_m", 0))
                 # a stopped machine has no tip speed, so keep the margin that stopped it until the worker is 1 m past it
@@ -995,7 +998,7 @@ def safety_tick(st, tabs, ev, stats):
                     nw["zone"] = "warn"
                 sf["rule_key"] = key
                 sf["facts"] = {"machine": {"tip_speed_ms": round(tip, 3)}, "worker": {"clearance_m": round(clearance, 3)}}
-                sf["outcome"] = out
+                sf["outcome"] = raw
         elif kind == "haul_truck":
             near = 600.0
             for w in workers:
@@ -1077,7 +1080,9 @@ def safety_tick(st, tabs, ev, stats):
                 if rule_stop and rule == "worker_in_swing":
                     arrival = sf.get("arrival", t)
                     eval_ms = (time.perf_counter() - t0) * 1000.0
-                    react = max(0.0, (t - arrival) * 1000.0) + eval_ms
+                    # the tag sample that tripped the rule arrived inside this tick, otherwise the machine's own motion did
+                    since = t - arrival
+                    react = (since * 1000.0 if 0 <= since < DT + 1e-9 else 0.0) + eval_ms
                     m["simplex"]["hold_since"] = t
                     ev.append({"kind": "safety_stop", "machine": m["id"], "rule": rule, "title": f"Safety stop {react:.1f} ms",
                                "detail": f"Worker {sf.get('worker', '')} inside the {m['id']} swing radius plus margin. {reason}",
@@ -1474,7 +1479,13 @@ def _compile_ai(st):
         return
     import builtins
     safe = {k: getattr(builtins, k) for k in ("abs", "min", "max", "float", "int", "round", "range", "len", "dict", "list", "bool")}
-    ns = {"__builtins__": safe, "math": math}
+    def only_math(name, *args, **kwargs):
+        if name != "math":
+            raise ImportError(f"{name} is not allowed in a vECU, only math")
+        return math
+
+    safe["__import__"] = only_math
+    ns = {"__builtins__": safe, "math": math, "__name__": "telehandler_boom"}
     try:
         exec(compile(code, "telehandler_boom.py", "exec"), ns)  # noqa: S102
         st["_ai_code"]["TH1"] = ns["tick"]
@@ -1485,7 +1496,7 @@ def _compile_ai(st):
 def add_telehandler(st, code, ev):
     st["telehandler_code"] = code
     if "TH1" not in st["machines"]:
-        route = L.path("gate", "gate_in", (-20.0, -70.0), (-80.0, -40.0), (-82.0, 20.0), (-70.0, 44.0))
+        route = L.path("gate", "gate_in", (-20.0, -70.0), (-80.0, -40.0), (-84.0, 26.0))
         st["machines"]["TH1"] = _machine("TH1", "telehandler", route[0][0], route[0][1], math.pi / 2, route=route, s=0.0, phase="drive",
                                           phase_t=0.0, boom_angle=0.1, ext=0.0, boom_target=0.1, ext_target=0.0, loaded=True, load_t=2.2)
         ev.append({"kind": "plan_change", "machine": "TH1", "title": "TH1 telehandler on site", "detail": "Boom controller written and tested by AI, published at Asks first"})

@@ -39,10 +39,12 @@ CACHED_TIMES = {
 
 
 class Story:
-    def __init__(self, mode: str):
+    def __init__(self, mode: str, ticks: int = 5):
         self.mode = mode          # live, cached or record
         self.cache = json.loads(CACHE.read_text()) if mode == "cached" else None
-        self.rec = {"seed": SEED, "ml": {}, "beats": {}} if mode == "record" else None
+        # ticks of 10 ms per step, a recording replays with the ticks it was made with
+        self.ticks = int((self.cache or {}).get("ticks") or ticks)
+        self.rec = {"seed": SEED, "ticks": self.ticks, "ml": {}, "beats": {}} if mode == "record" else None
         self.step0 = None
         self.k = 0
         self.done_caps: set = set()
@@ -52,9 +54,10 @@ class Story:
         self.started = time.monotonic()
         self.finished = False
         self.tasks: list = []
+        self.gust_forecast = None
 
     def info(self) -> dict:
-        return {"mode": self.mode, "step": self.k, "recorded_at": (self.cache or {}).get("recorded_at"), "finished": self.finished}
+        return {"mode": self.mode, "step": self.k, "ticks": self.ticks, "recorded_at": (self.cache or {}).get("recorded_at"), "finished": self.finished}
 
     @staticmethod
     def available() -> bool:
@@ -64,8 +67,14 @@ class Story:
         return eng.t()
 
     async def start(self, eng) -> None:
-        await eng.init_twin(SEED)
-        eng.story = self
+        eng.paused = True
+        try:
+            await eng.init_twin(SEED)
+            eng.frame = None
+            eng.plan = None
+            eng.story = self
+        finally:
+            eng.paused = False
         note = "live Abenix calls"
         if self.mode == "cached":
             note = f"agent and model answers replayed from a recorded run on {self.cache.get('recorded_at', '?')}"
@@ -75,16 +84,20 @@ class Story:
                         "mode": self.mode, "recorded": self.mode == "cached"})
 
     async def before_step(self, eng, inp: dict) -> None:
-        t = eng.t()
+        t = round(self.k * self.ticks * 0.01, 3)
         if self.mode == "cached":
             ml = (self.cache.get("ml") or {}).get(str(self.k))
             if ml:
                 inp.setdefault("ml_results", {}).update(ml)
         for start, until, text in CAPTIONS:
             if t >= start - 1e-6 and start not in self.done_caps:
+                if "{stop_ms}" in text and self.stop_ms is None and t < start + 2.0:
+                    continue
                 self.done_caps.add(start)
-                text = text.format(stop_ms=f"{self.stop_ms:.0f}" if self.stop_ms is not None else "3", vecus=self.vecus)
-                await eng.emit({"type": "caption", "t": start, "text": text, "until": until, "recorded": self.mode == "cached"})
+                if "{stop_ms}" in text:
+                    text = text.replace("in {stop_ms} ms", f"in {self.stop_ms:.1f} ms" if self.stop_ms is not None else "in milliseconds")
+                text = text.format(vecus=self.vecus)
+                await eng.emit({"type": "caption", "t": t, "text": text, "until": until, "recorded": self.mode == "cached"})
         await self.beats(eng, t, inp)
         self.k += 1
 
@@ -95,7 +108,7 @@ class Story:
         return True
 
     async def beats(self, eng, t: float, inp: dict) -> None:
-        if self.once("worker", t, 2.3):
+        if self.once("worker", t, 1.9):
             inp.setdefault("faults", []).append({"kind": "worker_in_swing", "target": "EX1", "worker": "W07", "start_m": 17.5, "speed": 1.6})
         if self.once("nervous", t, 14.0):
             await eng.event("story", "Nervous system view", f"{self.vecus} vECUs at 100 Hz, J1939 and Sparkplug B")
@@ -131,6 +144,8 @@ class Story:
             if e.get("kind") == "safety_stop" and e.get("machine") == "EX1" and self.stop_ms is None:
                 self.stop_ms = float(e.get("ms") or 0)
                 self.stop_event = e
+            if e.get("kind") == "gust" and e.get("forecast_ms") and self.gust_forecast is None:
+                self.gust_forecast = float(e["forecast_ms"])
         self.vecus = (out.get("stats") or {}).get("vecus", self.vecus) if self.k < 50 else self.vecus
 
     def track(self, eng, coro) -> None:
@@ -145,6 +160,13 @@ class Story:
         if pending:
             await eng.event("story", "Waiting for Abenix runs to finish before saving", f"{len(pending)} still running")
             await asyncio.wait(pending, timeout=600)
+        # an approval asked for during the take is part of it, give the person time to answer
+        for _ in range(240):
+            waiting = [b for b in (self.rec["beats"].get("replan"), self.rec["beats"].get("vecu"))
+                       if b and (eng.approvals.get(b.get("execution_id")) or {}).get("status") == "pending"]
+            if not waiting:
+                break
+            await asyncio.sleep(0.5)
         for name in ("replan", "vecu"):
             b = self.rec["beats"].get(name)
             if b:
@@ -167,11 +189,11 @@ class Story:
 
     async def live_replan(self, eng) -> None:
         e = getattr(self, "stop_event", {}) or {}
+        self.track(eng, self.live_near_miss(eng, e))
         br = await eng.brief()
         msg = json.dumps({"reason": "safety_stop", "event": {k: e.get(k) for k in ("machine", "title", "detail", "worker", "ms")},
                           "brief": br, "plan": (br or {}).get("plan_tree")})
         out, res = await eng.run_agent("gw-site-superintendent", msg, label="Replanning after the safety stop")
-        eng.spawn(self.live_near_miss(eng, e))
         if not isinstance(out, dict) or "tree" not in out:
             return
         await eng.agent_frame("gw-site-superintendent", "answer", out.get("summary", ""), res.execution_id, changes=out.get("changes"))
@@ -186,12 +208,15 @@ class Story:
             self.rec["beats"]["near_miss"] = {"out": out}
 
     async def live_weather(self, eng) -> None:
-        fc = None
-        for _ in range(20):
-            if eng.frame:
-                break
-            await asyncio.sleep(0.1)
-        out = await eng.weather_hold({"forecast_ms": fc or 19.0})
+        # the gust nowcast model's own forecast, or the measured crane wind when the model has not called it yet
+        fc = self.gust_forecast
+        if fc is None:
+            br = await eng.brief()
+            fc = ((br or {}).get("weather") or {}).get("gust_forecast_ms")
+        if fc is None:
+            tc = next((c for c in (eng.frame or {}).get("cranes", []) if c["id"] == "TC1"), {})
+            fc = tc.get("wind_ms")
+        out = await eng.weather_hold({"forecast_ms": fc})
         if self.rec is not None and isinstance(out, dict):
             self.rec["beats"]["weather"] = {"out": out}
 

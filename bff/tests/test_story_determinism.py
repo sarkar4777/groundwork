@@ -9,7 +9,7 @@ from pathlib import Path
 
 from twin.api import run
 
-SCRIPT = {46: [{"kind": "worker_in_swing", "target": "EX1", "worker": "W07", "start_m": 17.5, "speed": 1.6}],
+SCRIPT = {38: [{"kind": "worker_in_swing", "target": "EX1", "worker": "W07", "start_m": 17.5, "speed": 1.6}],
           360: [{"kind": "gust", "build_s": 5.0, "hold_s": 6.0, "peak_ms": 11.5}],
           560: [{"kind": "ai_offline", "on": True}], 692: [{"kind": "ai_offline", "on": False}]}
 

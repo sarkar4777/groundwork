@@ -118,6 +118,9 @@ class Engine:
         self.ready = False
         self.status = "starting"
         self.step_n = 0
+        self.epoch = 0
+        self.billing = "unknown"
+        self.paused = False
         self.incidents: list = []
         self.faults_seen: list = []
         self.plan_changes: list = []
@@ -173,9 +176,21 @@ class Engine:
             a = await self.forge.agents.by_slug(slug)
             if a:
                 self.ids[slug] = a["id"]
+        await self.billing_mode()
         missing = [x for x in ["gw-site-twin"] + AGENTS[:7] + PIPELINES[:6] if x not in self.ids]
         if missing:
             raise RuntimeError(f"Not provisioned in Abenix: {', '.join(missing)}. Run python scripts/provision.py")
+
+    async def billing_mode(self) -> None:
+        """A Claude subscription serving every run reports no cost, the web says so instead of showing $0."""
+        try:
+            r = await self.forge.http.get("/api/llm-models", timeout=10)
+            models = ((r.json().get("data") or {}).get("models")) or []
+            served = [m for m in models if m.get("provider") == "anthropic" and m.get("status") == "available"]
+            self.billing = "subscription" if served and all(m.get("subscription_served") for m in served) else "metered"
+        except Exception as e:  # noqa: BLE001
+            log.debug("billing: %s", e)
+            self.billing = "unknown"
 
     async def twin(self, inp: dict, timeout_s: float | None = None) -> dict:
         async def go():
@@ -208,6 +223,7 @@ class Engine:
         self.last_rules_check = time.monotonic()
 
     async def init_twin(self, seed: int) -> None:
+        self.epoch += 1
         out = await self.twin({"op": "init", "seed": seed}, 300)
         self.state_z = out["state_z"]
         self.site = out.get("site")
@@ -238,6 +254,9 @@ class Engine:
         target = 1.0 / float(self.cfg.get("rate_hz", 20))
         while True:
             t0 = time.monotonic()
+            if self.paused:
+                await asyncio.sleep(0.05)
+                continue
             try:
                 await self.step()
             except Open as e:
@@ -253,7 +272,9 @@ class Engine:
 
     def ticks_due(self) -> int:
         if self.story is not None:
-            return 5
+            return self.story.ticks
+        if self.cfg.get("fixed_ticks"):
+            return int(self.cfg["fixed_ticks"])
         owed = (time.monotonic() - self.wall0) - (self.t() - self.sim0)
         n = int(round(owed / 0.01))
         if n > 50:
@@ -275,8 +296,12 @@ class Engine:
             inp["want_dispatch"] = True
             self.last_dispatch_t = sim_t
         t0 = time.perf_counter()
+        epoch = self.epoch
         out = await self.twin(inp)
         rtt = (time.perf_counter() - t0) * 1000
+        if epoch != self.epoch:
+            # a new twin was started while this step was in flight, its answer belongs to the old site
+            return
         self.l1.add(rtt)
         self.l1_all.add(rtt)
         self.step_n += 1
@@ -292,6 +317,7 @@ class Engine:
             "step_hz": round(len(self.l1.values()), 1), "ticks_per_step": st.get("ticks"),
         }
         frame["kpi"]["ai_cost_usd"] = round(self.cost, 4)
+        frame["kpi"]["ai_billing"] = self.billing
         frame["ai_offline"] = self.ai_offline
         frame["killed"] = self.killed
         self.frame = frame
