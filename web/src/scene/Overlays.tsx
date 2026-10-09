@@ -76,7 +76,7 @@ const ringGeo = new THREE.RingGeometry(0.965, 1, 96)
 const discGeo = new THREE.CircleGeometry(1, 96)
 const ringMat = () => new THREE.MeshBasicMaterial({ color: COLORS.mint, transparent: true, opacity: 0.9, depthWrite: false, side: THREE.DoubleSide, toneMapped: false })
 
-export const SWING_R = 9.8
+export const swingR = () => hot.site?.swingRadius ?? 9.8
 
 function SwingRing({ id }: { id: string }) {
   const g = useRef<THREE.Group>(null!)
@@ -90,7 +90,8 @@ function SwingRing({ id }: { id: string }) {
     if (!s) return
     g.current.position.set(s.x, heightAt(s.x, s.y) + LIFT, -s.y)
     const stopped = hot.curr?.safety.active_stops.some((a) => a.machine === id)
-    const warn = hot.curr?.workers.some((w) => w.zone !== 'ok' && Math.hypot(w.x - s.x, w.y - s.y) < SWING_R + 6)
+    const R = swingR()
+    const warn = hot.curr?.workers.some((w) => w.zone !== 'ok' && Math.hypot(w.x - s.x, w.y - s.y) < R + 6)
     const t = performance.now()
     const pulse = stopped ? 0.5 + 0.5 * Math.sin(t / 110) : 0
     col.set(stopped ? COLORS.red : warn ? COLORS.amber : COLORS.mint)
@@ -100,14 +101,16 @@ function SwingRing({ id }: { id: string }) {
     disc.color.copy(col)
     disc.opacity = stopped ? 0.18 + pulse * 0.14 : warn ? 0.1 : 0.05
     outer.opacity = stopped ? 0.9 * (1 - ((t / 900) % 1)) : 0.35
-    const sc = stopped ? SWING_R * (1 + ((t / 900) % 1) * 0.6) : SWING_R + 3
+    const sc = stopped ? R * (1 + ((t / 900) % 1) * 0.6) : R + 3
+    g.current.children[0].scale.setScalar(R)
+    g.current.children[1].scale.setScalar(R)
     g.current.children[2].scale.setScalar(sc)
   })
   return (
     <group ref={g} rotation={[0, 0, 0]}>
-      <mesh geometry={ringGeo} material={ring} rotation={[-Math.PI / 2, 0, 0]} scale={SWING_R} renderOrder={4} />
-      <mesh geometry={discGeo} material={disc} rotation={[-Math.PI / 2, 0, 0]} scale={SWING_R} renderOrder={3} />
-      <mesh geometry={ringGeo} material={outer} rotation={[-Math.PI / 2, 0, 0]} scale={SWING_R + 3} renderOrder={4} />
+      <mesh geometry={ringGeo} material={ring} rotation={[-Math.PI / 2, 0, 0]} renderOrder={4} />
+      <mesh geometry={discGeo} material={disc} rotation={[-Math.PI / 2, 0, 0]} renderOrder={3} />
+      <mesh geometry={ringGeo} material={outer} rotation={[-Math.PI / 2, 0, 0]} renderOrder={4} />
     </group>
   )
 }
@@ -175,6 +178,59 @@ function CraneEnvelopes() {
   )
 }
 
+// Abenix ML worker path prediction: where each tag is expected 1, 2 and 3 s ahead.
+function WorkerPredictions() {
+  const CAP = 64
+  const geo = useMemo(() => {
+    const g = new THREE.BufferGeometry()
+    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(CAP * 2 * 3), 3))
+    g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(CAP * 2 * 3), 3))
+    return g
+  }, [])
+  const ptsGeo = useMemo(() => {
+    const g = new THREE.BufferGeometry()
+    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(CAP * 3), 3))
+    return g
+  }, [])
+  const ice = useMemo(() => new THREE.Color(COLORS.ice), [])
+  const amber = useMemo(() => new THREE.Color(COLORS.amber), [])
+  useFrame(() => {
+    const pos = geo.attributes.position.array as Float32Array
+    const col = geo.attributes.color.array as Float32Array
+    const pp = ptsGeo.attributes.position.array as Float32Array
+    let n = 0, m = 0
+    for (const w of hot.curr?.workers ?? []) {
+      if (!w.predicted?.length) continue
+      let px = w.x, py = w.y
+      const c = w.zone === 'ok' ? ice : amber
+      for (const [x, y] of w.predicted) {
+        if (n >= CAP) break
+        pos.set([px, heightAt(px, py) + 0.4, -py, x, heightAt(x, y) + 0.4, -y], n * 6)
+        col.set([c.r, c.g, c.b, c.r, c.g, c.b], n * 6)
+        n++
+        px = x
+        py = y
+      }
+      if (m < CAP) pp.set([px, heightAt(px, py) + 0.4, -py], m++ * 3)
+    }
+    geo.setDrawRange(0, n * 2)
+    ptsGeo.setDrawRange(0, m)
+    geo.attributes.position.needsUpdate = true
+    geo.attributes.color.needsUpdate = true
+    ptsGeo.attributes.position.needsUpdate = true
+  })
+  return (
+    <group renderOrder={6}>
+      <lineSegments geometry={geo} frustumCulled={false}>
+        <lineBasicMaterial vertexColors transparent opacity={0.9} depthTest={false} toneMapped={false} />
+      </lineSegments>
+      <points geometry={ptsGeo} frustumCulled={false}>
+        <pointsMaterial color={COLORS.ice} size={5} sizeAttenuation={false} transparent opacity={0.95} depthTest={false} toneMapped={false} />
+      </points>
+    </group>
+  )
+}
+
 export function Overlays() {
   const ov = useUi((s) => s.overlays)
   const cam = useUi((s) => s.cam)
@@ -188,6 +244,7 @@ export function Overlays() {
       {site && ov.roads && <Roads site={site} depthTest={depthTest} rev={rev} />}
       {ov.swing && ex.split('|').filter(Boolean).map((id) => <SwingRing key={id} id={id} />)}
       {ov.crane && <CraneEnvelopes />}
+      {ov.workers && <WorkerPredictions />}
     </group>
   )
 }

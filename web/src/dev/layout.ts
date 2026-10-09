@@ -10,6 +10,8 @@ export const REPLAY_SITE: SiteLayout = {
   building: [[-45, -8], [12, -8], [12, 34], [-45, 34]],
   spoil: [[48, 30], [92, 30], [92, 88], [48, 88]],
   designDepth: -7,
+  piles: Array.from({ length: 11 }, (_, i) => [66, -40 + i * 3.2] as Vec2),
+  swingRadius: 9.8,
   gate: [0, -98],
   zones: [
     { id: 'Z-PIT', kind: 'geofence', label: 'Basement dig', polygon: [[-58, -21], [25, -21], [25, 45], [-58, 45]] },

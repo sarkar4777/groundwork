@@ -24,6 +24,7 @@ export interface Worker {
   y: number
   heading: number
   zone: 'ok' | 'warn' | 'danger' | string
+  predicted?: [number, number][]
 }
 
 export interface Crane {
@@ -40,7 +41,7 @@ export interface SafetyStop { machine: string; rule: string; since: number }
 
 export interface Latency { l1_ms: number; l2_ms: number; l3_ms: number; l4_ms: number; l5_ms: number }
 
-export interface Kpi { m3_moved: number; cycles: number; trucks_waiting: number; ai_cost_usd: number }
+export interface Kpi { m3_moved: number; cycles: number; trucks_waiting: number; ai_cost_usd?: number }
 
 export interface StateFrame {
   type: 'state'
@@ -54,6 +55,9 @@ export interface StateFrame {
   safety: { envelope: 'ok' | 'warn' | 'stop' | string; active_stops: SafetyStop[] }
   latency: Partial<Latency>
   kpi: Kpi
+  ai_available?: boolean
+  vecus?: number
+  plan?: { source: string; version: number }
 }
 
 export interface BusFrame {
@@ -131,6 +135,8 @@ export interface SiteLayout {
   craneBases: { id: string; kind: 'tower' | 'mobile'; x: number; y: number; radius: number }[]
   gate: Vec2 | null
   designDepth: number
+  piles: Vec2[]
+  swingRadius: number
 }
 
 export interface Terrain {
@@ -139,4 +145,5 @@ export interface Terrain {
   extent: number
   heights: Float32Array
   delta: Float32Array | null
+  designZ: number | null
 }

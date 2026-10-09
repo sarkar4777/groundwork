@@ -12,7 +12,7 @@ import { Nervous } from './Nervous'
 import { CameraRig } from './CameraRig'
 import { LabelProjector } from './Labels'
 import { nervous } from './nervousState'
-import { applyNervous } from './materials'
+import { applyNervous, dimWithNervous } from './materials'
 import { useUi } from '../live/store'
 import { CAPTURE } from '../live/config'
 
@@ -68,11 +68,14 @@ function Lights() {
   )
 }
 
+const horizonMat = new THREE.MeshStandardMaterial({ color: '#6f7558', roughness: 1 })
+dimWithNervous(horizonMat)
+
 function Horizon() {
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.5, 0]} receiveShadow={false}>
       <ringGeometry args={[590, 6000, 64, 1]} />
-      <meshStandardMaterial color="#6f7558" roughness={1} />
+      <primitive object={horizonMat} attach="material" />
     </mesh>
   )
 }

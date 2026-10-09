@@ -2,9 +2,12 @@ import * as THREE from 'three'
 import { useEffect, useMemo, useRef } from 'react'
 import { useFrame, useLoader, useThree } from '@react-three/fiber'
 import { hot } from '../../live/hot'
+import type { Terrain } from '../../proto/types'
 import { groundState, setTarget, stepMorph } from './heights'
 import { CITY, TEX, cityBlocks, paintCity, paintSite, riverX, type Imgs, type TexKey } from './paint'
 import { nervous } from '../nervousState'
+import { dimWithNervous } from '../materials'
+import { Dressing } from './Dressing'
 import { useUi } from '../../live/store'
 
 const N0 = 256
@@ -194,6 +197,7 @@ export function Ground() {
     if (hot.siteVersion !== siteVer.current && !painting.current) {
       siteVer.current = hot.siteVersion
       painting.current = true
+      if (hot.terrain) paintCutFill(cut, hot.terrain)
       paintSite(imgs, hot.site).then((c) => {
         ;(siteTex.image as HTMLCanvasElement).getContext('2d')!.drawImage(c, 0, 0)
         siteTex.needsUpdate = true
@@ -203,7 +207,7 @@ export function Ground() {
     if (hot.terrain && hot.terrainVersion !== terrainVer.current) {
       terrainVer.current = hot.terrainVersion
       setTarget(hot.terrain)
-      paintCutFill(cut, hot.terrain.delta, hot.terrain.n)
+      paintCutFill(cut, hot.terrain)
     }
     const morphing = stepMorph(dt)
     const { shown, n, extent } = groundState
@@ -280,14 +284,49 @@ export function Ground() {
       <mesh geometry={geo} material={cutMat} visible={showCut} renderOrder={1} />
       <mesh geometry={cityGeo} material={cityMat} receiveShadow position={[0, -0.02, 0]} />
       <City />
+      <Dressing />
     </group>
   )
 }
 
-const blockMat = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.85, metalness: 0.05 })
+// Facades get floors and window bays from world position, roofs get plant boxes from noise.
+const blockMat = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.8, metalness: 0.05 })
+blockMat.onBeforeCompile = (sh) => {
+  sh.vertexShader = sh.vertexShader
+    .replace('#include <common>', `#include <common>
+varying vec3 vBW;
+varying vec3 vBN;`)
+    .replace('#include <worldpos_vertex>', `#include <worldpos_vertex>
+vBW = (modelMatrix * instanceMatrix * vec4(transformed, 1.0)).xyz;
+vBN = normalize(mat3(modelMatrix * instanceMatrix) * objectNormal);`)
+  sh.fragmentShader = sh.fragmentShader
+    .replace('#include <common>', `#include <common>
+varying vec3 vBW;
+varying vec3 vBN;
+float bh(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }`)
+    .replace(
+      '#include <color_fragment>',
+      `#include <color_fragment>
+      if (vBN.y > 0.5) {
+        vec2 cell = floor(vBW.xz / 3.0);
+        float r = bh(cell);
+        diffuseColor.rgb *= 0.62 + 0.12 * bh(floor(vBW.xz / 0.7));
+        if (r > 0.9) diffuseColor.rgb *= 0.55;
+      } else {
+        float along = abs(vBN.x) > 0.5 ? vBW.z : vBW.x;
+        float fl = fract(vBW.y / 3.3);
+        float bay = fract(along / 2.8);
+        float win = step(0.32, fl) * step(fl, 0.86) * step(0.18, bay) * step(bay, 0.82) * step(1.2, vBW.y);
+        float lit = step(0.93, bh(vec2(floor(along / 2.8), floor(vBW.y / 3.3))));
+        vec3 glass = mix(vec3(0.10, 0.14, 0.19), vec3(0.95, 0.78, 0.5), lit * 0.6);
+        diffuseColor.rgb = mix(diffuseColor.rgb, glass, win * 0.9);
+      }`,
+    )
+}
 const treeMat = new THREE.MeshStandardMaterial({ color: '#3f5a33', roughness: 1 })
 const waterMat = new THREE.MeshStandardMaterial({ color: '#173238', roughness: 0.12, metalness: 0.4, envMapIntensity: 0.8 })
 const hoardMat = new THREE.MeshStandardMaterial({ color: '#1f3f6e', roughness: 0.7 })
+dimWithNervous(blockMat, treeMat, waterMat, hoardMat)
 
 function City() {
   const blocks = useMemo(() => cityBlocks(), [])
@@ -315,7 +354,8 @@ function City() {
     blocks.forEach((b, i) => {
       m.compose(new THREE.Vector3(b.x, b.h / 2, -b.y), new THREE.Quaternion(), new THREE.Vector3(b.w, b.h, b.d))
       ref.current.setMatrixAt(i, m)
-      c.setHSL(0.08 + b.tone * 0.5, 0.06 + b.tone * 0.06, 0.48 + b.tone * 0.22)
+      const pal = ['#b9b2a6', '#9a8f84', '#c8c2b8', '#8e98a3', '#a7a196', '#b5a48f', '#7f8a86']
+      c.set(pal[Math.floor(b.tone * pal.length) % pal.length])
       ref.current.setColorAt(i, c)
     })
     ref.current.instanceMatrix.needsUpdate = true
@@ -371,21 +411,45 @@ function Hoarding() {
   )
 }
 
-// Diverging ramp: blue where the ground is below design, amber where it is above.
-function paintCutFill(tex: THREE.DataTexture, delta: Float32Array | null, n: number) {
-  if (!delta) return
-  const data = new Uint8Array(n * n * 4)
-  for (let i = 0; i < n * n; i++) {
-    const d = delta[i]
-    const a = Math.min(1, Math.abs(d) / 3)
-    if (Math.abs(d) < 0.15 || !isFinite(d)) continue
-    if (d > 0) {
-      data[i * 4] = 255; data[i * 4 + 1] = 150 + (1 - a) * 60; data[i * 4 + 2] = 30
-    } else {
-      data[i * 4] = 60; data[i * 4 + 1] = 160 + (1 - a) * 60; data[i * 4 + 2] = 255
-    }
-    data[i * 4 + 3] = 60 + a * 120
+// Blue where the pit is still above the design surface, amber where fill has been placed since shift start.
+function inPoly(x: number, y: number, poly: [number, number][]) {
+  let c = false
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [xi, yi] = poly[i], [xj, yj] = poly[j]
+    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) c = !c
   }
+  return c
+}
+
+function paintCutFill(tex: THREE.DataTexture, t: Terrain) {
+  const n = t.n
+  const data = new Uint8Array(n * n * 4)
+  const pit = hot.site?.pit ?? null
+  const dz = t.designZ ?? hot.site?.designDepth ?? null
+  for (let j = 0; j < n; j++)
+    for (let i = 0; i < n; i++) {
+      const k = j * n + i
+      const x = -t.extent / 2 + (i / (n - 1)) * t.extent
+      const y = -t.extent / 2 + (j / (n - 1)) * t.extent
+      let r = 0, g = 0, b = 0, a = 0
+      if (pit && dz !== null && inPoly(x, y, pit)) {
+        const left = t.heights[k] - dz
+        if (left > 0.1) {
+          const q = Math.min(1, left / 6)
+          r = 40 + (1 - q) * 80; g = 140 + (1 - q) * 80; b = 255; a = 70 + q * 110
+        } else {
+          r = 62; g = 230; b = 168; a = 90
+        }
+      } else if (t.delta) {
+        const d = t.delta[k]
+        if (isFinite(d) && Math.abs(d) > 0.15) {
+          const q = Math.min(1, Math.abs(d) / 3)
+          if (d > 0) { r = 255; g = 150 + (1 - q) * 60; b = 30 } else { r = 60; g = 160; b = 255 }
+          a = 60 + q * 120
+        }
+      }
+      data[k * 4] = r; data[k * 4 + 1] = g; data[k * 4 + 2] = b; data[k * 4 + 3] = a
+    }
   tex.image = { data, width: n, height: n }
   tex.needsUpdate = true
 }

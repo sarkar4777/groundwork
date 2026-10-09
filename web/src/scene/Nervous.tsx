@@ -6,7 +6,7 @@ import { heightAt } from './ground/heights'
 import { nervous } from './nervousState'
 
 export const SAFETY_Y = 26
-export const CORE = new THREE.Vector3(0, 110, 0)
+export const CORE = new THREE.Vector3(0, 88, 0)
 const CAP = 3200
 
 const C = {
@@ -38,7 +38,7 @@ void main() {
   vColor = aColor;
   vAlpha = aAlpha;
   vec4 mv = modelViewMatrix * vec4(position, 1.0);
-  gl_PointSize = aSize * (420.0 / -mv.z);
+  gl_PointSize = aSize * (900.0 / -mv.z);
   gl_Position = projectionMatrix * mv;
 }`
 
@@ -108,17 +108,17 @@ export function Nervous() {
           void main(){
             float r = length(vP) / 120.0;
             float h = 1.0 - smoothstep(0.0, 0.06, hex(vP / 7.0));
-            float ring = smoothstep(0.012, 0.0, abs(fract(r * 4.0 - uT * 0.15) - 0.5) - 0.48);
+            float f = fract(r * 4.0 - uT * 0.15); float ring = 1.0 - smoothstep(0.0, 0.012, min(f, 1.0 - f));
             float fade = smoothstep(1.0, 0.55, r);
-            vec3 c = vec3(0.36, 0.78, 1.0) * (h * 0.32 + ring * 0.35 + 0.035);
-            gl_FragColor = vec4(c * fade * uK, fade * uK);
+            vec3 c = vec3(0.36, 0.78, 1.0) * (h * 0.16 + ring * 0.3);
+            gl_FragColor = vec4(c * fade * uK, 1.0);
           }`,
       }),
     [],
   )
   const flashGeo = useMemo(() => new THREE.RingGeometry(0.86, 1, 64), [])
-  const beamGeo = useMemo(() => new THREE.CylinderGeometry(0.25, 0.25, 1, 8, 1, true), [])
-  const pillarMat = useMemo(() => new THREE.MeshBasicMaterial({ color: new THREE.Color('#5cc8ff').multiplyScalar(1.2), transparent: true, opacity: 0.18, blending: THREE.AdditiveBlending, depthWrite: false }), [])
+  const beamGeo = useMemo(() => new THREE.CylinderGeometry(0.12, 0.12, 1, 6, 1, true), [])
+  const pillarMat = useMemo(() => new THREE.MeshBasicMaterial({ color: new THREE.Color('#5cc8ff').multiplyScalar(1.4), transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending, depthWrite: false }), [])
   const pillars = useRef<THREE.InstancedMesh>(null!)
 
   const spawn = (a: THREE.Vector3, b: THREE.Vector3, c: THREE.Vector3, col: THREE.Color, speed: number, size: number, t0 = 0) => {
@@ -166,7 +166,7 @@ export function Nervous() {
         hashPos(f.ecu, tmpC)
         tmpA.set(tmpC.x * 1.4, 1, tmpC.z * 1.4)
         tmpB.set(tmpC.x * 1.2, SAFETY_Y * 0.5, tmpC.z * 1.2)
-        spawn(tmpA, tmpB, tmpC, C.mint, 0.8, 2.2)
+        spawn(tmpA, tmpB, tmpC, C.mint, 0.8, 3.2)
         continue
       }
       if (!machinePos(f.machine, tmpA)) continue
@@ -175,7 +175,7 @@ export function Nervous() {
       tmpC.set(tmpA.x + (Math.random() - 0.5) * 4, SAFETY_Y, tmpA.z + (Math.random() - 0.5) * 4)
       tmpB.set(tmpA.x, (tmpA.y + SAFETY_Y) * 0.5 + 4, tmpA.z)
       const dm1 = f.pgn === 65226
-      spawn(tmpA, tmpB, tmpC, dm1 ? C.amber : C.sky, 0.9 + Math.random() * 0.5, dm1 ? 3 : 1.7)
+      spawn(tmpA, tmpB, tmpC, dm1 ? C.amber : C.sky, 0.9 + Math.random() * 0.5, dm1 ? 4.5 : 3)
     }
     hot.busParticles.length = 0
 
@@ -208,7 +208,7 @@ export function Nervous() {
       tmpB.set(tmpA.x * 0.5, CORE.y + 30, tmpA.z * 0.5)
       const col = a.phase === 'waiting_approval' ? C.amber : a.phase === 'answer' ? C.mint : C.ice
       const down = a.phase === 'answer'
-      for (let i = 0; i < 26; i++) spawn(down ? CORE : tmpA, tmpB, down ? tmpA : CORE, col, 0.55, 3.2 - i * 0.08, -i * 0.018)
+      for (let i = 0; i < 30; i++) spawn(down ? CORE : tmpA, tmpB, down ? tmpA : CORE, col, 0.5, 5 - i * 0.12, -i * 0.016)
     }
     hot.arcs.length = 0
 
@@ -268,7 +268,7 @@ export function Nervous() {
         pillars.current.setMatrixAt(i, m4)
       }
       pillars.current.instanceMatrix.needsUpdate = true
-      pillarMat.opacity = 0.16 * k
+      pillarMat.opacity = 0.32 * k
     }
   })
 

@@ -137,14 +137,15 @@ export function CabHud() {
   const windTone = c.wind_ms >= 20 ? '#ff4d5e' : c.wind_ms >= 14 ? '#ffb020' : '#3ee6a8'
   return (
     <div className="hud">
+      <CabFrame />
       <div className="tl">
         <span className="hud-box"><span className="hud-k">CAB</span><span className="hud-v">{c.id} · LUFFING JIB</span></span>
       </div>
-      <div className="br" style={{ flexDirection: 'row', gap: 12, alignItems: 'flex-end', bottom: 70 }}>
+      <div className="tr" style={{ flexDirection: 'row', gap: 12, alignItems: 'flex-start', top: 48, right: 70 }}>
         <Gauge label="LMI" value={c.lmi_pct} max={100} unit="%" tone={lmiTone} limit={90} />
         <Gauge label="WIND" value={c.wind_ms} max={30} unit="m/s" tone={windTone} limit={20} />
       </div>
-      <div className="bl" style={{ bottom: 70 }}>
+      <div className="tl" style={{ top: 52, left: 70 }}>
         <div className="hud-box" style={{ display: 'grid', gridTemplateColumns: 'auto auto', gap: '3px 14px' }}>
           <span className="hud-k">LOAD</span><span className="hud-v">{c.load_t.toFixed(1)} t</span>
           <span className="hud-k">RADIUS</span><span className="hud-v">{radius.toFixed(1)} m</span>
@@ -180,6 +181,21 @@ function Gauge({ label, value, max, unit, tone, limit }: { label: string; value:
   )
 }
 
+function CabFrame({ seat }: { seat?: boolean }) {
+  return (
+    <svg className="cabframe" viewBox="0 0 1000 600" preserveAspectRatio="none" aria-hidden>
+      <defs>
+        <linearGradient id="pil" x1="0" x2="1">
+          <stop offset="0" stopColor="#0a1426" />
+          <stop offset="1" stopColor="#1b2a44" />
+        </linearGradient>
+      </defs>
+      <path d={seat ? 'M0 0 H1000 V36 H0Z M0 0 H70 L150 600 H0Z M1000 0 H930 L850 600 H1000Z' : 'M0 0 H1000 V26 H0Z M0 0 H46 L90 600 H0Z M1000 0 H954 L910 600 H1000Z M0 560 H1000 V600 H0Z'} fill="url(#pil)" opacity="0.92" />
+      {seat && <path d="M0 520 Q500 470 1000 520 V600 H0Z" fill="#0b1628" opacity="0.9" />}
+    </svg>
+  )
+}
+
 export function ModeTag({ label, sub }: { label: string; sub?: string }) {
   return (
     <div className="hud">
@@ -199,11 +215,12 @@ export function SeatHud() {
   const deg = (r: number | undefined) => (r === undefined ? '--' : `${((r * 180) / Math.PI).toFixed(0)}°`)
   return (
     <div className="hud">
-      <div className="tl">
+      <CabFrame seat />
+      <div className="tl" style={{ left: 90 }}>
         <span className="hud-box"><span className="hud-k">SEAT</span><span className="hud-v">{m.id} · {m.mode.toUpperCase()}</span></span>
         <span className="hud-box"><span className="hud-k">TASK</span><span className="hud-v" style={{ fontFamily: 'Inter' }}>{m.task || '--'}</span></span>
       </div>
-      <div className="bl" style={{ bottom: 70 }}>
+      <div className="tr" style={{ top: 56, right: 90 }}>
         <div className="hud-box" style={{ display: 'grid', gridTemplateColumns: 'auto auto', gap: '3px 14px' }}>
           <span className="hud-k">SWING</span><span className="hud-v">{deg(m.joints.swing)}</span>
           <span className="hud-k">BOOM</span><span className="hud-v">{deg(m.joints.boom)}</span>

@@ -98,9 +98,13 @@ export function StoryLayer() {
     setTimeout(() => approve(p, 'approve'), 420)
     setTimeout(() => setTap(false), 1200)
   }, [s, running])
-  if (!running) return null
   const beat = beatAt(s)
   const f = beat.focus
+  const end = running && f === 'endcard' && s > 53
+  useEffect(() => {
+    document.body.dataset.endcard = end ? '1' : '0'
+  }, [end])
+  if (!running) return null
   return (
     <>
       <div className="story-chip glass">
@@ -115,7 +119,7 @@ export function StoryLayer() {
       {f === 'latency' && <div className="story-float bottomc" key="lat"><LatencyStrip focus /></div>}
       {f === 'faults' && <div className="story-float right" key="faults"><FaultDeck focus /></div>}
       {f === 'autonomy' && <div className="story-float right" key="auto"><Autonomy focus /></div>}
-      {f === 'endcard' && s > 53 && (
+      {end && (
         <div className="endcard">
           <div className="inner">
             <h1>Groundwork</h1>

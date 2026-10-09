@@ -37,8 +37,17 @@ export const MAT = {
   beacon: std({ color: '#ffb020', emissive: new THREE.Color('#ff9a00'), emissiveIntensity: 1.6, roughness: 0.3 }),
 }
 
-const nervousTargets = [MAT.paint, MAT.paintDirty, MAT.dark, MAT.darkMatte, MAT.steel, MAT.white, MAT.concrete, MAT.timber, MAT.glass]
+const nervousTargets: THREE.MeshStandardMaterial[] = [MAT.paint, MAT.paintDirty, MAT.dark, MAT.darkMatte, MAT.steel, MAT.white, MAT.concrete, MAT.timber, MAT.glass, MAT.rebar, MAT.soil, MAT.trousers, MAT.skin]
 const base = new Map(nervousTargets.map((m) => [m, { color: m.color.clone(), emissive: m.emissive.clone(), ei: m.emissiveIntensity }]))
+
+// Scenery materials join the dimming too.
+export function dimWithNervous(...ms: THREE.MeshStandardMaterial[]) {
+  for (const m of ms) {
+    if (base.has(m)) continue
+    nervousTargets.push(m)
+    base.set(m, { color: m.color.clone(), emissive: m.emissive.clone(), ei: m.emissiveIntensity })
+  }
+}
 const nervousTint = new THREE.Color('#0b2350')
 const nervousEdge = new THREE.Color('#2a7fd4')
 
@@ -98,6 +107,7 @@ export function numberDecal(text: string, bg = COLORS.yellow, fg = COLORS.grey):
   tex.anisotropy = 4
   const m = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.45, metalness: 0.1 })
   decalCache.set(key, m)
+  dimWithNervous(m)
   return m
 }
 
@@ -123,6 +133,7 @@ export function hazardMat(): THREE.MeshStandardMaterial {
   t.repeat.set(4, 1)
   t.colorSpace = THREE.SRGBColorSpace
   hazard = new THREE.MeshStandardMaterial({ map: t, roughness: 0.5 })
+  dimWithNervous(hazard)
   return hazard
 }
 
@@ -148,5 +159,6 @@ export function latticeMat(): THREE.MeshStandardMaterial {
   t.wrapS = t.wrapT = THREE.RepeatWrapping
   t.colorSpace = THREE.SRGBColorSpace
   lattice = new THREE.MeshStandardMaterial({ map: t, color: COLORS.yellow, alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.45, metalness: 0.2 })
+  dimWithNervous(lattice)
   return lattice
 }

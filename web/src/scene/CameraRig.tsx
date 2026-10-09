@@ -32,8 +32,8 @@ export function machinePose(id: string | null, kind: 'follow' | 'seat', t: numbe
   if (!m) return false
   const gz = heightAt(m.x, m.y)
   if (kind === 'follow') {
-    const back = 22, up = 11
-    const h = m.heading + Math.sin(t * 0.15) * 0.25
+    const back = 27, up = 15
+    const h = m.heading + 0.65 + Math.sin(t * 0.15) * 0.2
     out.pos.set(m.x - Math.cos(h) * back, gz + up, -(m.y - Math.sin(h) * back))
     out.look.set(m.x + Math.cos(m.heading) * 4, gz + 2, -(m.y + Math.sin(m.heading) * 4))
     out.fov = 42
@@ -160,8 +160,8 @@ export function CameraRig() {
           ok = cranePose(pose)
           break
         case 'nervous':
-          orbitPose(pose, 190, 120, 0.75 + t * 0.03, new THREE.Vector3(0, 38, 0))
-          pose.fov = 46
+          orbitPose(pose, 215, 92, 0.75 + t * 0.03, new THREE.Vector3(0, 44, 0))
+          pose.fov = 48
           break
       }
       if (!ok) dronePose(pose, drone.x, drone.y, drone.alt, t)

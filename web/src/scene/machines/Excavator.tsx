@@ -4,8 +4,15 @@ import { MAT, hazardMat } from '../materials'
 import { Beacon, Box, Cyl, Decal, Track, spanBetween } from './parts'
 import { useMachineDrive } from './common'
 
-const BOOM_A = 0.62
-const BOOM_B = -0.55
+// Matches the twin: boom chord 5.7 m from a pivot 1.6 m ahead of the swing centre, stick 2.9 m at boom + stick - 1.1.
+const BOOM_L = 5.7
+const STICK_L = 2.9
+const APEX_X = 3.0
+const APEX_Y = 0.85
+const SEG1_A = Math.atan2(APEX_Y, APEX_X)
+const SEG1_L = Math.hypot(APEX_X, APEX_Y)
+const SEG2_A = Math.atan2(-APEX_Y, BOOM_L - APEX_X)
+const SEG2_L = Math.hypot(BOOM_L - APEX_X, APEX_Y)
 
 export function Excavator({ id }: { id: string }) {
   const root = useRef<THREE.Group>(null!)
@@ -27,9 +34,9 @@ export function Excavator({ id }: { id: string }) {
   useMachineDrive(id, root, 4.8, 3.2, (m) => {
     const j = m.joints
     upper.current.rotation.y = j.swing ?? 0
-    boom.current.rotation.z = (j.boom ?? 0.4) - BOOM_A + 0.25
-    stick.current.rotation.z = (j.stick ?? -1) - BOOM_B - 0.6
-    bucket.current.rotation.z = -(j.bucket ?? 0.3)
+    boom.current.rotation.z = j.boom ?? 0.3
+    stick.current.rotation.z = (j.stick ?? 0.5) - 1.1
+    bucket.current.rotation.z = -0.4 - (j.bucket ?? 0.3)
     soil.current.visible = m.load_t > 1
     spanBetween(cylBoom.current, aBoomBase.current, aBoomMid.current)
     spanBetween(cylStick.current, aStickBase.current, aStickEnd.current)
@@ -56,27 +63,27 @@ export function Excavator({ id }: { id: string }) {
         </group>
         <Cyl r={0.08} h={0.9} m={MAT.darkMatte} position={[-1.3, 1.6, 0.9]} />
         <object3D ref={aBoomBase} position={[0.9, 0.5, 0.35]} />
-        <group ref={boom} position={[1.05, 0.95, 0.35]}>
-          <group rotation={[0, 0, BOOM_A]}>
-            <Box s={[3.5, 0.62, 0.62]} r={0.12} position={[1.75, 0, 0]} />
-            <Box s={[3.5, 0.04, 0.64]} m={MAT.accent} position={[1.75, 0.2, 0]} shadow={false} />
-            <object3D ref={aBoomMid} position={[2.2, -0.35, 0]} />
-            <group position={[3.4, 0, 0]} rotation={[0, 0, BOOM_B - BOOM_A]}>
-              <Box s={[3.2, 0.56, 0.58]} r={0.12} position={[1.55, 0, 0]} />
-              <object3D ref={aStickBase} position={[0.4, 0.4, 0]} />
-              <group ref={stick} position={[3.1, 0, 0]}>
-                <Box s={[3.0, 0.42, 0.46]} r={0.1} m={MAT.paintDirty} position={[1.35, 0, 0]} />
-                <object3D ref={aStickEnd} position={[-0.25, 0.35, 0]} />
-                <object3D ref={aBucketBase} position={[0.5, 0.3, 0]} />
-                <group ref={bucket} position={[2.85, 0, 0]}>
-                  <object3D ref={aBucketEnd} position={[0.2, 0.45, 0]} />
-                  <Box s={[1.2, 0.18, 1.3]} r={0.05} m={MAT.darkMatte} position={[0.55, -0.55, 0]} rotation={[0, 0, -0.3]} />
-                  <Box s={[0.18, 1.1, 1.3]} r={0.05} m={MAT.darkMatte} position={[0.05, -0.05, 0]} />
-                  <Box s={[0.9, 0.8, 0.12]} r={0.04} m={MAT.darkMatte} position={[0.45, -0.15, 0.6]} />
-                  <Box s={[0.9, 0.8, 0.12]} r={0.04} m={MAT.darkMatte} position={[0.45, -0.15, -0.6]} />
-                  <mesh ref={soil} geometry={new THREE.SphereGeometry(0.6, 10, 8)} material={MAT.soil} position={[0.5, -0.1, 0]} scale={[1, 0.6, 1.05]} />
-                </group>
-              </group>
+        <group ref={boom} position={[1.6, 0.95, 0.35]}>
+          <group rotation={[0, 0, SEG1_A]}>
+            <Box s={[SEG1_L + 0.3, 0.62, 0.62]} r={0.12} position={[SEG1_L / 2, 0, 0]} />
+            <Box s={[SEG1_L, 0.04, 0.64]} m={MAT.accent} position={[SEG1_L / 2, 0.2, 0]} shadow={false} />
+            <object3D ref={aBoomMid} position={[SEG1_L * 0.7, -0.35, 0]} />
+          </group>
+          <group position={[APEX_X, APEX_Y, 0]} rotation={[0, 0, SEG2_A]}>
+            <Box s={[SEG2_L + 0.3, 0.56, 0.58]} r={0.12} position={[SEG2_L / 2, 0, 0]} />
+            <object3D ref={aStickBase} position={[0.3, 0.4, 0]} />
+          </group>
+          <group ref={stick} position={[BOOM_L, 0, 0]}>
+            <Box s={[STICK_L + 0.4, 0.42, 0.46]} r={0.1} m={MAT.paintDirty} position={[STICK_L / 2 - 0.1, 0, 0]} />
+            <object3D ref={aStickEnd} position={[-0.3, 0.35, 0]} />
+            <object3D ref={aBucketBase} position={[0.5, 0.3, 0]} />
+            <group ref={bucket} position={[STICK_L, 0, 0]}>
+              <object3D ref={aBucketEnd} position={[0.2, 0.45, 0]} />
+              <Box s={[1.2, 0.18, 1.3]} r={0.05} m={MAT.darkMatte} position={[0.55, -0.55, 0]} rotation={[0, 0, -0.3]} />
+              <Box s={[0.18, 1.1, 1.3]} r={0.05} m={MAT.darkMatte} position={[0.05, -0.05, 0]} />
+              <Box s={[0.9, 0.8, 0.12]} r={0.04} m={MAT.darkMatte} position={[0.45, -0.15, 0.6]} />
+              <Box s={[0.9, 0.8, 0.12]} r={0.04} m={MAT.darkMatte} position={[0.45, -0.15, -0.6]} />
+              <mesh ref={soil} geometry={new THREE.SphereGeometry(0.6, 10, 8)} material={MAT.soil} position={[0.5, -0.1, 0]} scale={[1, 0.6, 1.05]} />
             </group>
           </group>
         </group>

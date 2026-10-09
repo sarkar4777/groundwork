@@ -42,7 +42,8 @@ export function parseTerrain(j: Json, fallbackRev: number): Terrain {
   const db = pickString(j, ['delta', 'cut_fill', 'cutfill', 'cut_fill_delta', 'diff', 'dz'])
   const n = num(j.n ?? j.size ?? j.width ?? j.res ?? j.resolution, Math.round(Math.sqrt(heights.length)))
   const extent = num(j.extent ?? j.extent_m ?? j.size_m ?? j.metres ?? j.meters, 200)
-  return { rev: num(j.rev, fallbackRev), n, extent, heights, delta: db ? decodeF16(db) : null }
+  const dz = j.design_z ?? j.designZ
+  return { rev: num(j.rev, fallbackRev), n, extent, heights, delta: db ? decodeF16(db) : null, designZ: typeof dz === 'number' ? dz : null }
 }
 
 function toPts(v: unknown): Vec2[] | null {
@@ -80,10 +81,15 @@ function entries(v: unknown): [string, unknown][] {
 
 export function parseSite(j: Json): SiteLayout {
   const zones: SiteLayout['zones'] = []
+  let swingRadius = 0
   for (const [id, z] of entries(j.zones ?? j.geofences ?? j.exclusion_zones)) {
+    const o = isObj(z) ? z : {}
+    if (/swing/i.test(String(o.kind ?? ''))) {
+      swingRadius = Math.max(swingRadius, num(o.r ?? o.radius, 0))
+      continue
+    }
     const poly = rectOrCircle(z)
     if (!poly) continue
-    const o = isObj(z) ? z : {}
     zones.push({ id, kind: String(o.kind ?? o.type ?? 'zone'), label: String(o.label ?? o.name ?? id), polygon: poly })
   }
   const haulRoads: SiteLayout['haulRoads'] = []
@@ -124,6 +130,8 @@ export function parseSite(j: Json): SiteLayout {
     craneBases,
     gate,
     designDepth,
+    piles: Array.isArray(j.piles) ? (j.piles as unknown[]).filter(Array.isArray).map((p) => [Number((p as number[])[0]), Number((p as number[])[1])] as Vec2) : [],
+    swingRadius: swingRadius || 9.8,
   }
 }
 

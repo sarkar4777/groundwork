@@ -132,7 +132,7 @@ export function Telehandler({ id }: { id: string }) {
   const ext = useRef<THREE.Group>(null!)
   useMachineDrive(id, root, 5, 2.4, (m) => {
     boom.current.rotation.z = m.joints.boom ?? 0.2
-    ext.current.position.x = 4.2 + (m.joints.extend ?? 0.3) * 3
+    ext.current.position.x = 4.2 + (m.joints.extension ?? m.joints.extend ?? 0.3) * 3
   })
   return (
     <group ref={root}>
@@ -159,8 +159,9 @@ export function PilingRig({ id }: { id: string }) {
   const root = useRef<THREE.Group>(null!)
   const auger = useRef<THREE.Group>(null!)
   useMachineDrive(id, root, 5.2, 3.6, (m) => {
-    auger.current.rotation.y = m.joints.auger ?? 0
-    auger.current.position.y = 1.2 + Math.max(0, 8 - (m.joints.depth ?? 4)) * 0.4
+    if (m.joints.auger !== undefined) auger.current.rotation.y = m.joints.auger
+    auger.current.position.y = 1.2 + Math.max(0, 12 - (m.joints.hammer ?? m.joints.depth ?? 4)) * 0.6
+    auger.current.rotation.y += m.speed === 0 && (m.joints.hammer ?? 0) > 0 ? 0.08 : 0
   })
   return (
     <group ref={root}>

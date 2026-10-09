@@ -21,7 +21,8 @@ export function VecuConsole({ focus }: { focus?: boolean }) {
   const [pick, setPick] = useState<string>('')
   const machineId = pick || (sel && ids.split('|').includes(sel) ? sel : ids.split('|')[0] || '')
   const m = useUi((s) => s.state?.machines.find((x) => x.id === machineId))
-  const total = [...ecuStats.values()].reduce((a, e) => a + e.size, 0)
+  const reported = useUi((s) => s.state?.vecus)
+  const total = reported ?? [...ecuStats.entries()].filter(([k]) => k !== 'SITE').reduce((a, [, e]) => a + e.size, 0)
   const ecus = [...(ecuStats.get(machineId)?.values() ?? [])].sort((a, b) => a.ecu.localeCompare(b.ecu))
   const now = performance.now()
   return (
@@ -160,7 +161,7 @@ export function SitePilot({ focus }: { focus?: boolean }) {
   const ai = useUi((s) => s.aiOffline)
   const recent = lines.slice(-8).reverse()
   return (
-    <Panel id="pilot" title="Site Pilot" icon="tree" focus={focus} extra={<span className="chip ai num">AI ${cost !== undefined ? cost.toFixed(2) : '--'}</span>}>
+    <Panel id="pilot" title="Site Pilot" icon="tree" focus={focus} extra={<span className="chip ai num" title="AI spend this shift, from Abenix">AI ${typeof cost === 'number' ? cost.toFixed(2) : '--'}</span>}>
       <div className="tree">
         {plan ? <ul><Tree n={plan} /></ul> : <div className="empty">No behaviour tree yet. The Site Superintendent publishes it at shift start.</div>}
       </div>

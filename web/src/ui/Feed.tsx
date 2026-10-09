@@ -106,7 +106,7 @@ function LabelLayer() {
         stops.map((s) => (
           <div key={'stop' + s.machine} className="lbl" ref={reg('stop:' + s.machine)}>
             <div style={{ marginTop: -54 }}>
-              <span className="stoplabel">Safety stop {stopMs(s.machine) !== undefined ? fmtMs(stopMs(s.machine)) : ''}</span>
+              <span className="stoplabel">Safety stop {stopMs(s.machine) !== undefined ? fmtMs(stopMs(s.machine)) : `· ${s.rule.replace(/_/g, ' ')}`}</span>
             </div>
           </div>
         ))}
@@ -164,8 +164,9 @@ function LayerMenu() {
           ))}
           {ov.cutfill && (
             <div className="legend" style={{ padding: '4px 6px' }}>
-              <span><i className="swatch" style={{ background: '#3ca0ff' }} />below design</span>
-              <span><i className="swatch" style={{ background: '#ffb020' }} />above design</span>
+              <span><i className="swatch" style={{ background: '#3ca0ff' }} />cut left</span>
+              <span><i className="swatch" style={{ background: '#3ee6a8' }} />at design</span>
+              <span><i className="swatch" style={{ background: '#ffb020' }} />fill placed</span>
             </div>
           )}
         </div>

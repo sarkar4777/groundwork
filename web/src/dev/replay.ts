@@ -207,9 +207,9 @@ export class Replay {
     const prevEx1 = this.machines.find((m) => m.id === 'EX1')
     const ex1Joints = ex1Hold && prevEx1 ? prevEx1.joints : {
       swing: swingTo * Math.PI * 0.95,
-      boom: 0.15 + 0.55 * smooth(0.25, 0.45, cyc) - 0.5 * smooth(0.85, 1, cyc),
-      stick: -1.6 + 0.9 * smooth(0.05, 0.3, cyc) - 0.9 * smooth(0.6, 0.95, cyc),
-      bucket: 0.4 + 1.2 * smooth(0.1, 0.3, cyc) - 1.6 * smooth(0.55, 0.65, cyc),
+      boom: -0.25 + 0.75 * smooth(0.25, 0.45, cyc) - 0.75 * smooth(0.85, 1, cyc),
+      stick: 1.3 - 0.9 * smooth(0.05, 0.3, cyc) + 0.9 * smooth(0.6, 0.95, cyc),
+      bucket: -0.3 + 1.0 * smooth(0.1, 0.3, cyc) - 1.4 * smooth(0.55, 0.65, cyc),
     }
     ms.push(this.machine('EX1', 'excavator', -6, 10, Math.PI, ex1Joints, {
       task: ex1Hold ? 'hold, worker in swing' : 'load truck HT1', load_t: cyc > 0.3 && cyc < 0.6 ? 2.6 : 0.4,
@@ -218,7 +218,7 @@ export class Replay {
     if (cyc < 0.05 && !ex1Hold && this.seq % 20 === 0) { this.cycles++; this.m3 += 1.9 }
     const c2 = (t % 28) / 28
     ms.push(this.machine('EX2', 'excavator', -46, 30, Math.PI * 0.75, {
-      swing: Math.sin(c2 * Math.PI * 2) * 0.5, boom: 0.35 + Math.sin(c2 * Math.PI * 4) * 0.2, stick: -1.0 + Math.sin(c2 * Math.PI * 2) * 0.4, bucket: 0.6,
+      swing: Math.sin(c2 * Math.PI * 2) * 0.5, boom: 0.1 + Math.sin(c2 * Math.PI * 4) * 0.2, stick: 0.9 + Math.sin(c2 * Math.PI * 2) * 0.4, bucket: 0.3,
     }, { task: 'trim north batter' }))
 
     ;['HT1', 'HT2', 'HT3', 'HT4', 'HT5', 'HT6'].forEach((id, i) => {
@@ -246,7 +246,7 @@ export class Replay {
     ms.push(this.machine('PR1', 'piling_rig', 66, -24, Math.PI / 2, { mast: 1.0, auger: t * 4, depth: 6 + Math.sin(t * 0.2) * 5 }, { task: 'pile P14 east wall' }))
     const thS = Math.min(thPath.len, (t - this.thStart) * 4)
     const thp = thPath.at(thS)
-    ms.push(this.machine('TH1', 'telehandler', thp.x, thp.y, thp.h, { boom: 0.3, extend: 0.4 }, { task: thS < thPath.len ? 'driving on site' : 'stage formwork', speed: thS < thPath.len ? 4 : 0 }))
+    ms.push(this.machine('TH1', 'telehandler', thp.x, thp.y, thp.h, { boom: 0.3, extension: 0.4 }, { task: thS < thPath.len ? 'driving on site' : 'stage formwork', speed: thS < thPath.len ? 4 : 0 }))
     ;([['DR1', 0], ['DR2', Math.PI]] as [string, number][]).forEach(([id, ph]) => {
       const a = t * 0.05 + ph
       const d = this.machine(id, 'survey_drone', Math.cos(a) * 70, Math.sin(a) * 70, a + Math.PI / 2, { rotor: t * 60 }, { task: 'progress scan', speed: 3.5 })
@@ -301,7 +301,10 @@ export class Replay {
         if (dd < 9.5) zone = 'danger'
         else if (dd < 14 && zone !== 'danger') zone = 'warn'
       }
-      return { id: w.id, role: w.role, x: +w.x.toFixed(2), y: +w.y.toFixed(2), heading: w.h, zone }
+      const moving = Math.hypot(w.tx - w.x, w.ty - w.y) > 0.5
+      const v = w.id === 'W07' && t < this.intrusionUntil ? 2.6 : 1.3
+      const predicted: [number, number][] | undefined = moving ? [1, 2, 3].map((k) => [+(w.x + Math.cos(w.h) * v * k).toFixed(2), +(w.y + Math.sin(w.h) * v * k).toFixed(2)] as [number, number]) : undefined
+      return { id: w.id, role: w.role, x: +w.x.toFixed(2), y: +w.y.toFixed(2), heading: w.h, zone, predicted }
     })
 
     this.machines = ms

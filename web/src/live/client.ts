@@ -121,6 +121,7 @@ export function ingest(f: Frame) {
       pending.state = f
       pending.dirty = true
       busRate.ticks++
+      if (typeof f.ai_available === 'boolean' && f.ai_available === useUi.getState().aiOffline) useUi.setState({ aiOffline: !f.ai_available })
       if (f.terrain && f.terrain.rev !== terrainRev) loadTerrain(f.terrain.rev)
       trackStory(f.t)
       break

@@ -12,10 +12,10 @@ function Kpis() {
   const wind = useUi((s) => s.state?.sensors.wind_ms)
   const env = useUi((s) => s.state?.safety.envelope)
   const items: [string, string, string?, string?][] = [
-    ['Moved', k ? Math.round(k.m3_moved).toLocaleString('en-GB') : '--', 'm³'],
+    ['Moved', k && typeof k.m3_moved === 'number' ? Math.round(k.m3_moved).toLocaleString('en-GB') : '--', 'm³'],
     ['Cycles', k ? String(k.cycles) : '--'],
     ['Trucks waiting', k ? String(k.trucks_waiting) : '--', undefined, k && k.trucks_waiting > 1 ? '#ffb020' : undefined],
-    ['AI cost', k ? `$${k.ai_cost_usd.toFixed(2)}` : '--'],
+    ['AI cost', k && typeof k.ai_cost_usd === 'number' ? `$${k.ai_cost_usd.toFixed(2)}` : '--'],
     ['Wind', wind !== undefined ? wind.toFixed(1) : '--', 'm/s', wind !== undefined && wind >= 14 ? '#ffb020' : undefined],
     ['Safety', env ? env.toUpperCase() : '--', undefined, env === 'stop' ? '#ff4d5e' : env === 'warn' ? '#ffb020' : '#3ee6a8'],
   ]

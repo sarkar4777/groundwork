@@ -47,8 +47,8 @@ export function storyShot(s: number, pose: Pose, t: number): { name: string; mod
       break
     }
     case 'nervous':
-      orbitPose(pose, 210 - u * 30, 125 - u * 15, 0.6 + u * 0.5, new THREE.Vector3(0, 36, 0))
-      pose.fov = 46
+      orbitPose(pose, 230 - u * 30, 100 - u * 12, 0.6 + u * 0.5, new THREE.Vector3(0, 44, 0))
+      pose.fov = 48
       break
     case 'cab':
       if (!cranePose(pose)) dronePose(pose, -14, -28, 80, t)
