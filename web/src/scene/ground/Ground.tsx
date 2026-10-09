@@ -442,7 +442,7 @@ function paintCutFill(tex: THREE.DataTexture, t: Terrain) {
         const left = t.heights[k] - dz
         if (left > 0.1) {
           const q = Math.min(1, left / 6)
-          r = 40 + (1 - q) * 80; g = 140 + (1 - q) * 80; b = 255; a = 70 + q * 110
+          r = 40 + (1 - q) * 80; g = 140 + (1 - q) * 80; b = 255; a = 45 + q * 95
         } else {
           r = 62; g = 230; b = 168; a = 90
         }
