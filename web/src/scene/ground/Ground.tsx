@@ -99,16 +99,22 @@ uniform float uDetail;`,
         `vec2 suv = vec2((vWP.x + uExt * 0.5) / uExt, (-vWP.z + uExt * 0.5) / uExt);
 vec3 col = texture2D(tSite, suv).rgb;
 float depth = clamp(-vWP.y, 0.0, 30.0);
-vec3 mud = texture2D(tMud, vWP.xz / 12.0).rgb * vec3(0.95, 0.92, 0.9);
-col = mix(col, mud, smoothstep(0.8, 3.5, depth) * 0.7);
+if (depth > 0.8) {
+  vec3 mud = texture2D(tMud, vWP.xz / 12.0).rgb * vec3(0.95, 0.92, 0.9);
+  col = mix(col, mud, smoothstep(0.8, 3.5, depth) * 0.7);
+}
 float slope = 1.0 - clamp(vNW.y, 0.0, 1.0);
-vec3 wall = texture2D(tDirt, vec2(vWP.x - vWP.z, vWP.y * 2.5) / 7.0).rgb * vec3(0.78, 0.7, 0.62);
-col = mix(col, wall, smoothstep(0.08, 0.35, slope));
+if (slope > 0.08) {
+  vec3 wall = texture2D(tDirt, vec2(vWP.x - vWP.z, vWP.y * 2.5) / 7.0).rgb * vec3(0.78, 0.7, 0.62);
+  col = mix(col, wall, smoothstep(0.08, 0.35, slope));
+}
 col = mix(col, col * vec3(1.1, 1.04, 0.95), smoothstep(0.5, 2.5, vWP.y));
 vec4 dec = texture2D(tDecal, suv);
 col = mix(col, dec.rgb, dec.a);
-float det = texture2D(tDirt, vWP.xz / 2.2).g;
-col *= mix(1.0, 0.72 + det * 0.56, uDetail);
+if (uDetail > 0.01) {
+  float det = texture2D(tDirt, vWP.xz / 2.2).g;
+  col *= mix(1.0, 0.72 + det * 0.56, uDetail);
+}
 col = mix(col, col * vec3(0.10, 0.16, 0.30) + vec3(0.004, 0.012, 0.03), uNervous);
 diffuseColor.rgb *= col;`,
       )

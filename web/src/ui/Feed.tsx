@@ -261,7 +261,7 @@ export function Feed() {
           <Scene />
         </Suspense>
       </Boundary>
-      <LabelLayer />
+      {!location.search.includes('nolabels') && <LabelLayer />}
       {hud}
       {REPLAY && <div className="replay-mark">REPLAY · SYNTHESISED FRAMES, NOT FROM ABENIX</div>}
       <Banners />

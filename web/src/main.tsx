@@ -5,6 +5,7 @@ import { App } from './App'
 import { startClient } from './live/client'
 import { installAutomation } from './live/automation'
 
+if (location.search.includes('noblur')) document.body.classList.add('noblur')
 startClient()
 installAutomation()
 

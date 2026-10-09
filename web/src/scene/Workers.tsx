@@ -61,19 +61,19 @@ function WorkerFig({ id, role }: { id: string; role: string }) {
     <group ref={g} visible={false}>
       <mesh ref={ring} geometry={ringGeo} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.06, 0]} renderOrder={5} />
       <group position={[0, 0.85, 0]}>
-        <mesh ref={legL} geometry={legGeo} material={MAT.trousers} position={[0, -0.42, 0.12]} castShadow />
-        <mesh ref={legR} geometry={legGeo} material={MAT.trousers} position={[0, -0.42, -0.12]} castShadow />
+        <mesh ref={legL} geometry={legGeo} material={MAT.trousers} position={[0, -0.42, 0.12]} />
+        <mesh ref={legR} geometry={legGeo} material={MAT.trousers} position={[0, -0.42, -0.12]} />
       </group>
       <mesh geometry={torsoGeo} material={MAT.trousers} position={[0, 1.18, 0]} castShadow />
-      <mesh geometry={vestGeo} material={vestFor(role)} position={[0, 1.24, 0]} castShadow />
+      <mesh geometry={vestGeo} material={vestFor(role)} position={[0, 1.24, 0]} />
       <mesh geometry={stripeGeo} material={stripeMat} position={[0, 1.14, 0]} />
       <mesh geometry={stripeGeo} material={stripeMat} position={[0, 1.32, 0]} />
       <group position={[0, 1.42, 0]}>
-        <mesh ref={armL} geometry={armGeo} material={vestFor(role)} position={[0, -0.28, 0.3]} castShadow />
-        <mesh ref={armR} geometry={armGeo} material={vestFor(role)} position={[0, -0.28, -0.3]} castShadow />
+        <mesh ref={armL} geometry={armGeo} material={vestFor(role)} position={[0, -0.28, 0.3]} />
+        <mesh ref={armR} geometry={armGeo} material={vestFor(role)} position={[0, -0.28, -0.3]} />
       </group>
       <mesh geometry={headGeo} material={MAT.skin} position={[0, 1.66, 0]} />
-      <mesh geometry={hatGeo} material={hatFor(role)} position={[0, 1.72, 0]} castShadow />
+      <mesh geometry={hatGeo} material={hatFor(role)} position={[0, 1.72, 0]} />
       <mesh geometry={brimGeo} material={hatFor(role)} position={[0.03, 1.72, 0]} />
     </group>
   )

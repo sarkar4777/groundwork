@@ -91,11 +91,9 @@ button { cursor: pointer; }
 
 /* glass */
 .glass {
-  background: var(--glass);
+  background: linear-gradient(180deg, rgba(16, 44, 94, 0.62), rgba(10, 32, 72, 0.55));
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  backdrop-filter: blur(18px) saturate(140%);
-  -webkit-backdrop-filter: blur(18px) saturate(140%);
   box-shadow: inset 0 1px 0 rgba(201, 236, 255, 0.06), 0 10px 30px rgba(0, 10, 40, 0.35);
 }
 .panel { display: flex; flex-direction: column; min-width: 0; transition: box-shadow 0.4s, border-color 0.4s; }
@@ -178,7 +176,7 @@ button { cursor: pointer; }
 .compass-tick.major::after { height: 11px; }
 .compass-tick span { position: absolute; top: 1px; left: -12px; width: 24px; text-align: center; font-size: 10px; }
 .compass-caret { position: absolute; left: 50%; bottom: -1px; width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 6px solid var(--amber); transform: translateX(-50%); }
-.hud-box { background: rgba(4, 18, 43, 0.38); border: 1px solid rgba(201, 236, 255, 0.16); border-radius: 8px; padding: 5px 9px; backdrop-filter: blur(6px); }
+.hud-box { background: rgba(4, 18, 43, 0.55); border: 1px solid rgba(201, 236, 255, 0.16); border-radius: 8px; padding: 5px 9px; }
 .crosshair { position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; transform: translate(-50%, -50%); opacity: 0.55; }
 .scalebar { display: flex; flex-direction: column; gap: 3px; }
 .scalebar .bar { height: 6px; border: 1.5px solid #f2fbff; border-top: 0; }
@@ -238,7 +236,7 @@ button { cursor: pointer; }
 
 /* captions */
 .captions { position: absolute; left: 50%; bottom: 72px; transform: translateX(-50%); z-index: 7; width: min(92%, 1100px); display: flex; justify-content: center; pointer-events: none; }
-.caption { background: rgba(4, 22, 56, 0.78); border-radius: 12px; padding: 10px 22px; font: 600 clamp(17px, 2.3vw, 30px)/1.32 var(--sans); color: #fff; text-align: center; letter-spacing: -0.005em; backdrop-filter: blur(8px); box-shadow: 0 8px 40px rgba(0, 10, 40, 0.5); animation: capIn 0.35s ease-out; white-space: pre-line; }
+.caption { background: rgba(4, 22, 56, 0.78); border-radius: 12px; padding: 10px 22px; font: 600 clamp(17px, 2.3vw, 30px)/1.32 var(--sans); color: #fff; text-align: center; letter-spacing: -0.005em; box-shadow: 0 8px 40px rgba(0, 10, 40, 0.5); animation: capIn 0.35s ease-out; white-space: pre-line; }
 .caption b { color: var(--amber); font-weight: 700; }
 @keyframes capIn { from { opacity: 0; transform: translateY(6px); } }
 .app.cinema .captions { bottom: 6%; }
@@ -409,3 +407,7 @@ button { cursor: pointer; }
 body[data-endcard='1'] .labels, body[data-endcard='1'] .captions { display: none; }
 
 body.shot-clean .captions, body.shot-clean .story-chip, body.shot-clean .modebar, body.shot-clean .layers { display: none !important; }
+body.noblur * { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+
+/* glass that sits on the live 3D view gets a denser fill, blur over a moving canvas costs a frame a time */
+.feed .glass { background: linear-gradient(180deg, rgba(10, 34, 78, 0.86), rgba(6, 24, 58, 0.84)); }
