@@ -118,6 +118,8 @@ export function StoryLayer() {
     document.body.dataset.endcard = end ? '1' : '0'
   }, [end])
   if (!running) return null
+  // a tall frame has room for one floating panel at a time
+  const portrait = window.innerHeight > window.innerWidth
   return (
     <>
       <div className="story-chip glass">
@@ -126,10 +128,10 @@ export function StoryLayer() {
         <span className="story-progress"><i style={{ width: `${Math.min(100, (s / 60) * 100)}%` }} /></span>
         <button className="btn sm" onClick={stopStory} aria-label="Stop the story"><Icon name="stop" /></button>
       </div>
-      {(beat.name === 'replan' || f === 'phone') && (
+      {f === 'phone' && (!portrait || s < 11.2) && (
         <div className="story-float left" key="pilot"><SitePilot focus /></div>
       )}
-      {f === 'phone' && <div className="story-float right" key="phone"><PhoneApprovals focus tap={tap} /></div>}
+      {f === 'phone' && (!portrait || s >= 11.2) && <div className="story-float right" key="phone"><PhoneApprovals focus tap={tap} /></div>}
       {f === 'latency' && <div className="story-float bottomc" key="lat"><LatencyStrip focus /></div>}
       {f === 'faults' && <div className="story-float right" key="faults"><FaultDeck focus /></div>}
       {f === 'autonomy' && <div className="story-float right" key="auto"><Autonomy focus /></div>}

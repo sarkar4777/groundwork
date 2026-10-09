@@ -98,6 +98,16 @@ async function recordStory(page, tag, withShots) {
   if (!ok) throw new Error('POST /story/start failed')
   for (let i = 0; i < 100 && (await storyT(page)) === null; i++) await page.waitForTimeout(100)
   recording = true
+  // captions as they were on screen, in wall time, so the SRT lines up with the video
+  const t0 = Date.now() / 1000
+  const shown = []
+  const poll = setInterval(async () => {
+    const text = await page.evaluate(() => document.querySelector('.caption')?.innerText ?? '').catch(() => '')
+    const now = Date.now() / 1000 - t0
+    const last = shown[shown.length - 1]
+    if (last && last.text === text) last.end = now
+    else if (text) shown.push({ text, start: now, end: now })
+  }, 100)
   log(tag, 'story running')
 
   if (withShots) {
@@ -127,9 +137,17 @@ async function recordStory(page, tag, withShots) {
     await page.waitForTimeout(250)
   }
   recording = false
+  clearInterval(poll)
   if (hasFfmpeg && VIDEO) await cdp.send('Page.stopScreencast')
-  const srt = await page.evaluate(() => window.__gw.srt())
-  writeFileSync(join(MEDIA, 'groundwork-story.srt'), srt)
+  const ts = (s) => {
+    const ms = Math.max(0, Math.round(s * 1000))
+    const p = (n, w = 2) => String(n).padStart(w, '0')
+    return `${p(Math.floor(ms / 3600000))}:${p(Math.floor(ms / 60000) % 60)}:${p(Math.floor(ms / 1000) % 60)},${p(ms % 1000, 3)}`
+  }
+  const offset = frames.length ? frames[0].ts - t0 : 0
+  const srt = shown.map((c, i) => `${i + 1}\n${ts(c.start - offset)} --> ${ts(c.end - offset + 0.1)}\n${c.text.trim()}\n`).join('\n')
+  writeFileSync(join(MEDIA, `groundwork-story-${tag}.srt`), srt)
+  log('captions', join(MEDIA, `groundwork-story-${tag}.srt`), `${shown.length} lines, timed to the video`)
 
   if (!VIDEO) return
   if (!hasFfmpeg) {
@@ -141,7 +159,7 @@ async function recordStory(page, tag, withShots) {
   const concat = join(dir, 'frames.txt')
   writeFileSync(concat, `ffconcat version 1.0\n${list}\nfile '${frames[frames.length - 1].file.replaceAll('\\', '/')}'\n`)
   const mp4 = join(MEDIA, `groundwork-story-${tag}.mp4`)
-  const r = spawnSync('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'concat', '-safe', '0', '-i', concat, '-vf', `fps=${FPS},scale=trunc(iw/2)*2:trunc(ih/2)*2`, '-c:v', 'libx264', '-preset', 'slow', '-crf', '16', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', mp4], { stdio: 'inherit' })
+  const r = spawnSync('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'concat', '-safe', '0', '-i', concat, '-vf', `fps=${FPS},scale=trunc(iw/2)*2:trunc(ih/2)*2`, '-c:v', 'libx264', '-preset', 'slow', '-crf', '20', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', mp4], { stdio: 'inherit' })
   if (r.status !== 0) throw new Error('ffmpeg failed')
   const span = frames[frames.length - 1].ts - frames[0].ts
   log(`video ${mp4}: ${frames.length} source frames over ${span.toFixed(1)} s, ${(frames.length / span).toFixed(1)} fps captured, encoded at ${FPS} fps`)
