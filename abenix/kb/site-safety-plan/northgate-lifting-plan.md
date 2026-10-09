@@ -19,7 +19,7 @@ The hook block counts as 0.4 t on both cranes.
 | L2 | TC1 | Formwork panel FP-4 | 2.8 | Laydown | Deck west |
 | L3 | TC1 | Rebar cage RC-2 | 4.2 | Rebar yard | Core |
 | L4 | TC1 | Formwork panel FP-5 | 2.8 | Laydown B | Deck east |
-| L5 | TC1 | Precast stair PS-1 | 5.5 | Laydown | Core |
+| L5 | TC1 | Precast stair PS-1 | 4.6 | Laydown | Core |
 | L6 | TC1 | Rebar cage RC-3 | 4.0 | Rebar yard | Deck east |
 | M1 to M3 | MC1 | Pile cages PC-7 to PC-9 | 3.4 each | Pile cage store | East wall |
 

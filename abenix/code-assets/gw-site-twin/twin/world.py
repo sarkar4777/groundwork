@@ -170,7 +170,7 @@ def default_plan() -> dict:
         ("L2", "Formwork panel FP-4 to deck west", 2.8, "laydown", "deck_west"),
         ("L3", "Rebar cage RC-2 to the core", 4.2, "rebar_yard", "core"),
         ("L4", "Formwork panel FP-5 to deck east", 2.8, "laydown_b", "deck_east"),
-        ("L5", "Precast stair PS-1 to the core", 5.5, "laydown", "core"),
+        ("L5", "Precast stair PS-1 to the core", 4.6, "laydown", "core"),
         ("L6", "Rebar cage RC-3 to deck east", 4.0, "rebar_yard", "deck_east"),
     ]
     mlifts = [
@@ -976,6 +976,15 @@ def safety_tick(st, tabs, ev, stats):
                 key, out = excl.evaluate({"machine": {"tip_speed_ms": tip}, "worker": {"clearance_m": clearance}})
                 act = (out or {}).get("action", "stop")
                 sf["exclusion_m"] = radius + float((out or {}).get("margin_m", 0))
+                # a stopped machine has no tip speed, so keep the margin that stopped it until the worker is 1 m past it
+                if act == "stop":
+                    sf["hold_margin"] = float((out or {}).get("margin_m", 2))
+                elif sf.get("hold_margin") is not None:
+                    if clearance < sf["hold_margin"] + 1.0 and m["mode"] in ("hold", "offline"):
+                        act = "stop"
+                        out = dict(out or {}, action="stop", reason="Worker still inside the margin that stopped the machine")
+                    else:
+                        sf["hold_margin"] = None
                 if act == "stop":
                     rule_stop, rule, reason = True, "worker_in_swing", (out or {}).get("reason", "")
                     if nw is not None:
@@ -1010,9 +1019,9 @@ def safety_tick(st, tabs, ev, stats):
         elif kind in ("tower_crane", "mobile_crane"):
             sf["separation_m"] = sep
             facts = {"crane": {"wind_ms": m["wind_ms"], "lmi_pct": round(m["lmi_pct"], 2), "min_separation_m": round(sep, 2)}}
-            if ml.get("collision_prob") is not None:
+            if ml.get("collision_prob") is not None and st["ai_available"]:
                 facts["crane"]["collision_prob"] = ml["collision_prob"]
-            if ml.get("gust_forecast_ms") is not None:
+            if ml.get("gust_forecast_ms") is not None and st["ai_available"]:
                 facts["crane"]["gust_forecast_ms"] = ml["gust_forecast_ms"]
             if crane_t is None:
                 rule_stop, rule, reason = True, "no_rules", "Safety rules not loaded from Abenix"
@@ -1132,7 +1141,8 @@ def apply_faults(st, faults, ev):
             w = st["workers"][wid]
             ang = m["heading"] + m["joints"]["swing"] + 0.6
             inside = (m["x"] + 6.0 * math.cos(ang), m["y"] + 6.0 * math.sin(ang))
-            start = (m["x"] + 22.0 * math.cos(ang), m["y"] + 22.0 * math.sin(ang))
+            far = float(f.get("start_m", 22.0))
+            start = (m["x"] + far * math.cos(ang), m["y"] + far * math.sin(ang))
             w["x"], w["y"] = start
             w["script"] = {"pts": [(inside[0], inside[1], 3.0), (start[0], start[1], 0.5)], "speed": float(f.get("speed", 1.6))}
             ev.append({"kind": "story", "machine": mid, "title": f"{wid} walks toward {mid}", "detail": "Fault deck: worker into the swing zone"})
@@ -1548,6 +1558,7 @@ def brief(st) -> dict:
         "lifts_pending": {k: [{"id": x.get("id"), "label": x.get("label"), "params": x.get("params")} for x in v] for k, v in st["lift_queue"].items()},
         "vocabulary": {k: sorted(v) for k, v in VERBS.items()},
         "locations": list(L.LOCATIONS),
+        "recent": st["recent"][-20:],
     }
 
 
