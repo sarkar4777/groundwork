@@ -74,12 +74,7 @@ function layout(): { boxes: Item[]; cones: Item[]; piles: Item[]; heaps: Item[] 
 const boxMat = new THREE.MeshStandardMaterial({ roughness: 0.7, metalness: 0.1 })
 const coneMat = new THREE.MeshStandardMaterial({ color: '#ff6a1a', roughness: 0.6 })
 const pileMat = new THREE.MeshStandardMaterial({ color: '#bdb8ae', roughness: 0.9 })
-const heapTex = new THREE.TextureLoader().load('/assets/textures/concrete_floor_02_diff_2k.jpg', (t) => {
-  t.wrapS = t.wrapT = THREE.RepeatWrapping
-  t.repeat.set(2, 1)
-  t.colorSpace = THREE.SRGBColorSpace
-})
-const heapMat = new THREE.MeshStandardMaterial({ roughness: 1, map: heapTex })
+const heapMat = new THREE.MeshStandardMaterial({ roughness: 1, flatShading: true })
 dimWithNervous(boxMat, coneMat, pileMat, heapMat)
 
 function useInst(ref: React.RefObject<THREE.InstancedMesh>, items: Item[], color: boolean) {
@@ -124,7 +119,7 @@ export function Dressing() {
         <cylinderGeometry args={[0.5, 0.5, 1, 14]} />
       </instancedMesh>
       <instancedMesh ref={heaps} args={[undefined, heapMat, 8]} castShadow receiveShadow>
-        <coneGeometry args={[1, 1, 18, 1]} />
+        <coneGeometry args={[1, 1, 9, 3]} />
       </instancedMesh>
     </group>
   )

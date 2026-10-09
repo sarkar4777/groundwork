@@ -140,7 +140,7 @@ function CraneEnvelopes() {
       const seg = (r: (typeof rigs)[0]): [Vec2, Vec2] => [[r.base.x, -r.base.z], [r.hook.x, -r.hook.z]]
       const [a0, a1] = seg(rigs[0]), [b0, b1] = seg(rigs[1])
       dist = segDist(a0, a1, b0, b1)
-      const rule = hot.curr?.safety.active_stops.some((s) => /crane|envelope|collision|overlap/i.test(s.rule))
+      const rule = hot.curr?.safety.active_stops.some((s) => /envelope|collision|overlap|anti/i.test(s.rule))
       conflict = dist < 8 || !!rule
     }
     craneConflict.on = conflict

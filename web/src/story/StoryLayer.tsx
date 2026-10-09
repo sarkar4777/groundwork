@@ -49,9 +49,18 @@ export function twoLines(text: string): string {
   if (text.includes('\n')) return text.split('\n').slice(0, 2).join('\n')
   if (text.length <= 42) return text
   const mid = text.length / 2
-  let best = -1
-  for (let i = 0; i < text.length; i++) if (text[i] === ' ' && (best < 0 || Math.abs(i - mid) < Math.abs(best - mid))) best = i
-  return best < 0 ? text : text.slice(0, best) + '\n' + text.slice(best + 1)
+  const near = (re: RegExp) => {
+    let best = -1
+    for (const m of text.matchAll(re)) {
+      const i = (m.index ?? 0) + m[0].length - 1
+      if (best < 0 || Math.abs(i - mid) < Math.abs(best - mid)) best = i
+    }
+    return best
+  }
+  // prefer a sentence or clause break near the middle, then any space
+  let cut = near(/[.,] /g)
+  if (cut < 0 || Math.abs(cut - mid) > text.length * 0.22) cut = near(/ /g)
+  return cut < 0 ? text : text.slice(0, cut) + '\n' + text.slice(cut + 1)
 }
 
 function srtTime(s: number) {
