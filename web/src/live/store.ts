@@ -48,7 +48,7 @@ export interface UiState {
   overlays: Overlays
   panelsHidden: boolean
   help: boolean
-  story: { running: boolean; t0: number; startedAt: number; error: string | null }
+  story: { running: boolean; t0: number; startedAt: number; error: string | null; recorded: boolean }
   hover: { x: number; y: number; z: number } | null
   tracePaused: boolean
   fps: number
@@ -81,7 +81,7 @@ export const useUi = create<UiState>(() => ({
   overlays: { geofence: true, swing: true, crane: true, roads: true, cutfill: false, workers: true, labels: true },
   panelsHidden: false,
   help: false,
-  story: { running: false, t0: 0, startedAt: 0, error: null },
+  story: { running: false, t0: 0, startedAt: 0, error: null, recorded: false },
   hover: null,
   tracePaused: false,
   fps: 0,

@@ -121,7 +121,10 @@ export function ingest(f: Frame) {
       pending.state = f
       pending.dirty = true
       busRate.ticks++
-      if (typeof f.ai_available === 'boolean' && f.ai_available === useUi.getState().aiOffline) useUi.setState({ aiOffline: !f.ai_available })
+      const ui = useUi.getState()
+      const off = typeof f.ai_offline === 'boolean' ? f.ai_offline : typeof f.ai_available === 'boolean' ? !f.ai_available : null
+      if (off !== null && off !== ui.aiOffline) useUi.setState({ aiOffline: off })
+      if (typeof f.killed === 'boolean' && f.killed !== ui.killed) useUi.setState({ killed: f.killed })
       if (f.terrain && f.terrain.rev !== terrainRev) loadTerrain(f.terrain.rev)
       trackStory(f.t)
       break
@@ -208,7 +211,7 @@ function onEvent(e: EventFrame) {
   }
   if (e.kind === 'story') {
     if (/finish|end|stop/i.test(e.title)) useUi.setState((s) => ({ story: { ...s.story, running: false } }))
-    else if (/start/i.test(e.title)) useUi.setState((s) => ({ story: { ...s.story, running: true, t0: e.t, startedAt: performance.now() }, captionLog: [] }))
+    else if (/start/i.test(e.title)) useUi.setState((s) => ({ story: { ...s.story, running: true, t0: e.t, startedAt: performance.now(), recorded: e.recorded === true }, captionLog: [] }))
   }
 }
 
@@ -317,13 +320,13 @@ export async function sendFault(kind: FaultKind, target?: string): Promise<boole
 
 export async function startStory(): Promise<boolean> {
   const s = useUi.getState()
-  useUi.setState({ story: { running: true, t0: s.state?.t ?? 0, startedAt: performance.now(), error: null }, captionLog: [], caption: null })
+  useUi.setState({ story: { running: true, t0: s.state?.t ?? 0, startedAt: performance.now(), error: null, recorded: false }, captionLog: [], caption: null })
   try {
     if (replay) replay.startStory()
     else await postJson('/story/start', {})
     return true
   } catch (e) {
-    useUi.setState({ story: { running: false, t0: 0, startedAt: 0, error: String(e instanceof Error ? e.message : e) } })
+    useUi.setState({ story: { running: false, t0: 0, startedAt: 0, error: String(e instanceof Error ? e.message : e), recorded: false } })
     toast('Story did not start. Is the sim running?', 'err')
     return false
   }
@@ -344,7 +347,10 @@ export async function approve(a: Approval, decision: 'approve' | 'reject') {
   set({ status: 'sending', error: undefined })
   try {
     if (replay) replay.approve(a.execution_id, decision)
-    else await postJson('/approve', { execution_id: a.execution_id, decision, approved: decision === 'approve' })
+    else {
+      const r = (await postJson('/approve', { execution_id: a.execution_id, decision, approved: decision === 'approve' })) as { ok?: boolean; error?: string }
+      if (r && r.ok === false) throw new Error(r.error || 'not accepted')
+    }
     set({ status: decision === 'approve' ? 'approved' : 'rejected' })
   } catch (e) {
     set({ status: 'error', error: String(e instanceof Error ? e.message : e) })

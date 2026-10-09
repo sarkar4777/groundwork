@@ -248,12 +248,12 @@ button { cursor: pointer; }
 .story-float { position: absolute; z-index: 6; width: min(380px, 42%); animation: floatIn 0.5s ease-out; }
 .story-float.right { right: 2.5%; top: 9%; }
 .story-float.left { left: 2.5%; top: 9%; }
-.story-float.bottomc { left: 50%; transform: translateX(-50%); bottom: 22%; width: min(760px, 92%); }
+.story-float.bottomc { right: 2.5%; top: 9%; width: min(620px, 46%); }
 @keyframes floatIn { from { opacity: 0; transform: translateY(12px); } }
 .story-float.bottomc { animation: none; }
 @media (max-aspect-ratio: 1/1) {
   .story-float.right, .story-float.left { left: 4%; right: 4%; width: auto; top: 12%; }
-  .story-float.bottomc { bottom: 28%; }
+  .story-float.bottomc { left: 4%; right: 4%; width: auto; top: 12%; }
   .captions { bottom: 5%; }
 }
 .endcard { position: absolute; inset: 0; z-index: 8; display: grid; place-items: center; background: radial-gradient(circle at 50% 50%, rgba(4, 18, 43, 0.25), rgba(4, 18, 43, 0.82)); animation: fade 1.2s ease-out; pointer-events: none; }
@@ -407,3 +407,5 @@ button { cursor: pointer; }
 }
 
 body[data-endcard='1'] .labels, body[data-endcard='1'] .captions { display: none; }
+
+body.shot-clean .captions, body.shot-clean .story-chip, body.shot-clean .modebar, body.shot-clean .layers { display: none !important; }

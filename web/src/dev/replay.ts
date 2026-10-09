@@ -468,6 +468,7 @@ export class Replay {
     }))
     once('intrude', 3.2, () => this.fault('worker_in_swing', 'EX1'))
     once('replan', 9.0, () => this.replan())
+    once('approve', 12.2, () => this.approve(this.pending?.id, 'approve'))
     once('gust', 21.5, () => this.fault('gust', 'TC1'))
     once('aioff', 28.5, () => this.fault('ai_offline'))
     once('aion', 35, () => {
@@ -499,15 +500,22 @@ export class Replay {
   fault(kind: string, target?: string) {
     const t = this.t
     switch (kind) {
-      case 'worker_in_swing':
+      case 'worker_in_swing': {
         this.intrusionUntil = t + 7
         this.stopSince = -1
+        const w7 = this.workers.find((w) => w.id === 'W07')
+        const ex = this.machines.find((m) => m.id === 'EX1')
+        if (w7 && ex) {
+          w7.x = ex.x + 5
+          w7.y = ex.y - 9
+        }
         setTimeout(() => {
           this.stopSince = this.t
           this.event('safety_stop', 'Safety stop', 'Worker W07 inside swing radius of EX1', 'EX1', { ms: +(2.8 + rnd() * 0.5).toFixed(1), rule: 'worker_in_swing' })
           this.emitPlan()
         }, 1500)
         break
+      }
       case 'gust':
         this.gustUntil = t + 12
         this.event('gust', 'Gust forecast', 'Nowcast 21 m/s in 40 s, over the 20 m/s slew limit. TC1 holds its load', 'TC1')
@@ -548,7 +556,7 @@ export class Replay {
     this.planReroute = false
     this.pending = null
     this.dispatcherPromoted = false
-    this.event('story', 'Story started', 'Fixed seed 7')
+    this.event('story', 'Story started', 'Fixed seed 7, approvals replayed like a recorded take', undefined, { recorded: true })
   }
 
   stopStory() {

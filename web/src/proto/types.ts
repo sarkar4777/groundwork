@@ -56,6 +56,8 @@ export interface StateFrame {
   latency: Partial<Latency>
   kpi: Kpi
   ai_available?: boolean
+  ai_offline?: boolean
+  killed?: boolean
   vecus?: number
   plan?: { source: string; version: number }
 }
@@ -121,6 +123,7 @@ export interface AgentInfo {
   levelIndex: number
   actions: { type: string; level: string; levelIndex: number }[]
   record?: string
+  url?: string
 }
 
 export type Vec2 = [number, number]

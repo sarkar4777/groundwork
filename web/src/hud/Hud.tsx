@@ -75,7 +75,7 @@ export function DroneHud() {
       </div>
       <div className="tc">
         <Compass heading={camInfo.heading} />
-        <span className="hud-v" style={{ fontSize: 12 }}>HDG {String(Math.round(camInfo.heading)).padStart(3, '0')}°</span>
+        <span className="hud-v" style={{ fontSize: 12 }}>HDG {String(Math.round(camInfo.heading) % 360).padStart(3, '0')}°</span>
       </div>
       <div className="tr">
         <div className="hud-row">
@@ -97,7 +97,7 @@ export function DroneHud() {
       <div className="gimbal">
         <span className="hud-k">GIMBAL</span>
         <div className="big num">{camInfo.pitch.toFixed(1)}°</div>
-        <span className="hud-k">FOV {camInfo.fov.toFixed(0)}°</span>
+        <span className="hud-k">FOV {camInfo.fov.toFixed(0)}°{camInfo.fov < 56 ? ` · ZOOM ${(Math.tan((58 * Math.PI) / 360) / Math.tan((camInfo.fov * Math.PI) / 360)).toFixed(1)}x` : ''}</span>
       </div>
       <div className="bl">
         <div className="scalebar">

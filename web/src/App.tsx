@@ -104,7 +104,7 @@ function Help() {
             <Fragment key={k}><kbd>{k}</kbd><span>{v}</span></Fragment>
           ))}
         </div>
-        <p className="muted" style={{ fontSize: 12, marginTop: 14 }}>In the drone feed, drag to move the aircraft and scroll to change altitude. Click a machine or its label to open its panel.</p>
+        <p className="muted" style={{ fontSize: 12, marginTop: 14 }}>In the drone feed, drag to move the aircraft, scroll to zoom the camera and hold Shift while scrolling to change altitude. Click a machine or its label to open its panel.</p>
         <p className="disclaimer">Groundwork is a showcase, not certified safety software.</p>
       </div>
     </div>

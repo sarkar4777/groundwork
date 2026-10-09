@@ -11,7 +11,7 @@ import { craneRig } from './machines/Cranes'
 import { nervous } from './nervousState'
 import { storyShot } from '../story/shots'
 
-export const drone = { x: 4, y: -2, alt: 150, gimbal: -89.5, yaw: 0, flightStart: performance.now() }
+export const drone = { x: 4, y: -2, alt: 150, fov: 58, gimbal: -89.5, yaw: 0, flightStart: performance.now() }
 export const camInfo = { alt: 120, pitch: -90, heading: 0, fov: 58 }
 
 interface Pose {
@@ -60,7 +60,7 @@ export function cranePose(out: Pose): boolean {
   return true
 }
 
-export function dronePose(out: Pose, x: number, y: number, alt: number, t: number, gimbalDeg = -89.5) {
+export function dronePose(out: Pose, x: number, y: number, alt: number, t: number, gimbalDeg = -89.5, fov = 58) {
   const dx = Math.sin(t * 0.21) * 0.9 + Math.sin(t * 0.53) * 0.3
   const dy = Math.cos(t * 0.17) * 0.9 + Math.sin(t * 0.41) * 0.3
   const gz = heightAt(x, y)
@@ -68,7 +68,7 @@ export function dronePose(out: Pose, x: number, y: number, alt: number, t: numbe
   const back = Math.tan(tilt) * alt
   out.pos.set(x + dx, alt + gz + Math.sin(t * 0.3) * 0.4, -(y + dy) + back + 0.4)
   out.look.set(x + dx * 0.98, gz, -(y + dy))
-  out.fov = 58
+  out.fov = fov
 }
 
 export function orbitPose(out: Pose, r: number, h: number, ang: number, look = new THREE.Vector3(0, 0, 0)) {
@@ -95,7 +95,8 @@ export function CameraRig() {
     const onWheel = (e: WheelEvent) => {
       if (useUi.getState().cam !== 'drone' || useUi.getState().story.running) return
       e.preventDefault()
-      drone.alt = THREE.MathUtils.clamp(drone.alt * (1 + Math.sign(e.deltaY) * 0.08), 35, 220)
+      if (e.shiftKey) drone.alt = THREE.MathUtils.clamp(drone.alt * (1 + Math.sign(e.deltaY) * 0.08), 90, 220)
+      else drone.fov = THREE.MathUtils.clamp(drone.fov * (1 + Math.sign(e.deltaY) * 0.1), 10, 58)
     }
     const onDown = (e: PointerEvent) => {
       if (useUi.getState().cam !== 'drone') return
@@ -145,7 +146,7 @@ export function CameraRig() {
       let ok = true
       switch (mode) {
         case 'drone':
-          dronePose(pose, drone.x, drone.y, drone.alt, t)
+          dronePose(pose, drone.x, drone.y, drone.alt, t, -89.5, drone.fov)
           break
         case 'orbit':
           if (!orbitArmed.current) orbitPose(pose, 150, 85, 0.9)

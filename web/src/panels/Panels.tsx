@@ -238,9 +238,10 @@ export function Autonomy({ focus }: { focus?: boolean }) {
               {[0, 1, 2, 3, 4].map((i) => <i key={i} className={i <= a.levelIndex ? 'on' : ''} />)}
             </span>
             <span className="al">
-              <span style={{ color: '#c9ecff' }}>{LEVEL_NAMES[a.levelIndex]}</span>
+              <span style={{ color: '#c9ecff' }}>{/^\d+$/.test(a.level) ? LEVEL_NAMES[a.levelIndex] : a.level}</span>
               {a.actions.map((x) => <span key={x.type} className="mono faint">{x.type}</span>)}
               {a.record && <span className="faint">{a.record}</span>}
+              {a.url && <a href={a.url} target="_blank" rel="noreferrer" style={{ color: '#5cc8ff', pointerEvents: 'auto' }}>Open in Abenix</a>}
             </span>
           </div>
         ))}

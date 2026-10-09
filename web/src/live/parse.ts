@@ -157,15 +157,16 @@ export function parseAgents(j: unknown): AgentInfo[] {
     const actionsRaw = a.actions ?? a.action_types ?? []
     const actions = entries(actionsRaw).map(([k, v]) => {
       const lv = isObj(v) ? String(v.level ?? v.autonomy ?? 'watching') : String(v)
-      return { type: isObj(v) ? String(v.type ?? v.action_type ?? k) : k, level: lv, levelIndex: levelIndex(lv) }
+      return { type: isObj(v) ? String(v.type ?? v.action_type ?? k) : k, level: lv === 'undefined' || lv === 'null' ? '' : lv, levelIndex: levelIndex(lv) }
     })
     return {
       name,
       label: String(a.label ?? a.display_name ?? a.title ?? prettyAgent(name)),
       level,
-      levelIndex: levelIndex(level),
+      levelIndex: typeof a.level_index === 'number' ? Math.min(4, Math.max(0, a.level_index)) : levelIndex(level),
       actions,
       record: a.record ? String(a.record) : a.success_rate != null ? `${Math.round(Number(a.success_rate) * 100)}% success` : undefined,
+      url: typeof a.url === 'string' ? a.url : undefined,
     }
   })
 }

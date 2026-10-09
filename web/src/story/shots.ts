@@ -38,12 +38,12 @@ export function storyShot(s: number, pose: Pose, t: number): { name: string; mod
       break
     case 'stop': {
       const e = at('EX1')
-      dronePose(pose, e.x + 2, e.y - 2, 62 - u * 18, t)
+      dronePose(pose, e.x + 1, e.y - 1, 118, t, -89.5, 26 - u * 6)
       break
     }
     case 'replan': {
       const e = at('EX1')
-      dronePose(pose, e.x + 18 * u + 8, e.y - 6, 70 + u * 25, t)
+      dronePose(pose, e.x + 10 + 10 * u, e.y - 4, 120, t, -89.5, 30 + u * 16)
       break
     }
     case 'nervous':

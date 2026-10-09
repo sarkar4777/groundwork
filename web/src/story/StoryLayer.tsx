@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useUi, type CaptionLog } from '../live/store'
 import { hot } from '../live/hot'
-import { approve, stopStory } from '../live/client'
+import { stopStory } from '../live/client'
 import { beatAt } from './shots'
 import { Autonomy, FaultDeck, LatencyStrip, PhoneApprovals, SitePilot } from '../panels/Panels'
 import { Icon } from '../ui/kit'
@@ -36,12 +36,22 @@ export function Captions() {
   if (!cap) return null
   const now = simNow()
   if (now > cap.until + 0.05 || now < cap.t - 1) return null
-  const lines = cap.text.split('\n').slice(0, 2).join('\n')
+  const lines = twoLines(cap.text)
   return (
     <div className="captions" aria-live="polite">
       <div className="caption" key={cap.t}>{highlight(lines)}</div>
     </div>
   )
+}
+
+// Captions are at most two lines, split near the middle on a word boundary.
+export function twoLines(text: string): string {
+  if (text.includes('\n')) return text.split('\n').slice(0, 2).join('\n')
+  if (text.length <= 42) return text
+  const mid = text.length / 2
+  let best = -1
+  for (let i = 0; i < text.length; i++) if (text[i] === ' ' && (best < 0 || Math.abs(i - mid) < Math.abs(best - mid))) best = i
+  return best < 0 ? text : text.slice(0, best) + '\n' + text.slice(best + 1)
 }
 
 function srtTime(s: number) {
@@ -54,7 +64,7 @@ export function toSrt(log: CaptionLog[], t0: number): string {
   return log
     .slice()
     .sort((a, b) => a.t - b.t)
-    .map((c, i) => `${i + 1}\n${srtTime(c.t - t0)} --> ${srtTime(c.until - t0)}\n${c.text.split('\n').slice(0, 2).join('\n')}\n`)
+    .map((c, i) => `${i + 1}\n${srtTime(c.t - t0)} --> ${srtTime(c.until - t0)}\n${twoLines(c.text)}\n`)
     .join('\n')
 }
 
@@ -68,11 +78,6 @@ export function downloadSrt() {
   a.click()
   setTimeout(() => URL.revokeObjectURL(a.href), 2000)
   return true
-}
-
-;(window as unknown as { __gwSrt: () => string }).__gwSrt = () => {
-  const s = useUi.getState()
-  return toSrt(s.captionLog, s.story.t0)
 }
 
 export function StoryLayer() {
@@ -89,15 +94,14 @@ export function StoryLayer() {
     const id = setInterval(() => setS(simNow() - useUi.getState().story.t0), 100)
     return () => clearInterval(id)
   }, [running, t0])
+  // A recorded take replays the person's approval at a fixed time, the thumb only shows it.
+  const recorded = useUi((st) => st.story.recorded)
   useEffect(() => {
-    if (!running || tapped.current || s < 11.6) return
-    const p = useUi.getState().approvals.find((a) => a.status === 'pending')
-    if (!p) return
+    if (!running || !recorded || tapped.current || s < 11.7) return
     tapped.current = true
     setTap(true)
-    setTimeout(() => approve(p, 'approve'), 420)
     setTimeout(() => setTap(false), 1200)
-  }, [s, running])
+  }, [s, running, recorded])
   const beat = beatAt(s)
   const f = beat.focus
   const end = running && f === 'endcard' && s > 53
@@ -109,6 +113,7 @@ export function StoryLayer() {
     <>
       <div className="story-chip glass">
         STORY {Math.max(0, Math.min(60, s)).toFixed(0).padStart(2, '0')} / 60
+        {recorded && <span className="chip warn" title="Agent and model answers replayed from a recorded Abenix run, so every take is identical">recorded run</span>}
         <span className="story-progress"><i style={{ width: `${Math.min(100, (s / 60) * 100)}%` }} /></span>
         <button className="btn sm" onClick={stopStory} aria-label="Stop the story"><Icon name="stop" /></button>
       </div>

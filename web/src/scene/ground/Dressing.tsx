@@ -44,9 +44,9 @@ function layout(): { boxes: Item[]; cones: Item[]; piles: Item[]; heaps: Item[] 
   }
   // aggregate heaps by the gate
   const gate = site?.gate ?? [0, -98]
-  heaps.push({ x: gate[0] - 22, y: gate[1] + 12, w: 6, h: 3.2, d: 6, rot: 0, color: '#8a847a' })
-  heaps.push({ x: gate[0] - 34, y: gate[1] + 13, w: 5, h: 2.6, d: 5, rot: 0, color: '#6d5a48' })
-  heaps.push({ x: gate[0] + 26, y: gate[1] + 14, w: 7, h: 3.4, d: 7, rot: 0, color: '#8f897d' })
+  heaps.push({ x: gate[0] - 30, y: gate[1] + 10, w: 5, h: 2.4, d: 5, rot: 0, color: '#d6d0c4' })
+  heaps.push({ x: gate[0] - 40, y: gate[1] + 11, w: 4, h: 2, d: 4, rot: 0, color: '#b39c84' })
+  heaps.push({ x: gate[0] + 34, y: gate[1] + 10, w: 5, h: 2.6, d: 5, rot: 0, color: '#cfc9bd' })
   // cones along the haul roads near the gate and around the pit edge
   for (const rd of site?.haulRoads ?? []) {
     for (let i = 1; i < rd.points.length; i++) {
@@ -74,7 +74,7 @@ function layout(): { boxes: Item[]; cones: Item[]; piles: Item[]; heaps: Item[] 
 const boxMat = new THREE.MeshStandardMaterial({ roughness: 0.7, metalness: 0.1 })
 const coneMat = new THREE.MeshStandardMaterial({ color: '#ff6a1a', roughness: 0.6 })
 const pileMat = new THREE.MeshStandardMaterial({ color: '#bdb8ae', roughness: 0.9 })
-const heapTex = new THREE.TextureLoader().load('/assets/textures/aerial_ground_rock_diff_2k.jpg', (t) => {
+const heapTex = new THREE.TextureLoader().load('/assets/textures/concrete_floor_02_diff_2k.jpg', (t) => {
   t.wrapS = t.wrapT = THREE.RepeatWrapping
   t.repeat.set(2, 1)
   t.colorSpace = THREE.SRGBColorSpace
