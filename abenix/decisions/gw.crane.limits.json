@@ -1,0 +1,276 @@
+{
+  "key": "gw.crane.limits",
+  "name": "Groundwork crane limits",
+  "description": "Wind, load moment and airspace limits for the tower crane and the mobile crane. Facts come from the anemometer, the load moment indicator, the anti-collision unit and the ML forecasters. First rule that matches wins.",
+  "risk_tier": "high",
+  "rules": [
+    {
+      "ruleKey": "stop.wind",
+      "description": "Wind at the jib over 20 m/s",
+      "requiresFacts": [
+        "crane.wind_ms"
+      ],
+      "when": {
+        "all": [
+          {
+            "gt": [
+              {
+                "fact": "crane.wind_ms"
+              },
+              20
+            ]
+          }
+        ]
+      },
+      "then": {
+        "action": "stop_slew",
+        "speed_pct": 0,
+        "reason": "Wind over 20 m/s, slewing stopped"
+      },
+      "provenance": {
+        "citations": [
+          "Northgate Yard lifting plan, section 4.1 Wind limits",
+          "Tower crane manual, section 6 In-service wind"
+        ]
+      }
+    },
+    {
+      "ruleKey": "stop.lmi",
+      "description": "Load moment over 90 percent of the chart",
+      "requiresFacts": [
+        "crane.lmi_pct"
+      ],
+      "when": {
+        "all": [
+          {
+            "gt": [
+              {
+                "fact": "crane.lmi_pct"
+              },
+              90
+            ]
+          }
+        ]
+      },
+      "then": {
+        "action": "stop_hoist",
+        "speed_pct": 0,
+        "reason": "Load moment over 90 percent, hoisting up and luffing out stopped"
+      },
+      "provenance": {
+        "citations": [
+          "Northgate Yard lifting plan, section 4.2 Load moment"
+        ]
+      }
+    },
+    {
+      "ruleKey": "stop.envelope",
+      "description": "Crane envelopes closer than 5 m",
+      "requiresFacts": [
+        "crane.min_separation_m"
+      ],
+      "when": {
+        "all": [
+          {
+            "lt": [
+              {
+                "fact": "crane.min_separation_m"
+              },
+              5
+            ]
+          }
+        ]
+      },
+      "then": {
+        "action": "stop_slew",
+        "speed_pct": 0,
+        "reason": "Crane envelopes would overlap, both cranes stopped"
+      },
+      "provenance": {
+        "citations": [
+          "Northgate Yard lifting plan, section 4.4 Shared airspace"
+        ]
+      }
+    },
+    {
+      "ruleKey": "hold.gust_forecast",
+      "description": "Gust forecast over 18 m/s in the next 60 s",
+      "when": {
+        "all": [
+          {
+            "gt": [
+              {
+                "fact": "crane.gust_forecast_ms"
+              },
+              18
+            ]
+          }
+        ]
+      },
+      "then": {
+        "action": "hold_lifts",
+        "speed_pct": 50,
+        "reason": "Gust forecast over 18 m/s, no new lift starts"
+      },
+      "provenance": {
+        "citations": [
+          "Northgate Yard lifting plan, section 4.1 Wind limits"
+        ]
+      }
+    },
+    {
+      "ruleKey": "slow.collision_forecast",
+      "description": "Collision forecaster gives 50 percent or more for the next 10 s",
+      "when": {
+        "all": [
+          {
+            "gte": [
+              {
+                "fact": "crane.collision_prob"
+              },
+              0.5
+            ]
+          }
+        ]
+      },
+      "then": {
+        "action": "slow",
+        "speed_pct": 40,
+        "reason": "Envelope overlap forecast, both cranes slowed"
+      },
+      "provenance": {
+        "citations": [
+          "Northgate Yard lifting plan, section 4.4 Shared airspace"
+        ]
+      }
+    },
+    {
+      "ruleKey": "warn.wind",
+      "description": "Wind at the jib over 15 m/s",
+      "requiresFacts": [
+        "crane.wind_ms"
+      ],
+      "when": {
+        "all": [
+          {
+            "gt": [
+              {
+                "fact": "crane.wind_ms"
+              },
+              15
+            ]
+          }
+        ]
+      },
+      "then": {
+        "action": "warn",
+        "speed_pct": 70,
+        "reason": "Wind over 15 m/s, slew speed reduced"
+      }
+    },
+    {
+      "ruleKey": "ok",
+      "description": "Inside every limit",
+      "requiresFacts": [
+        "crane.wind_ms"
+      ],
+      "when": {
+        "all": [
+          {
+            "gte": [
+              {
+                "fact": "crane.wind_ms"
+              },
+              0
+            ]
+          }
+        ]
+      },
+      "then": {
+        "action": "ok",
+        "speed_pct": 100,
+        "reason": ""
+      }
+    }
+  ],
+  "tests": [
+    {
+      "name": "gale",
+      "facts": {
+        "crane": {
+          "wind_ms": 22,
+          "lmi_pct": 40,
+          "min_separation_m": 30
+        }
+      },
+      "expected": {
+        "action": "stop_slew",
+        "speed_pct": 0,
+        "reason": "Wind over 20 m/s, slewing stopped"
+      }
+    },
+    {
+      "name": "overload",
+      "facts": {
+        "crane": {
+          "wind_ms": 6,
+          "lmi_pct": 93,
+          "min_separation_m": 30
+        }
+      },
+      "expected": {
+        "action": "stop_hoist",
+        "speed_pct": 0,
+        "reason": "Load moment over 90 percent, hoisting up and luffing out stopped"
+      }
+    },
+    {
+      "name": "envelopes",
+      "facts": {
+        "crane": {
+          "wind_ms": 6,
+          "lmi_pct": 40,
+          "min_separation_m": 3
+        }
+      },
+      "expected": {
+        "action": "stop_slew",
+        "speed_pct": 0,
+        "reason": "Crane envelopes would overlap, both cranes stopped"
+      }
+    },
+    {
+      "name": "gust coming",
+      "facts": {
+        "crane": {
+          "wind_ms": 9,
+          "lmi_pct": 40,
+          "min_separation_m": 30,
+          "gust_forecast_ms": 21
+        }
+      },
+      "expected": {
+        "action": "hold_lifts",
+        "speed_pct": 50,
+        "reason": "Gust forecast over 18 m/s, no new lift starts"
+      }
+    },
+    {
+      "name": "calm",
+      "facts": {
+        "crane": {
+          "wind_ms": 6,
+          "lmi_pct": 40,
+          "min_separation_m": 30,
+          "gust_forecast_ms": 9,
+          "collision_prob": 0.1
+        }
+      },
+      "expected": {
+        "action": "ok",
+        "speed_pct": 100,
+        "reason": ""
+      }
+    }
+  ]
+}

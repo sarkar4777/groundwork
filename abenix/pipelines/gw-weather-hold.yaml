@@ -1,0 +1,26 @@
+name: "GW Weather hold"
+slug: gw-weather-hold
+description: "The gust nowcast is over the crane hold line. Checks gw.crane.limits, then the Crane Coordinator holds the lifts and reshuffles them."
+mode: pipeline
+model_config:
+  tools: [decision_evaluate, agent_step]
+input_variables:
+  - {name: forecast_ms, type: number, required: true}
+  - {name: wind_ms, type: number, required: true}
+  - {name: lmi_pct, type: number, required: true}
+  - {name: cranes, type: object, required: false}
+pipeline_config:
+  nodes:
+    - id: limits
+      label: Crane limits
+      tool_name: decision_evaluate
+      arguments:
+        decision: gw.crane.limits
+        facts:
+          crane: {wind_ms: "{{input.wind_ms}}", lmi_pct: "{{input.lmi_pct}}", min_separation_m: 30, gust_forecast_ms: "{{input.forecast_ms}}"}
+    - id: coordinate
+      label: Crane Coordinator
+      type: agent
+      agent_slug: gw-crane-coordinator
+      depends_on: [limits]
+      input: 'Forecast {{input.forecast_ms}} m/s in the next 60 s. Limits: {{limits.result}}. Cranes: {{input.cranes}}'

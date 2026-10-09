@@ -1,0 +1,246 @@
+{
+  "key": "gw.simplex.switch",
+  "name": "Groundwork Simplex switch",
+  "description": "Who drives each machine: the AI plan (auto), the safe fallback plan, or nobody (hold). Any rule hit hands control to the fallback until a person clears it. First rule that matches wins.",
+  "risk_tier": "high",
+  "rules": [
+    {
+      "ruleKey": "offline.can",
+      "description": "No controller heartbeat on the machine bus for 0.3 s",
+      "requiresFacts": [
+        "machine.can_silent_s"
+      ],
+      "when": {
+        "all": [
+          {
+            "gt": [
+              {
+                "fact": "machine.can_silent_s"
+              },
+              0.3
+            ]
+          }
+        ]
+      },
+      "then": {
+        "mode": "offline",
+        "reason": "Machine bus silent, the safety PLC has applied the brakes"
+      },
+      "provenance": {
+        "citations": [
+          "Northgate Yard site safety plan, section 5.2 Loss of control signals"
+        ]
+      }
+    },
+    {
+      "ruleKey": "hold.gnss",
+      "description": "RTK GNSS fix lost for more than 1 s",
+      "requiresFacts": [
+        "machine.gnss_lost_s"
+      ],
+      "when": {
+        "all": [
+          {
+            "gt": [
+              {
+                "fact": "machine.gnss_lost_s"
+              },
+              1
+            ]
+          }
+        ]
+      },
+      "then": {
+        "mode": "hold",
+        "reason": "GNSS fix lost for more than 1 s, stop and hold"
+      },
+      "provenance": {
+        "citations": [
+          "Northgate Yard site safety plan, section 5.3 Positioning"
+        ]
+      }
+    },
+    {
+      "ruleKey": "hold.rule",
+      "description": "A safety rule is stopping the machine",
+      "requiresFacts": [
+        "machine.rule_stop"
+      ],
+      "when": {
+        "all": [
+          {
+            "isTrue": [
+              {
+                "fact": "machine.rule_stop"
+              }
+            ]
+          }
+        ]
+      },
+      "then": {
+        "mode": "hold",
+        "reason": "Safety rule hit"
+      }
+    },
+    {
+      "ruleKey": "hold.critical_fault",
+      "description": "A critical fault code is active",
+      "when": {
+        "all": [
+          {
+            "isTrue": [
+              {
+                "fact": "machine.dtc_critical"
+              }
+            ]
+          }
+        ]
+      },
+      "then": {
+        "mode": "hold",
+        "reason": "Critical fault code, machine in safe mode"
+      },
+      "provenance": {
+        "citations": [
+          "Machine manuals, fault code tables"
+        ]
+      }
+    },
+    {
+      "ruleKey": "fallback.latched",
+      "description": "A rule fired earlier and no person has cleared it yet",
+      "when": {
+        "all": [
+          {
+            "isTrue": [
+              {
+                "fact": "machine.hit_latched"
+              }
+            ]
+          }
+        ]
+      },
+      "then": {
+        "mode": "fallback",
+        "reason": "Running the fallback plan until a person clears the stop"
+      }
+    },
+    {
+      "ruleKey": "fallback.ai_offline",
+      "description": "The AI planning layer is unavailable",
+      "when": {
+        "all": [
+          {
+            "isFalse": [
+              {
+                "fact": "machine.ai_available"
+              }
+            ]
+          }
+        ]
+      },
+      "then": {
+        "mode": "fallback",
+        "reason": "AI offline, running the fallback plan"
+      }
+    },
+    {
+      "ruleKey": "auto",
+      "description": "Everything normal, the AI plan drives",
+      "requiresFacts": [
+        "machine.gnss_lost_s"
+      ],
+      "when": {
+        "all": [
+          {
+            "gte": [
+              {
+                "fact": "machine.gnss_lost_s"
+              },
+              0
+            ]
+          }
+        ]
+      },
+      "then": {
+        "mode": "auto",
+        "reason": ""
+      }
+    }
+  ],
+  "tests": [
+    {
+      "name": "can cut",
+      "facts": {
+        "machine": {
+          "can_silent_s": 0.5,
+          "gnss_lost_s": 0,
+          "rule_stop": false
+        }
+      },
+      "expected": {
+        "mode": "offline",
+        "reason": "Machine bus silent, the safety PLC has applied the brakes"
+      }
+    },
+    {
+      "name": "gnss lost",
+      "facts": {
+        "machine": {
+          "can_silent_s": 0,
+          "gnss_lost_s": 1.4,
+          "rule_stop": false
+        }
+      },
+      "expected": {
+        "mode": "hold",
+        "reason": "GNSS fix lost for more than 1 s, stop and hold"
+      }
+    },
+    {
+      "name": "rule hit",
+      "facts": {
+        "machine": {
+          "can_silent_s": 0,
+          "gnss_lost_s": 0,
+          "rule_stop": true
+        }
+      },
+      "expected": {
+        "mode": "hold",
+        "reason": "Safety rule hit"
+      }
+    },
+    {
+      "name": "latched",
+      "facts": {
+        "machine": {
+          "can_silent_s": 0,
+          "gnss_lost_s": 0,
+          "rule_stop": false,
+          "hit_latched": true
+        }
+      },
+      "expected": {
+        "mode": "fallback",
+        "reason": "Running the fallback plan until a person clears the stop"
+      }
+    },
+    {
+      "name": "normal",
+      "facts": {
+        "machine": {
+          "can_silent_s": 0,
+          "gnss_lost_s": 0,
+          "rule_stop": false,
+          "hit_latched": false,
+          "ai_available": true
+        }
+      },
+      "expected": {
+        "mode": "auto",
+        "reason": ""
+      }
+    }
+  ]
+}

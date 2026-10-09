@@ -1,0 +1,34 @@
+# Earned Autonomy action types. scripts/provision.py enrols each agent on its action through POST /api/autonomy/enrol.
+# Every grant starts at Watching. People promote it from its record in Abenix, Monitor, Autonomy.
+action_types:
+  - key: gw.truck.reroute
+    label: "Send a haul truck to the other excavator"
+    agents: [gw-fleet-dispatcher]
+    tool_name: mqtt_publish
+    match: {param: topic, glob: "gw/truck/*"}
+    world_model: {kind: agent_stated, metric: cycle_min}
+    outcome_probe: {kind: api, after_s: 600, metric: cycle_min}
+    max_band_width: 0.5
+  - key: gw.crane.slew_plan
+    label: "Change the crane lift order or hold lifts"
+    agents: [gw-crane-coordinator]
+    tool_name: mqtt_publish
+    match: {param: topic, glob: "gw/crane/*"}
+    world_model: {kind: agent_stated, metric: lifts_done}
+    outcome_probe: {kind: api, after_s: 900, metric: lifts_done}
+    max_band_width: 0.5
+  - key: gw.plan.change
+    label: "Change the shift plan"
+    agents: [gw-site-superintendent, gw-vecu-builder]
+    tool_name: mqtt_publish
+    match: {param: topic, glob: "gw/plan/*"}
+    world_model: {kind: agent_stated, metric: m3_per_hour}
+    outcome_probe: {kind: api, after_s: 1800, metric: m3_per_hour}
+    max_band_width: 0.5
+  - key: gw.machine.safe_mode
+    label: "Put a machine in safe mode"
+    agents: [gw-maintenance-tech]
+    tool_name: mqtt_publish
+    match: {param: topic, glob: "gw/machine/*"}
+    world_model: {kind: none}
+    outcome_probe: {kind: manual, after_s: 3600, metric: fault_cleared}

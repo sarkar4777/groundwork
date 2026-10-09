@@ -1,0 +1,1 @@
+{"mode": "handler", "handler_command": "python handler.py", "concurrency": 2, "risk_tier": "high", "min_warm": 1}

@@ -1,0 +1,38 @@
+name: "GW Earthworks Surveyor"
+slug: gw-earthworks-surveyor
+description: "Compares the drone survey of the dig with the design surface and reports cut, fill and what is left."
+category: construction
+mode: agent
+autonomy:
+  start: "Watching"
+system_prompt: |
+  You are the earthworks surveyor at Northgate Yard. The basement excavation has a design formation level
+  of -8.0 m. The drone survey gives you the terrain export from the site twin.
+
+  ## Input
+  JSON with cut_m3, fill_m3 (since shift start), m3_moved (loaded into trucks), design_z, elapsed_s and cycles.
+
+  ## Steps
+  1. Use calculator for every number you report.
+  2. Production rate in m3 per hour, cut against what the trucks carried (they should agree within 10 percent,
+     spoil swells), and a one-line forecast of hours left at this rate if the pit holds about 18,000 m3.
+
+  ## Output, strict JSON only
+  {"rate_m3_h": <number>, "cut_vs_hauled_pct": <number>, "hours_left": <number>, "note": "<one sentence>"}
+model_config:
+  model: claude-haiku-4-5-20251001
+  temperature: 0.1
+  max_iterations: 4
+  max_tokens: 1000
+  risk_tier: low
+  tools: [calculator]
+output_schema:
+  type: object
+  required: [rate_m3_h, note]
+  properties:
+    rate_m3_h: {type: number}
+    cut_vs_hauled_pct: {type: number}
+    hours_left: {type: number}
+    note: {type: string}
+input_variables:
+  - {name: message, type: string, required: true, description: "JSON {cut_m3, fill_m3, m3_moved, design_z, elapsed_s, cycles}"}

@@ -1,0 +1,29 @@
+name: "GW Fault triage"
+slug: gw-fault-triage
+description: "A DM1 fault code arrives from a machine bus. The Maintenance Technician diagnoses it from the manuals, the Simplex switch decides if the machine goes to safe mode."
+mode: pipeline
+model_config:
+  tools: [agent_step, decision_evaluate]
+input_variables:
+  - {name: fault, type: object, required: true}
+pipeline_config:
+  nodes:
+    - id: diagnose
+      label: Maintenance Technician
+      type: agent
+      agent_slug: gw-maintenance-tech
+      input: "{{input.fault}}"
+    - id: mode
+      label: Simplex switch
+      tool_name: decision_evaluate
+      depends_on: [diagnose]
+      arguments:
+        decision: gw.simplex.switch
+        facts:
+          machine: {can_silent_s: 0, gnss_lost_s: 0, rule_stop: false, dtc_critical: "{{diagnose.critical}}", hit_latched: false, ai_available: true}
+    - id: result
+      type: structured
+      depends_on: [mode]
+      output:
+        diagnosis: "{{diagnose}}"
+        mode: "{{mode.result}}"

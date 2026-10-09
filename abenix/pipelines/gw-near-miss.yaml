@@ -1,0 +1,24 @@
+name: "GW Near miss"
+slug: gw-near-miss
+description: "A safety stop or near miss: re-checks the facts against gw.safety.exclusion in Abenix, then the Safety Officer writes it up from the 10 s before it and proposes a lesson."
+mode: pipeline
+model_config:
+  tools: [decision_evaluate, agent_step]
+input_variables:
+  - {name: event, type: object, required: true}
+  - {name: facts, type: object, required: true}
+  - {name: recent, type: array, required: false}
+pipeline_config:
+  nodes:
+    - id: check
+      label: Re-check the rule
+      tool_name: decision_evaluate
+      arguments:
+        decision: gw.safety.exclusion
+        facts: "{{input.facts}}"
+    - id: writeup
+      label: Safety Officer write-up
+      type: agent
+      agent_slug: gw-safety-officer
+      depends_on: [check]
+      input: 'Event: {{input.event}} Rule check: {{check.result}} Applied rules: {{check.applied_rules}} Recent: {{input.recent}}'

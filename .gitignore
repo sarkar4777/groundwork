@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.env
+abenix/models/out/*.onnx
+abenix/models/out/*.joblib
+abenix/models/out/data/
+sim/story_cache/*.tmp
+node_modules/
+web/dist/

@@ -1,0 +1,25 @@
+name: "GW Shift start"
+slug: gw-shift-start
+description: "Start of shift: checks the wind against the crane limits, then the Site Superintendent drafts the day's plan. Groundwork asks a person to approve it before it runs."
+mode: pipeline
+model_config:
+  tools: [decision_evaluate, agent_step]
+input_variables:
+  - {name: brief, type: object, required: true}
+  - {name: plan, type: object, required: true}
+  - {name: wind_ms, type: number, required: true}
+pipeline_config:
+  nodes:
+    - id: weather
+      label: Wind against crane limits
+      tool_name: decision_evaluate
+      arguments:
+        decision: gw.crane.limits
+        facts:
+          crane: {wind_ms: "{{input.wind_ms}}", lmi_pct: 60, min_separation_m: 30}
+    - id: plan
+      label: Site Superintendent drafts the plan
+      type: agent
+      agent_slug: gw-site-superintendent
+      depends_on: [weather]
+      input: '{"reason": "shift_start", "event": {"crane_limits": {{weather.result}}}, "brief": {{input.brief}}, "plan": {{input.plan}}}'

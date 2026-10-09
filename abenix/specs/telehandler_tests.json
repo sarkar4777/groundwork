@@ -1,0 +1,8 @@
+[
+  {"name": "angle is rate limited", "initial": {"angle": 0.0, "ext": 0.0}, "inputs": {"target_angle": 0.6, "target_ext": 0.0, "load_t": 0.0, "stop": false}, "steps": 100, "dt": 0.01, "expect": {"boom_angle_rad": 0.12}, "tol": 0.005},
+  {"name": "angle reaches the target", "initial": {"angle": 0.0, "ext": 0.0}, "inputs": {"target_angle": 0.6, "target_ext": 0.0, "load_t": 0.0, "stop": false}, "steps": 1000, "dt": 0.01, "expect": {"boom_angle_rad": 0.6}, "tol": 0.002},
+  {"name": "stop holds the boom", "initial": {"angle": 0.3, "ext": 1.0}, "inputs": {"target_angle": 1.0, "target_ext": 5.0, "load_t": 1.0, "stop": true}, "steps": 200, "dt": 0.01, "expect": {"boom_angle_rad": 0.3, "extension_m": 1.0}, "tol": 0.0001},
+  {"name": "extension clamps at 6 m", "initial": {"angle": 0.5, "ext": 0.0}, "inputs": {"target_angle": 0.5, "target_ext": 9.0, "load_t": 0.0, "stop": false}, "steps": 3000, "dt": 0.01, "expect": {"extension_m": 6.0}, "tol": 0.002},
+  {"name": "stability at rest", "initial": {"angle": 0.0, "ext": 4.0}, "inputs": {"target_angle": 0.0, "target_ext": 4.0, "load_t": 2.0, "stop": false}, "steps": 1, "dt": 0.01, "expect": {"stability_pct": 85.714}, "tol": 0.05},
+  {"name": "no extension past 100 percent", "initial": {"angle": 0.0, "ext": 3.0}, "inputs": {"target_angle": 0.0, "target_ext": 6.0, "load_t": 3.0, "stop": false}, "steps": 500, "dt": 0.01, "expect": {"extension_m": 3.0}, "tol": 0.002}
+]

@@ -1,0 +1,15 @@
+name: "GW End of shift"
+slug: gw-end-of-shift
+description: "Volumes, cycles, incidents, faults, AI cost and the ISO 15143-3 fleet summary, written up by the Compliance Reporter for a person to sign off."
+mode: pipeline
+model_config:
+  tools: [agent_step]
+input_variables:
+  - {name: report, type: object, required: true}
+pipeline_config:
+  nodes:
+    - id: report
+      label: Compliance Reporter
+      type: agent
+      agent_slug: gw-compliance-reporter
+      input: "{{input.report}}"

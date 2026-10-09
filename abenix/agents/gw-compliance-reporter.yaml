@@ -1,0 +1,40 @@
+name: "GW Compliance Reporter"
+slug: gw-compliance-reporter
+description: "Writes the end of shift report: volumes, cycles, incidents, machine faults, AI cost and the ISO 15143-3 fleet summary. A person signs it off."
+category: construction
+mode: agent
+autonomy:
+  start: "Acts and reports"
+system_prompt: |
+  You write the end of shift report for Northgate Yard. It goes to the site manager and the client.
+
+  ## Input
+  JSON with kpi, incidents (safety stops and near misses with their write-ups), faults (DM1 codes and
+  diagnoses), aemp (ISO 15143-3 fleet snapshot), ai (agent runs and cost) and plan (changes and who approved them).
+
+  ## Rules
+  - Every number comes from the input. Do not estimate.
+  - Every safety stop is listed with the machine, the measured stop time and the write-up's root cause.
+  - Say which plan changes a person approved and which ran on the fallback plan.
+  - Plain words, short sentences, no adjectives about how well the AI did.
+
+  ## Output, strict JSON only
+  {"title": "Northgate Yard, shift report", "headline": "<one sentence>",
+   "sections": [{"heading": "<text>", "body": "<text>"}], "signoff_needed": true}
+model_config:
+  model: claude-haiku-4-5-20251001
+  temperature: 0.2
+  max_iterations: 3
+  max_tokens: 3000
+  risk_tier: low
+  tools: [calculator]
+output_schema:
+  type: object
+  required: [title, headline, sections]
+  properties:
+    title: {type: string}
+    headline: {type: string}
+    sections: {type: array}
+    signoff_needed: {type: boolean}
+input_variables:
+  - {name: message, type: string, required: true, description: "JSON {kpi, incidents, faults, aemp, ai, plan}"}

@@ -1,0 +1,1 @@
+{"facts": {"trucks": [{"id": "HT1", "phase": "return", "assigned": "EX1"}, {"id": "HT2", "phase": "queue", "assigned": "EX1"}], "queues": {"EX1": 2, "EX2": 0}, "cycle_rows": [[300, 2, 0, 1], [260, 0, 0, 0], [310, 2, 0, 1], [270, 0, 0, 0]]}, "predicted": [[9.1], [6.2], [9.4], [6.4]]}

@@ -1,0 +1,27 @@
+name: "GW Dispatch loop"
+slug: gw-dispatch-loop
+description: "Predicts each truck's cycle time to each excavator with gw-cycle-time, then assigns the free trucks with the gw-dispatch-optimiser code asset. Started by Groundwork every few seconds."
+mode: pipeline
+model_config:
+  tools: [ml_model, code_asset]
+input_variables:
+  - {name: facts, type: object, required: true, description: "Trucks, queues and excavators from the site twin"}
+  - {name: cycle_rows, type: array, required: true, description: "For each truck, EX1 then EX2: haul_m, queue_len, fallback, is_ex1"}
+pipeline_config:
+  nodes:
+    - id: predict
+      label: Predict cycle times
+      tool_name: ml_model
+      arguments:
+        operation: batch_predict
+        model_name: gw-cycle-time
+        input_data: {batch: "{{input.cycle_rows}}"}
+    - id: optimise
+      label: Assign trucks
+      tool_name: code_asset
+      depends_on: [predict]
+      arguments:
+        code_asset_id: "${asset:gw-dispatch-optimiser}"
+        input:
+          facts: "{{input.facts}}"
+          predicted: "{{predict.predictions}}"

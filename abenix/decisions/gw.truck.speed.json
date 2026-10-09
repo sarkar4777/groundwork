@@ -1,0 +1,146 @@
+{
+  "key": "gw.truck.speed",
+  "name": "Groundwork truck speed",
+  "description": "Speed cap for every haul truck from the nearest worker tag and where the truck is. First rule that matches wins.",
+  "risk_tier": "high",
+  "rules": [
+    {
+      "ruleKey": "cap.near_worker",
+      "description": "A worker tag within 15 m",
+      "requiresFacts": [
+        "truck.nearest_worker_m"
+      ],
+      "when": {
+        "all": [
+          {
+            "lt": [
+              {
+                "fact": "truck.nearest_worker_m"
+              },
+              15
+            ]
+          }
+        ]
+      },
+      "then": {
+        "speed_cap_kmh": 10,
+        "reason": "Worker within 15 m, 10 km/h"
+      },
+      "provenance": {
+        "citations": [
+          "Northgate Yard site safety plan, section 4.1 Vehicles and people"
+        ]
+      }
+    },
+    {
+      "ruleKey": "cap.gate",
+      "description": "At the site gate",
+      "requiresFacts": [
+        "truck.zone"
+      ],
+      "when": {
+        "all": [
+          {
+            "eq": [
+              {
+                "fact": "truck.zone"
+              },
+              "gate"
+            ]
+          }
+        ]
+      },
+      "then": {
+        "speed_cap_kmh": 10,
+        "reason": "Gate, 10 km/h"
+      }
+    },
+    {
+      "ruleKey": "cap.pit",
+      "description": "In the excavation or on the ramp",
+      "requiresFacts": [
+        "truck.zone"
+      ],
+      "when": {
+        "all": [
+          {
+            "eq": [
+              {
+                "fact": "truck.zone"
+              },
+              "pit"
+            ]
+          }
+        ]
+      },
+      "then": {
+        "speed_cap_kmh": 15,
+        "reason": "Pit and ramp, 15 km/h"
+      }
+    },
+    {
+      "ruleKey": "cap.haul_road",
+      "description": "Everywhere else",
+      "requiresFacts": [
+        "truck.nearest_worker_m"
+      ],
+      "when": {
+        "all": [
+          {
+            "gte": [
+              {
+                "fact": "truck.nearest_worker_m"
+              },
+              15
+            ]
+          }
+        ]
+      },
+      "then": {
+        "speed_cap_kmh": 30,
+        "reason": "Haul road, 30 km/h"
+      }
+    }
+  ],
+  "tests": [
+    {
+      "name": "worker close",
+      "facts": {
+        "truck": {
+          "nearest_worker_m": 9,
+          "zone": "haul_road"
+        }
+      },
+      "expected": {
+        "speed_cap_kmh": 10,
+        "reason": "Worker within 15 m, 10 km/h"
+      }
+    },
+    {
+      "name": "haul road",
+      "facts": {
+        "truck": {
+          "nearest_worker_m": 60,
+          "zone": "haul_road"
+        }
+      },
+      "expected": {
+        "speed_cap_kmh": 30,
+        "reason": "Haul road, 30 km/h"
+      }
+    },
+    {
+      "name": "pit",
+      "facts": {
+        "truck": {
+          "nearest_worker_m": 60,
+          "zone": "pit"
+        }
+      },
+      "expected": {
+        "speed_cap_kmh": 15,
+        "reason": "Pit and ramp, 15 km/h"
+      }
+    }
+  ]
+}

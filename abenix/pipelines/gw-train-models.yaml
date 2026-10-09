@@ -1,0 +1,31 @@
+name: "GW Train models"
+slug: gw-train-models
+description: "Generates training data by running the gw-site-twin code asset, then trains and exports one model to ONNX with the gw-model-trainer code asset. scripts/provision.py runs it once per model and registers the result."
+mode: pipeline
+model_config:
+  tools: [code_asset]
+input_variables:
+  - {name: kind, type: string, required: true}
+  - {name: model, type: string, required: true}
+  - {name: seed, type: number, required: false, default: 11}
+pipeline_config:
+  nodes:
+    - id: data
+      label: Twin generates data
+      tool_name: code_asset
+      timeout_seconds: 300
+      arguments:
+        code_asset_id: "${asset:gw-site-twin}"
+        timeout_seconds: 300
+        input: {op: dataset, kind: "{{input.kind}}", seed: "{{input.seed}}"}
+    - id: train
+      label: Train and export ONNX
+      tool_name: code_asset
+      depends_on: [data]
+      timeout_seconds: 300
+      arguments:
+        code_asset_id: "${asset:gw-model-trainer}"
+        timeout_seconds: 300
+        allow_network: true
+        memory_mb: 2048
+        input: {model: "{{input.model}}", dataset: "{{data.result}}"}
