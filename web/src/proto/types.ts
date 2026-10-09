@@ -74,6 +74,8 @@ export interface BusFrame {
   decoded: Record<string, unknown>
   proto?: string
   topic?: string
+  acronym?: string
+  can_id?: string
 }
 
 export type EventKind = 'safety_stop' | 'near_miss' | 'fault' | 'gust' | 'plan_change' | 'approval' | 'autonomy' | 'story'

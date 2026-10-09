@@ -187,6 +187,13 @@ export function Nervous() {
         const m = hot.curr.machines[Math.floor(Math.random() * hot.curr.machines.length)]
         if (m) flashes.current.push({ pos: new THREE.Vector3(m.x, SAFETY_Y, -m.y), col: C.mint, t0: state.clock.elapsedTime, big: false })
       }
+      // the twin state of every machine rises to the safety layer once per step
+      for (const m of hot.curr.machines.slice(0, 30)) {
+        if (!machinePos(m.id, tmpA)) continue
+        tmpC.set(tmpA.x, SAFETY_Y, tmpA.z)
+        tmpB.set(tmpA.x, (tmpA.y + SAFETY_Y) / 2, tmpA.z)
+        spawn(tmpA, tmpB, tmpC, m.mode === 'auto' ? C.ice : C.amber, 0.75, 2.2)
+      }
     }
     for (const e of hot.flashes) {
       const big = e.kind === 'safety_stop' || e.kind === 'near_miss' || e.kind === 'fault'

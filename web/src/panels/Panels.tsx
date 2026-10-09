@@ -126,9 +126,9 @@ export function SignalTrace({ focus }: { focus?: boolean }) {
               <span className="faint">{b.t.toFixed(3)}</span>
               <span>{b.machine}</span>
               <span className={sp ? 'sp' : b.pgn === 65226 ? 'dm1' : 'pgn'}>{sp ? 'SPB' : `${b.pgn}`}</span>
-              <span className="name">{b.ecu} · {b.name}</span>
+              <span className="name">{b.ecu} · {typeof b.acronym === 'string' ? `${b.acronym} ` : ''}{b.name}</span>
               <span className="dec">{decodedText(b.decoded)}</span>
-              {!sp && b.data && <span className="hex">{hex(b.data)}</span>}
+              {!sp && b.data && <span className="hex">{typeof b.can_id === 'string' ? `${b.can_id}  ` : ''}{hex(b.data)}</span>}
               {sp && b.topic && <span className="hex">{b.topic}</span>}
             </div>
           )
@@ -138,12 +138,23 @@ export function SignalTrace({ focus }: { focus?: boolean }) {
   )
 }
 
+function nodeLabel(n: PlanNode): string {
+  if (n.label) return n.label
+  const p = (n.params ?? {}) as Record<string, unknown>
+  const verb = typeof n.do === 'string' ? n.do.replace(/_/g, ' ') : n.id
+  const extra = [p.from ? `from ${p.from}` : '', p.dest ? `to ${p.dest}` : p.to ? `to ${p.to}` : ''].filter(Boolean).join(' ')
+  return [n.machine, verb, extra].filter(Boolean).join(' ')
+}
+
 function Tree({ n }: { n: PlanNode }) {
+  const label = nodeLabel(n)
+  const mode = typeof n.mode === 'string' && n.mode !== 'auto' ? n.mode : null
   return (
     <li>
-      <span className={`node ${n.status}`} title={`${n.label}: ${n.status}`}>
+      <span className={`node ${n.status}`} title={`${label}: ${n.status}${mode ? `, ${mode}` : ''}`}>
         <span className="dot" />
-        <span>{n.label}</span>
+        <span>{label}</span>
+        {mode && <span className="mono" style={{ fontSize: 9.5, color: '#ffb020', textTransform: 'uppercase' }}>{mode}</span>}
       </span>
       {n.children && n.children.length > 0 && (
         <ul>

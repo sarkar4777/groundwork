@@ -241,10 +241,11 @@ export function NervousHud() {
       <div className="tl">
         <span className="hud-box" style={{ fontFamily: 'JetBrains Mono' }}><span className="hud-k">VIEW</span><span className="hud-v">NERVOUS SYSTEM</span></span>
         <div className="hud-box legend" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}>
+          <span><i className="swatch" style={{ background: '#c9ecff' }} />Twin state, every step</span>
           <span><i className="swatch" style={{ background: '#5cc8ff' }} />Bus frames, J1939</span>
           <span><i className="swatch" style={{ background: '#3ee6a8' }} />Safety decisions and Sparkplug sensors</span>
           <span><i className="swatch" style={{ background: '#ff4d5e' }} />Safety stops</span>
-          <span><i className="swatch" style={{ background: '#c9ecff' }} />Agent calls to Abenix</span>
+          <span><i className="swatch" style={{ background: '#e8f7ff', boxShadow: '0 0 6px #5cc8ff' }} />Agent calls to the Abenix core</span>
         </div>
       </div>
       <div className="tr" style={{ fontFamily: 'JetBrains Mono' }}>
