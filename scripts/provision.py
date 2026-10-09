@@ -26,7 +26,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "bff" / "vendor"))
-from abenix_sdk import Abenix, AbenixDecisionError, AbenixError  # noqa: E402
+from abenix_sdk import Abenix, AbenixDecisionError, AbenixError, bootstrap_key  # noqa: E402
 
 AB = ROOT / "abenix"
 ENV = ROOT / ".env"
@@ -91,25 +91,25 @@ def env(name, default=""):
 # the API key
 
 async def mint_key(base: str) -> str:
-    email = env("ABENIX_ADMIN_EMAIL", "admin@abenix.dev")
-    password = env("ABENIX_ADMIN_PASSWORD", "Admin123456")
-    async with httpx.AsyncClient(base_url=base, timeout=30) as c:
-        have = env("ABENIX_API_KEY")
-        if have:
-            r = await c.get("/api/me", headers={"X-API-Key": have})
-            if r.status_code == 200:
+    have = env("ABENIX_API_KEY")
+    if have:
+        async with Abenix(api_key=have, base_url=base) as f:
+            try:
+                await f.me()
                 print("  key        groundwork                   kept       the key in .env works")
                 return have
-        r = await c.post("/api/auth/login", json={"email": email, "password": password})
-        if r.status_code != 200:
-            raise SystemExit(f"Sign in to {base} as {email} failed: {r.text[:200]}")
-        h = {"Authorization": f"Bearer {r.json()['data']['access_token']}"}
-        for k in (await c.get("/api/api-keys", headers=h)).json().get("data") or []:
-            if k.get("name") == "groundwork":
-                await c.delete(f"/api/api-keys/{k['id']}", headers=h)
-        r = await c.post("/api/api-keys", headers=h, json={"name": "groundwork"})
-        r.raise_for_status()
-        key = r.json()["data"]["raw_key"]
+            except AbenixError as e:
+                # only a refused key is replaced, a platform blip must not revoke a key a running bff uses
+                if e.status not in (401, 403):
+                    raise SystemExit(f"Abenix did not answer cleanly ({e.status}: {e}), try again")
+    email = env("ABENIX_ADMIN_EMAIL", "admin@abenix.dev")
+    password = env("ABENIX_ADMIN_PASSWORD", "Admin123456")
+    key = await bootstrap_key(base, email, password, "groundwork")
+    # an older groundwork key is revoked once the new one works
+    async with Abenix(api_key=key, base_url=base) as f:
+        for k in await f.api_keys.list():
+            if k.get("name") == "groundwork" and not key.endswith(str(k.get("key_prefix", ""))[-4:]):
+                await f.api_keys.revoke(k["id"])
     write_env({"ABENIX_URL": base, "ABENIX_API_KEY": key})
     print("  key        groundwork                   minted     written to .env")
     return key
@@ -149,18 +149,13 @@ async def assets(f: Abenix, rep: Report) -> dict:
             rep.add("code", name, "same", f"/code-runner?asset={a['id']}", f"v{a.get('version')}")
             continue
         if a:
-            r = await f.http.post(f"/api/code-assets/{a['id']}/versions", files={"file": (f"{name}.zip", blob, "application/zip")})
-            if r.status_code >= 400:
-                raise SystemExit(f"{name}: new version refused: {r.text[:300]}")
-            await f.http.put(f"/api/code-assets/{a['id']}", json={"description": desc})
+            v = await f.code_assets.new_version(a["id"], blob, filename=f"{name}.zip")
+            await f.code_assets.update(a["id"], description=desc)
             ids[name] = a["id"]
-            rep.add("code", name, "updated", f"/code-runner?asset={a['id']}", f"v{(r.json().get('data') or {}).get('version')}")
+            rep.add("code", name, "updated", f"/code-runner?asset={a['id']}", f"v{(v or {}).get('version')}")
         else:
-            r = await f.http.post("/api/code-assets", files={"file": (f"{name}.zip", blob, "application/zip")},
-                                  data={"metadata": json.dumps({"name": name, "description": desc})})
-            if r.status_code >= 400:
-                raise SystemExit(f"{name}: upload refused: {r.text[:300]}")
-            ids[name] = r.json()["data"]["id"]
+            c = await f.code_assets.create(name, blob, description=desc, filename=f"{name}.zip")
+            ids[name] = c["id"]
             rep.add("code", name, "created", f"/code-runner?asset={ids[name]}")
     # first call starts the warm runner
     t0 = time.perf_counter()
@@ -182,7 +177,7 @@ async def _sync_tests(f: Abenix, key: str, tests: list) -> None:
         if h is None:
             await f.decisions.add_test(key, t["name"], t["facts"], expected=t.get("expected"))
         elif h.get("expected") != t.get("expected") or h.get("facts") != t["facts"]:
-            await f.http.put(f"/api/decisions/{key}/tests/{h['id']}", json={"name": t["name"], "facts": t["facts"], "expected": t.get("expected")})
+            await f.decisions.update_test(key, h["id"], facts=t["facts"], expected=t.get("expected"))
 
 
 async def decisions(f: Abenix, rep: Report) -> None:
@@ -316,23 +311,23 @@ async def autonomy(f: Abenix, rep: Report, agent_ids: dict) -> None:
                 "label": at["label"], "key": at["key"], "match": at.get("match"), "world_model": at.get("world_model"),
                 "outcome_probe": at.get("outcome_probe"), "max_band_width": at.get("max_band_width")}}
             body["action_type"] = {k: v for k, v in body["action_type"].items() if v is not None}
-            r = await f.http.post("/api/autonomy/enrol", json=body)
-            if r.status_code >= 400:
-                rep.add("autonomy", f"{at['key']} {slug}", "refused", note=r.text[:200])
+            try:
+                g = await f.autonomy.enrol(body["agent_id"], body["tool_name"], body["action_type"])
+            except AbenixError as e:
+                rep.add("autonomy", f"{at['key']} {slug}", "refused", note=str(e)[:200])
                 continue
-            g = r.json().get("data") or {}
             rep.add("autonomy", at["key"], "enrolled", "/autonomy", f"{slug} at level {g.get('level', 0)}")
 
 
 # ML models, trained in Abenix
 
-async def models(f: Abenix, rep: Report, retrain: bool) -> None:
+async def models(f: Abenix, rep: Report, retrain: bool, only: str = "") -> None:
     have = {}
     for m in await f.ml_models.list():
         if m.get("status") == "ready" and m.get("is_active"):
             have[m["name"]] = m
     for name, kind in MODELS.items():
-        if name in have and not retrain:
+        if name in have and (not retrain or (only and name != only)):
             rep.add("model", name, "same", f"/ml-models?model={have[name]['id']}", f"v{have[name].get('version')}")
             continue
         t0 = time.perf_counter()
@@ -342,15 +337,16 @@ async def models(f: Abenix, rep: Report, retrain: bool) -> None:
         if not out or not out.get("onnx_b64"):
             rep.add("model", name, "failed", note=f"training run {res.execution_id}: {str(res.output)[:300]}")
             continue
-        meta = {"name": name, "framework": "onnx", "description": f"{out['card']['type']}. {out['card']['predicts']}. {out['card']['data']}",
-                "input_schema": out["input_schema"], "output_schema": out["output_schema"], "tags": ["groundwork"],
-                "training_metrics": out["metrics"]}
-        r = await f.http.post("/api/ml-models", files={"file": (f"{name}.onnx", base64.b64decode(out["onnx_b64"]), "application/octet-stream")},
-                              data={"metadata": json.dumps(meta)})
-        if r.status_code >= 400:
-            rep.add("model", name, "refused", note=r.text[:300])
+        card = out["card"]
+        metrics = ", ".join(f"{k} {round(v, 3) if isinstance(v, float) else v}" for k, v in out["metrics"].items())
+        try:
+            m = await f.ml_models.upload(name, base64.b64decode(out["onnx_b64"]), framework="onnx", filename=f"{name}.onnx",
+                                         description=f"{card['type']}. {card['predicts']}. {card['data']}. Test metrics: {metrics}",
+                                         input_schema=out["input_schema"], output_schema=out["output_schema"], tags=["groundwork"])
+        except AbenixError as e:
+            rep.add("model", name, "refused", note=str(e)[:300])
             continue
-        mid = r.json()["data"]["id"]
+        mid = m["id"]
         rep.add("model", name, "trained", f"/ml-models?model={mid}",
                 f"{out['bytes']} B onnx, {json.dumps({k: (round(v, 3) if isinstance(v, float) else v) for k, v in out['metrics'].items()})} in {time.perf_counter() - t0:.0f} s, run {res.execution_id}")
 
@@ -387,6 +383,7 @@ async def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--only", default=",".join(STEPS))
     ap.add_argument("--retrain", action="store_true")
+    ap.add_argument("--model", default="", help="with --retrain, only this model")
     args = ap.parse_args()
     only = set(args.only.split(","))
     base = env("ABENIX_URL", "http://localhost:8000").rstrip("/")
@@ -408,7 +405,7 @@ async def main():
         if "autonomy" in only:
             await autonomy(f, rep, agent_ids)
         if "models" in only:
-            await models(f, rep, args.retrain)
+            await models(f, rep, args.retrain, args.model)
         if "check" in only:
             await check(f, rep, asset_ids)
     rep.show()

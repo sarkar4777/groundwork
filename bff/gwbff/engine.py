@@ -184,10 +184,7 @@ class Engine:
     async def billing_mode(self) -> None:
         """A Claude subscription serving every run reports no cost, the web says so instead of showing $0."""
         try:
-            r = await self.forge.http.get("/api/llm-models", timeout=10)
-            models = ((r.json().get("data") or {}).get("models")) or []
-            served = [m for m in models if m.get("provider") == "anthropic" and m.get("status") == "available"]
-            self.billing = "subscription" if served and all(m.get("subscription_served") for m in served) else "metered"
+            self.billing = await self.forge.llm_models.billing()
         except Exception as e:  # noqa: BLE001
             log.debug("billing: %s", e)
             self.billing = "unknown"
@@ -287,7 +284,8 @@ class Engine:
         inp = {"op": "step", "state_z": self.state_z, "ticks": self.ticks_due(), "bus_budget": int(self.cfg.get("bus_budget", 12))}
         if self.story is not None:
             await self.story.before_step(self, inp)
-        inp.update(self.pending)
+        taken = self.pending
+        inp.update(taken)
         self.pending = {}
         if time.monotonic() - self.last_rules_check > 30:
             self.spawn(self.fetch_rules())
@@ -297,7 +295,20 @@ class Engine:
             self.last_dispatch_t = sim_t
         t0 = time.perf_counter()
         epoch = self.epoch
-        out = await self.twin(inp)
+        try:
+            try:
+                out = await self.twin(inp)
+            except Exception as e:  # noqa: BLE001
+                # one quick retry for a refused or dropped call, the step is a pure function so it is safe to repeat
+                if "429" not in str(e) and "disconnected" not in str(e).lower():
+                    raise
+                await asyncio.sleep(0.05)
+                out = await self.twin(inp)
+        except Exception:
+            # nothing reached the twin, so what this step carried goes with the next one
+            for k, v in taken.items():
+                self.queue(k, v)
+            raise
         rtt = (time.perf_counter() - t0) * 1000
         if epoch != self.epoch:
             # a new twin was started while this step was in flight, its answer belongs to the old site
@@ -449,6 +460,14 @@ class Engine:
             self.replan_inflight = False
 
     async def brief(self) -> dict | None:
+        for attempt in range(3):
+            out = await self._brief_once()
+            if out is not None:
+                return out
+            await asyncio.sleep(0.3 * (attempt + 1))
+        return None
+
+    async def _brief_once(self) -> dict | None:
         try:
             out = await self.twin({"op": "brief", "state_z": self.state_z})
             out.pop("op", None)
@@ -664,6 +683,11 @@ class Engine:
             return
         self.l4 = round((time.perf_counter() - t0) * 1000, 1)
         out = unwrap(res.output)
+        if res.status == "failed" or (isinstance(out, dict) and out.get("error")):
+            msg = str((out or {}).get("error") if isinstance(out, dict) else res.errors)[:200]
+            if "kill switch" in msg.lower():
+                await self.agent_frame("gw-fleet-dispatcher", "answer", "Dispatch loop stopped by the Abenix kill switch", res.execution_id)
+            return
         if not isinstance(out, dict):
             return
         moves = []
@@ -749,20 +773,22 @@ class Engine:
                 if not aid:
                     continue
                 scope = "pipeline" if slug in PIPELINES else "agent"
-                r = await self.forge.http.post("/api/governance/kill-switches", json={"scope": scope, "target": aid, "reason": "Groundwork fault deck: kill switch"})
-                if r.status_code < 300:
-                    sid = (r.json().get("data") or {}).get("id")
-                    if sid:
-                        self.kill_ids.append(sid)
+                try:
+                    k = await self.forge.kill_switches.set(scope, aid, "Groundwork fault deck: kill switch")
+                    if k.get("id"):
+                        self.kill_ids.append(k["id"])
                     done.append(slug)
-                else:
-                    errors.append(f"{slug}: {r.status_code} {r.text[:120]}")
+                except Exception as e:  # noqa: BLE001
+                    errors.append(f"{slug}: {str(e)[:120]}")
             self.killed = True
             self.queue("faults", [{"kind": "kill_switch", "on": True}])
             await self.event("fault", "Kill switch set in Abenix", f"{len(done)} agents and pipelines stopped. Machines carry on under the rules and the fallback plan." + (f" Errors: {'; '.join(errors)}" if errors else ""))
         else:
             for sid in self.kill_ids:
-                await self.forge.http.post(f"/api/governance/kill-switches/{sid}/clear")
+                try:
+                    await self.forge.kill_switches.clear(sid)
+                except Exception as e:  # noqa: BLE001
+                    log.warning("kill switch clear: %s", e)
             self.kill_ids = []
             self.killed = False
             self.queue("faults", [{"kind": "kill_switch", "on": False}])

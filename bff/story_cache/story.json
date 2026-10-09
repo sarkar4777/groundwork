@@ -1,7 +1,8 @@
 {
  "seed": 2026,
+ "ticks": 5,
  "ml": {
-  "41": {
+  "40": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -182,7 +183,7 @@
     ]
    }
   },
-  "51": {
+  "50": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -363,7 +364,7 @@
     ]
    }
   },
-  "61": {
+  "60": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -544,7 +545,7 @@
     ]
    }
   },
-  "63": {
+  "62": {
    "gw-payload": {
     "ids": [
      "EX2"
@@ -558,7 +559,7 @@
     ]
    }
   },
-  "71": {
+  "70": {
    "gw-payload": {
     "ids": [
      "EX1"
@@ -570,9 +571,7 @@
       ]
      ]
     ]
-   }
-  },
-  "72": {
+   },
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -753,7 +752,7 @@
     ]
    }
   },
-  "81": {
+  "80": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -934,7 +933,7 @@
     ]
    }
   },
-  "91": {
+  "90": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -1115,7 +1114,7 @@
     ]
    }
   },
-  "101": {
+  "100": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -1296,7 +1295,7 @@
     ]
    }
   },
-  "111": {
+  "110": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -1839,7 +1838,7 @@
     ]
    }
   },
-  "141": {
+  "140": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -2020,7 +2019,7 @@
     ]
    }
   },
-  "151": {
+  "150": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -2201,7 +2200,7 @@
     ]
    }
   },
-  "161": {
+  "160": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -2382,7 +2381,7 @@
     ]
    }
   },
-  "171": {
+  "170": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -2563,7 +2562,7 @@
     ]
    }
   },
-  "181": {
+  "180": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -2744,7 +2743,7 @@
     ]
    }
   },
-  "191": {
+  "190": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -2925,7 +2924,7 @@
     ]
    }
   },
-  "201": {
+  "200": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -3106,7 +3105,7 @@
     ]
    }
   },
-  "211": {
+  "210": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -3287,7 +3286,7 @@
     ]
    }
   },
-  "221": {
+  "220": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -3468,7 +3467,7 @@
     ]
    }
   },
-  "231": {
+  "230": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -3649,7 +3648,7 @@
     ]
    }
   },
-  "241": {
+  "240": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -3830,7 +3829,7 @@
     ]
    }
   },
-  "251": {
+  "250": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -4011,7 +4010,7 @@
     ]
    }
   },
-  "261": {
+  "260": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -4192,7 +4191,7 @@
     ]
    }
   },
-  "271": {
+  "270": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -4373,7 +4372,7 @@
     ]
    }
   },
-  "281": {
+  "280": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -4554,7 +4553,7 @@
     ]
    }
   },
-  "291": {
+  "290": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -4735,7 +4734,7 @@
     ]
    }
   },
-  "301": {
+  "300": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -4916,7 +4915,7 @@
     ]
    }
   },
-  "311": {
+  "310": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -5097,7 +5096,7 @@
     ]
    }
   },
-  "315": {
+  "314": {
    "gw-payload": {
     "ids": [
      "EX2"
@@ -5111,7 +5110,7 @@
     ]
    }
   },
-  "321": {
+  "320": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -5292,7 +5291,7 @@
     ]
    }
   },
-  "331": {
+  "330": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -5473,7 +5472,7 @@
     ]
    }
   },
-  "341": {
+  "340": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -5654,7 +5653,7 @@
     ]
    }
   },
-  "351": {
+  "350": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -5835,7 +5834,7 @@
     ]
    }
   },
-  "361": {
+  "360": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -6016,7 +6015,7 @@
     ]
    }
   },
-  "371": {
+  "370": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -6197,7 +6196,7 @@
     ]
    }
   },
-  "381": {
+  "380": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -6378,7 +6377,7 @@
     ]
    }
   },
-  "391": {
+  "390": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -6559,7 +6558,7 @@
     ]
    }
   },
-  "401": {
+  "400": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -6740,7 +6739,7 @@
     ]
    }
   },
-  "411": {
+  "410": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -6921,7 +6920,7 @@
     ]
    }
   },
-  "421": {
+  "420": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -7102,7 +7101,7 @@
     ]
    }
   },
-  "431": {
+  "429": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -7283,7 +7282,7 @@
     ]
    }
   },
-  "441": {
+  "440": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -7464,7 +7463,7 @@
     ]
    }
   },
-  "451": {
+  "450": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -7645,7 +7644,7 @@
     ]
    }
   },
-  "461": {
+  "460": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -7826,7 +7825,7 @@
     ]
    }
   },
-  "471": {
+  "470": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -8007,7 +8006,7 @@
     ]
    }
   },
-  "481": {
+  "480": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -8188,7 +8187,7 @@
     ]
    }
   },
-  "491": {
+  "490": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -8369,7 +8368,7 @@
     ]
    }
   },
-  "501": {
+  "500": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -8550,7 +8549,7 @@
     ]
    }
   },
-  "511": {
+  "510": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -8731,7 +8730,7 @@
     ]
    }
   },
-  "521": {
+  "519": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -8912,7 +8911,7 @@
     ]
    }
   },
-  "531": {
+  "530": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -9093,7 +9092,7 @@
     ]
    }
   },
-  "541": {
+  "540": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -9274,7 +9273,7 @@
     ]
    }
   },
-  "551": {
+  "550": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -9455,7 +9454,7 @@
     ]
    }
   },
-  "561": {
+  "560": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -9636,7 +9635,7 @@
     ]
    }
   },
-  "701": {
+  "700": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -9817,7 +9816,7 @@
     ]
    }
   },
-  "711": {
+  "710": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -9998,7 +9997,7 @@
     ]
    }
   },
-  "721": {
+  "720": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -10179,7 +10178,7 @@
     ]
    }
   },
-  "731": {
+  "730": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -10360,7 +10359,7 @@
     ]
    }
   },
-  "741": {
+  "740": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -10541,7 +10540,7 @@
     ]
    }
   },
-  "751": {
+  "750": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -10722,7 +10721,7 @@
     ]
    }
   },
-  "761": {
+  "760": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -10903,7 +10902,7 @@
     ]
    }
   },
-  "771": {
+  "770": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -11265,7 +11264,7 @@
     ]
    }
   },
-  "791": {
+  "790": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -11446,7 +11445,7 @@
     ]
    }
   },
-  "801": {
+  "800": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -11627,7 +11626,7 @@
     ]
    }
   },
-  "811": {
+  "810": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -11808,7 +11807,7 @@
     ]
    }
   },
-  "821": {
+  "820": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -11989,7 +11988,7 @@
     ]
    }
   },
-  "831": {
+  "830": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -12170,7 +12169,7 @@
     ]
    }
   },
-  "841": {
+  "840": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -12351,7 +12350,7 @@
     ]
    }
   },
-  "851": {
+  "850": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -12532,7 +12531,7 @@
     ]
    }
   },
-  "861": {
+  "860": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -12713,7 +12712,7 @@
     ]
    }
   },
-  "863": {
+  "862": {
    "gw-payload": {
     "ids": [
      "EX2"
@@ -12727,7 +12726,7 @@
     ]
    }
   },
-  "871": {
+  "870": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -12908,7 +12907,7 @@
     ]
    }
   },
-  "881": {
+  "880": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -13089,7 +13088,7 @@
     ]
    }
   },
-  "891": {
+  "890": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -13270,7 +13269,7 @@
     ]
    }
   },
-  "901": {
+  "900": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -13451,7 +13450,7 @@
     ]
    }
   },
-  "911": {
+  "910": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -13632,7 +13631,7 @@
     ]
    }
   },
-  "921": {
+  "920": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -13813,7 +13812,7 @@
     ]
    }
   },
-  "931": {
+  "930": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -13994,7 +13993,7 @@
     ]
    }
   },
-  "941": {
+  "940": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -14175,7 +14174,7 @@
     ]
    }
   },
-  "951": {
+  "950": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -14356,7 +14355,7 @@
     ]
    }
   },
-  "961": {
+  "959": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -14537,7 +14536,7 @@
     ]
    }
   },
-  "971": {
+  "970": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -14718,7 +14717,7 @@
     ]
    }
   },
-  "981": {
+  "980": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -15080,7 +15079,7 @@
     ]
    }
   },
-  "1001": {
+  "1000": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -15261,7 +15260,7 @@
     ]
    }
   },
-  "1011": {
+  "1010": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -15442,7 +15441,7 @@
     ]
    }
   },
-  "1021": {
+  "1020": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -15623,7 +15622,7 @@
     ]
    }
   },
-  "1031": {
+  "1030": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -15804,7 +15803,7 @@
     ]
    }
   },
-  "1041": {
+  "1040": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -15985,7 +15984,7 @@
     ]
    }
   },
-  "1051": {
+  "1050": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -16166,7 +16165,7 @@
     ]
    }
   },
-  "1061": {
+  "1060": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -16347,7 +16346,7 @@
     ]
    }
   },
-  "1071": {
+  "1070": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -16528,7 +16527,7 @@
     ]
    }
   },
-  "1081": {
+  "1080": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -16709,7 +16708,7 @@
     ]
    }
   },
-  "1091": {
+  "1090": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -16890,7 +16889,7 @@
     ]
    }
   },
-  "1101": {
+  "1100": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -17071,7 +17070,7 @@
     ]
    }
   },
-  "1111": {
+  "1110": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -17252,7 +17251,7 @@
     ]
    }
   },
-  "1121": {
+  "1120": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -17433,7 +17432,7 @@
     ]
    }
   },
-  "1122": {
+  "1121": {
    "gw-payload": {
     "ids": [
      "EX2"
@@ -17447,7 +17446,7 @@
     ]
    }
   },
-  "1131": {
+  "1130": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -17628,7 +17627,7 @@
     ]
    }
   },
-  "1141": {
+  "1139": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -17809,7 +17808,7 @@
     ]
    }
   },
-  "1151": {
+  "1150": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -17990,7 +17989,7 @@
     ]
    }
   },
-  "1161": {
+  "1160": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -18352,7 +18351,7 @@
     ]
    }
   },
-  "1181": {
+  "1180": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -18533,7 +18532,7 @@
     ]
    }
   },
-  "1191": {
+  "1190": {
    "gw-worker-path": {
     "ids": [
      "W01",
@@ -18716,32 +18715,15 @@
   }
  },
  "beats": {
-  "near_miss": {
-   "out": {
-    "title": "W07 walked unsupervised into EX1 swing exclusion zone",
-    "what_happened": "Worker W07 walked directly toward EX1 (stationary at [-6.0, -14.0]) from t=2.0s onwards without a banksman guide, covering approximately 8 m toward the machine. The system detected W07 entering the swing radius plus 4 m margin at t=3.9s while EX1's bucket tip was moving at over 2 m/s and stopped the machine. The worker was not escorted or directed into the zone.",
-    "root_cause": "W07 entered the excavator work zone without banksman supervision or clearance.",
-    "rule_worked": true,
-    "stop_ms": 4.72,
-    "citations": [
-     "northgate-site-safety-plan.md: \u00a73.2 'Every slewing machine has an exclusion zone... plus a margin that grows with how fast the bucket or hook tip is moving'",
-     "northgate-site-safety-plan.md: Exclusion table 'Tip speed 2 m/s or more = 4 m margin, Stop'",
-     "northgate-site-safety-plan.md: \u00a72 'Banksman 2 count, One for each excavator loading bay, outside the swing radius plus the warning zone'"
-    ],
-    "lesson": "Always wait for the banksman's signal before approaching a slewing machine; never walk into an excavator zone unguided.",
-    "rule_change_proposed": false
-   }
-  },
   "replan": {
    "out": {
-    "summary": "Rerouting HT1, HT2, HT4 from EX1 to EX2. Delaying tower crane lifts 90s to keep work away from EX1 excavation area.",
+    "summary": "Rerouting trucks HT1, HT2, HT4 from EX1 to EX2; keeping all other work running.",
     "changes": [
-     "Reroute HT1 to load under EX2 instead of EX1",
-     "Reroute HT2 to approach EX2 instead of EX1",
-     "Reroute HT4 to haul from EX2 instead of EX1",
-     "Delay all tower crane lifts by 90 seconds to maintain clear work zones near stopped EX1"
+     "HT1 now hauls from EX2 instead of EX1",
+     "HT2 now hauls from EX2 instead of EX1",
+     "HT4 now hauls from EX2 instead of EX1"
     ],
-    "needs_approval": true,
+    "needs_approval": false,
     "tree": {
      "id": "root",
      "label": "Shift plan, Northgate Yard",
@@ -18816,8 +18798,7 @@
           "item": "Rebar cage RC-1",
           "tonnes": 4.2,
           "from": "rebar_yard",
-          "to": "core",
-          "not_before_s": 93.9
+          "to": "core"
          }
         },
         {
@@ -18830,8 +18811,7 @@
           "item": "Formwork panel FP-4",
           "tonnes": 2.8,
           "from": "laydown",
-          "to": "deck_west",
-          "not_before_s": 93.9
+          "to": "deck_west"
          }
         },
         {
@@ -18844,8 +18824,7 @@
           "item": "Rebar cage RC-2",
           "tonnes": 4.2,
           "from": "rebar_yard",
-          "to": "core",
-          "not_before_s": 93.9
+          "to": "core"
          }
         },
         {
@@ -18858,8 +18837,7 @@
           "item": "Formwork panel FP-5",
           "tonnes": 2.8,
           "from": "laydown_b",
-          "to": "deck_east",
-          "not_before_s": 93.9
+          "to": "deck_east"
          }
         },
         {
@@ -18872,8 +18850,7 @@
           "item": "Precast stair PS-1",
           "tonnes": 4.6,
           "from": "laydown",
-          "to": "core",
-          "not_before_s": 93.9
+          "to": "core"
          }
         },
         {
@@ -18886,8 +18863,7 @@
           "item": "Rebar cage RC-3",
           "tonnes": 4.0,
           "from": "rebar_yard",
-          "to": "deck_east",
-          "not_before_s": 93.9
+          "to": "deck_east"
          }
         }
        ]
@@ -18974,7 +18950,7 @@
      ]
     }
    },
-   "execution_id": "2298b38b-4bce-4f23-a570-da422cc6cec8",
+   "execution_id": "fca114a8-7b6d-4719-a2b5-41f77a333327",
    "duration_ms": 0,
    "cost": 0,
    "tools": [],
@@ -18985,9 +18961,9 @@
    "out": {
     "hold": true,
     "resume_after_s": 300,
-    "landing": "No loads on hooks; cranes at safe state.",
+    "landing": "Both cranes holding position; no loads on hook currently",
     "reshuffle": [],
-    "summary": "Hold all new lifts: gust forecast 20.37 m/s exceeds critical threshold (>20 m/s). Resume after wind sustains below 15 m/s for 60 s (estimated 5 min)."
+    "summary": "Wind at 20.37 m/s exceeds 20 m/s threshold\u2014slewing stopped, all lifts held until sustained wind drops below 15 m/s for 60 s."
    }
   },
   "autonomy": {
@@ -18995,18 +18971,34 @@
    "detail": "Watching. 0 reviews, 0 executed, next: Asks first. Next step needs: 0 of 20 reviews, Agreement 0% (needs 70%)",
    "level": "Watching"
   },
+  "near_miss": {
+   "out": {
+    "title": "W07 walked into EX1 swing exclusion without banksman guidance",
+    "what_happened": "Worker W07 approached active excavator EX1 from the southwest at 1.3 m/s without banksman positioning or clearance. At t=3.9s, W07 was 14.2 m from EX1 center (inside the 14.5 m exclusion zone) while the machine tip moved at >2 m/s. The safety system stopped EX1 in 4.72 ms.",
+    "root_cause": "Worker approached an active swing machine without banksman guidance and walked into the dynamic exclusion zone during tipping operations.",
+    "rule_worked": true,
+    "stop_ms": 4.72,
+    "citations": [
+     "northgate-site-safety-plan.md \u00a73.2: Exclusion zones with 4 m margin at tip speed \u22652 m/s",
+     "northgate-site-safety-plan.md \u00a73.3: Banksmen positioned outside swing radius plus warning zone",
+     "northgate-site-safety-plan.md \u00a73.1: Distances enforced every 10 ms from tag positions"
+    ],
+    "lesson": "Labourers must never approach active swing machines without banksman clearance; always wait for the banksman to guide and position you outside the warning zone.",
+    "rule_change_proposed": false
+   }
+  },
   "vecu": {
    "out": {
     "machine": "TH1",
-    "source": "import math\n\ndef tick(inputs, dt, state):\n    \"\"\"\n    TH1 Telehandler Boom Controller\n    \n    Runs every 10ms (dt=0.01s).\n    Manages boom angle and extension with rate limiting and stability checks.\n    \n    Inputs:\n        target_angle (rad): Desired boom angle\n        target_ext (m): Desired extension\n        load_t (t): Load weight in tonnes\n        angle (rad): Current boom angle\n        ext (m): Current extension\n        stop (bool): Safety stop - when True, hold position\n    \n    Outputs:\n        boom_angle_rad: Current boom angle in radians\n        extension_m: Current extension in metres\n        stability_pct: Stability percentage (never below 0)\n    \"\"\"\n    \n    # Initialize state on first call\n    if not state:\n        state['angle'] = inputs['angle']\n        state['ext'] = inputs['ext']\n    \n    # When stop is true, hold current position exactly\n    if inputs['stop']:\n        return {\n            'boom_angle_rad': state['angle'],\n            'extension_m': state['ext'],\n            'stability_pct': _calculate_stability(state['angle'], state['ext'], inputs['load_t'])\n        }\n    \n    # Constants from spec\n    ANGLE_RATE_LIMIT = 0.12  # rad/s\n    EXT_RATE_LIMIT = 0.4      # m/s\n    ANGLE_MIN = 0.0\n    ANGLE_MAX = 1.2\n    EXT_MIN = 0.0\n    EXT_MAX = 6.0\n    STABILITY_LIMIT = 100.0\n    \n    # Maximum change in this tick\n    max_angle_change = ANGLE_RATE_LIMIT * dt\n    max_ext_change = EXT_RATE_LIMIT * dt\n    \n    # Calculate desired changes toward targets\n    angle_delta = inputs['target_angle'] - state['angle']\n    ext_delta = inputs['target_ext'] - state['ext']\n    \n    # Apply rate limiting to angle\n    if abs(angle_delta) > max_angle_change:\n        angle_delta = max_angle_change if angle_delta > 0 else -max_angle_change\n    \n    # Calculate new angle and clamp to limits\n    new_angle = state['angle'] + angle_delta\n    new_angle = max(ANGLE_MIN, min(ANGLE_MAX, new_angle))\n    \n    # Check stability before extending\n    if ext_delta > 0:\n        # Trying to extend - check if it would exceed stability limit\n        test_ext = state['ext'] + min(ext_delta, max_ext_change)\n        test_ext = max(EXT_MIN, min(EXT_MAX, test_ext))\n        \n        stability = _calculate_stability(new_angle, test_ext, inputs['load_t'])\n        if stability >= STABILITY_LIMIT:\n            # Cannot extend, hold current extension\n            ext_delta = 0\n    \n    # Apply rate limiting to extension\n    if abs(ext_delta) > max_ext_change:\n        ext_delta = max_ext_change if ext_delta > 0 else -max_ext_change\n    \n    # Calculate new extension and clamp to limits\n    new_ext = state['ext'] + ext_delta\n    new_ext = max(EXT_MIN, min(EXT_MAX, new_ext))\n    \n    # Update state\n    state['angle'] = new_angle\n    state['ext'] = new_ext\n    \n    # Calculate stability\n    stability = _calculate_stability(new_angle, new_ext, inputs['load_t'])\n    \n    return {\n        'boom_angle_rad': new_angle,\n        'extension_m': new_ext,\n        'stability_pct': max(0.0, stability)\n    }\n\n\ndef _calculate_stability(angle, ext, load_t):\n    \"\"\"\n    Calculate stability percentage based on load moment chart.\n    \n    Formula from spec:\n    stability_pct = 100 * load_t * (2.0 + extension) * cos(angle) / 14\n    \n    The factor 14 t.m is the front axle load moment limit.\n    \"\"\"\n    stability = 100.0 * load_t * (2.0 + ext) * math.cos(angle) / 14.0\n    return max(0.0, stability)\n",
+    "source": "import math\n\ndef tick(inputs, dt, state):\n    \"\"\"\n    TH1 telehandler boom controller.\n    \n    Inputs:\n        target_angle (rad): Desired boom angle\n        target_ext (m): Desired extension\n        load_t (t): Load on forks\n        angle (rad): Current boom angle\n        ext (m): Current extension\n        stop (bool): Safety stop signal\n    \n    Outputs:\n        boom_angle_rad: Actual boom angle\n        extension_m: Actual extension\n        stability_pct: Stability percentage\n    \"\"\"\n    # Get inputs\n    target_angle = inputs[\"target_angle\"]\n    target_ext = inputs[\"target_ext\"]\n    load_t = inputs[\"load_t\"]\n    angle = inputs[\"angle\"]\n    ext = inputs[\"ext\"]\n    stop = inputs[\"stop\"]\n    \n    # Rate limits\n    ANGLE_RATE_LIMIT = 0.12  # rad/s\n    EXT_RATE_LIMIT = 0.4     # m/s\n    \n    # Travel limits\n    ANGLE_MIN = 0.0\n    ANGLE_MAX = 1.2\n    EXT_MIN = 0.0\n    EXT_MAX = 6.0\n    \n    # Stability limit\n    STABILITY_MOMENT_LIMIT = 14.0  # t.m\n    \n    # If stop is active, maintain current position\n    if stop:\n        stability_pct = 100 * load_t * (2.0 + ext) * math.cos(angle) / STABILITY_MOMENT_LIMIT\n        stability_pct = max(0, stability_pct)\n        \n        return {\n            \"boom_angle_rad\": angle,\n            \"extension_m\": ext,\n            \"stability_pct\": stability_pct\n        }\n    \n    # Calculate new angle\n    angle_delta = target_angle - angle\n    max_angle_change = ANGLE_RATE_LIMIT * dt\n    \n    if abs(angle_delta) <= max_angle_change:\n        new_angle = target_angle\n    elif angle_delta > 0:\n        new_angle = angle + max_angle_change\n    else:\n        new_angle = angle - max_angle_change\n    \n    # Clamp angle to limits\n    new_angle = max(ANGLE_MIN, min(ANGLE_MAX, new_angle))\n    \n    # Calculate new extension\n    ext_delta = target_ext - ext\n    max_ext_change = EXT_RATE_LIMIT * dt\n    \n    if abs(ext_delta) <= max_ext_change:\n        new_ext = target_ext\n    elif ext_delta > 0:\n        new_ext = ext + max_ext_change\n    else:\n        new_ext = ext - max_ext_change\n    \n    # Clamp extension to physical limits\n    new_ext = max(EXT_MIN, min(EXT_MAX, new_ext))\n    \n    # Check stability constraint: if extending would exceed 100%, don't extend\n    if new_ext > ext:  # Trying to extend\n        test_stability = 100 * load_t * (2.0 + new_ext) * math.cos(new_angle) / STABILITY_MOMENT_LIMIT\n        if test_stability > 100:\n            # Cannot extend, keep at current or retract\n            new_ext = ext\n    \n    # Calculate final stability\n    stability_pct = 100 * load_t * (2.0 + new_ext) * math.cos(new_angle) / STABILITY_MOMENT_LIMIT\n    stability_pct = max(0, stability_pct)\n    \n    return {\n        \"boom_angle_rad\": new_angle,\n        \"extension_m\": new_ext,\n        \"stability_pct\": stability_pct\n    }",
     "tests_passed": 6,
     "tests_total": 6,
-    "notes": "Stability limit (100%) blocks extension but allows retraction; angle and extension rate limits (0.12 rad/s and 0.4 m/s) are applied independently and move straight toward targets without overshoot."
+    "notes": "Controller implements rate-limited movement to target with hard stops at physical limits, enforces stability constraint by blocking extension when load moment would exceed 14 t.m, and respects the safety stop input by freezing position."
    },
-   "execution_id": "013d5903-6165-4045-a292-4cbaaf406ece",
+   "execution_id": "7d9affb9-eb9d-45d7-8a36-046bd8f08e79",
    "approval": "approved",
    "approved_by": "Approved by the operator running scripts/record_story.py --approve"
   }
  },
- "recorded_at": "2026-10-09 23:06 UTC"
+ "recorded_at": "2026-10-09 23:24 UTC"
 }

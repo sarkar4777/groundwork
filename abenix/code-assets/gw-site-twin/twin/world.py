@@ -997,7 +997,8 @@ def safety_tick(st, tabs, ev, stats):
                 elif act == "warn" and nw is not None and nw["zone"] == "ok":
                     nw["zone"] = "warn"
                 sf["rule_key"] = key
-                sf["facts"] = {"machine": {"tip_speed_ms": round(tip, 3)}, "worker": {"clearance_m": round(clearance, 3)}}
+                # the exact values the rules saw, so the Abenix audit sees the same boundary
+                sf["facts"] = {"machine": {"tip_speed_ms": tip}, "worker": {"clearance_m": clearance}}
                 sf["outcome"] = raw
         elif kind == "haul_truck":
             near = 600.0

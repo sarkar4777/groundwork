@@ -9,3 +9,4 @@ abenix/models/out/data/
 sim/story_cache/*.tmp
 node_modules/
 web/dist/
+.run/

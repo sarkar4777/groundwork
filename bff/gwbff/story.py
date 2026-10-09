@@ -84,7 +84,9 @@ class Story:
                         "mode": self.mode, "recorded": self.mode == "cached"})
 
     async def before_step(self, eng, inp: dict) -> None:
-        t = round(self.k * self.ticks * 0.01, 3)
+        # the twin's own clock, it only moves when a step really ran in Abenix
+        t = round(eng.t(), 3)
+        self.k = int(round(t / (self.ticks * 0.01)))
         if self.mode == "cached":
             ml = (self.cache.get("ml") or {}).get(str(self.k))
             if ml:
@@ -99,7 +101,6 @@ class Story:
                 text = text.format(vecus=self.vecus)
                 await eng.emit({"type": "caption", "t": t, "text": text, "until": until, "recorded": self.mode == "cached"})
         await self.beats(eng, t, inp)
-        self.k += 1
 
     def once(self, name: str, t: float, at: float) -> bool:
         if name in self.fired or t < at:
@@ -109,11 +110,11 @@ class Story:
 
     async def beats(self, eng, t: float, inp: dict) -> None:
         if self.once("worker", t, 1.9):
-            inp.setdefault("faults", []).append({"kind": "worker_in_swing", "target": "EX1", "worker": "W07", "start_m": 17.5, "speed": 1.6})
+            eng.queue("faults", {"kind": "worker_in_swing", "target": "EX1", "worker": "W07", "start_m": 17.5, "speed": 1.6})
         if self.once("nervous", t, 14.0):
             await eng.event("story", "Nervous system view", f"{self.vecus} vECUs at 100 Hz, J1939 and Sparkplug B")
         if self.once("gust", t, 18.0):
-            inp.setdefault("faults", []).append({"kind": "gust", "build_s": 5.0, "hold_s": 6.0, "peak_ms": 11.5})
+            eng.queue("faults", {"kind": "gust", "build_s": 5.0, "hold_s": 6.0, "peak_ms": 11.5})
         if self.once("ai_off", t, 28.0):
             await eng.fault("ai_offline", None, {"on": True})
         if self.once("ai_on", t, 34.6):

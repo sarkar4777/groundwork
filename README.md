@@ -83,7 +83,7 @@ On a laptop with Abenix on local Kubernetes (minikube). Re-run them with the com
 | Layer | What | Number |
 |---|---|---|
 | L1 | Twin step, 5 ticks, compute | p50 2.2 ms, p99 4.1 ms, 0.8 ms per tick |
-| L1 | Twin step through the SDK into the warm runner, 16 KB in, 26 KB out | p50 78 ms, p99 161 ms, 13.7 steps a second |
+| L1 | Twin step through the SDK into the warm runner, 16 KB in, 26 KB out | from a Windows host through port-forward p50 64 ms, p99 183 ms, 15 steps a second; inside the cluster p50 17 ms |
 | L2 | Four safety tables per 10 ms tick, in the twin | p99 0.50 ms |
 | L2 | `decisions.evaluate_batch` through the SDK | p50 11 ms |
 | L3 | ML predict through the SDK | p50 12 to 19 ms |
@@ -100,17 +100,33 @@ cd bff && ../.venv/bin/python -m pytest -q           # 49 tests, GW_SAFETY_PATHS
 
 ## Platform gaps this found
 
-Groundwork talks to Abenix only through the public API and the SDK. Where that was missing or slow it is reported to Abenix as a fix, not worked around here:
+Groundwork talks to Abenix only through the public API and the SDK. Where that was missing or slow it was reported to Abenix as a fix, not worked around here:
 
 | Gap | Measured | Status |
 |---|---|---|
-| `code_assets.run` overhead jumps once the payload passes a few KB | tiny 22 ms, 15 KB 68 ms, 60 KB 65 ms, runner time 2 to 4 ms | open |
+| `code_asset` validated its schemas against the metaschema on every call | twin step p50 66 ms around a 2.5 ms run | fixed in 2.5.6, in-cluster p50 17 ms |
+| Request bodies over about 6 KB stall about 44 ms through `kubectl port-forward` on Windows | decision evaluate 4 KB 3 ms, 8 KB 48 ms; inside the cluster 15 KB 1.5 ms | not Abenix. Run the bff in the cluster, see below |
 | No fixed-rate execution of a code asset | the bff has to be the metronome | planned for 2.5.6 |
-| First call after a new code asset version | 151 s, then 69 s, now 5 s | fixed in 2.5.6 (prewarm on upload) |
-| SDK lacked ML predict and code asset run | | added in 2.5.6 |
-| SDK lacks ML upload, code asset upload, kill switches, API keys, decision test update | provision uses the HTTP API for these | coming in 2.5.6 |
-| Pipeline agent steps ignore the agent's output schema | answers come back as prose with fenced JSON | reported |
-| 429 from the tool gate with one or two calls in flight | seen during cluster restarts | reported |
+| First call after a new code asset version | 151 s on the Job path, now 0.02 to 5 s warm | fixed in 2.5.6, prewarm on upload |
+| Job path passes the input in an environment variable | a 430 KB training input fails with exit 255 when no warm runner is up | reported |
+| Tool gate concurrency slots leaked on cancelled calls | 429 with one or two calls in flight | fixed in 2.5.6, slots are leases |
+| Pipeline agent steps ignored the agent's output schema | prose with fenced JSON | fixed in 2.5.6 |
+| Agent-scope kill switch by id not enforced on API key runs | agent ran to completion with the switch set, pipelines stop as expected | reported |
+| SDK lacked ML predict and upload, code asset run, create and versions, kill switches, API keys, decision test update | | added in 2.5.6 and used here |
+| No SDK method for autonomy enrol or LLM model listing | provision and the bff use the HTTP API for these | reported |
+
+## Run the bff inside the cluster
+
+On Windows, `kubectl port-forward` adds about 44 ms to every request body over about 6 KB, and every twin step sends 16 KB. The browser channel only receives, so it does not pay this. For the showcase run the bff next to Abenix:
+
+```bash
+MINIKUBE_PROFILE=minikube bash scripts/deploy-k8s.sh           # build, apply, roll out
+MINIKUBE_PROFILE=minikube bash scripts/deploy-k8s.sh forward   # the one port-forward, in the background with a pid file
+# bash scripts/deploy-k8s.sh stop ends it, status shows the deployment, the forward and the bff health
+(cd web && npm run dev)
+```
+
+In the cluster the bff steps at a fixed 20 Hz with 5 ticks per step (`GW_FIXED_TICKS=5`), so site time is wall time. On a laptop path with the stall, the bff falls back to as many ticks per step as wall time needs. For Story mode from a laptop set `GW_STORY_TICKS=8` so 60 s of story stays near 60 s of wall time.
 
 ## Screenshots
 

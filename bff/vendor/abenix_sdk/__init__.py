@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import io
 import json
+import os
+import zipfile
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, AsyncIterator
 
 import httpx
@@ -575,6 +579,43 @@ async def _call(client: "Abenix", exc: type[AbenixError], method: str, path: str
     return body.get("data")
 
 
+def _file_part(file: str | os.PathLike[str] | bytes, filename: str | None) -> tuple[str, bytes]:
+    if isinstance(file, (bytes, bytearray)):
+        if not filename:
+            raise ValueError("raw bytes need a filename, for example model.joblib")
+        return filename, bytes(file)
+    path = Path(file)
+    return filename or path.name, path.read_bytes()
+
+
+# left out when a folder is zipped for upload
+_SKIP_DIRS = {".git", "__pycache__", ".venv", "venv", "node_modules", ".mypy_cache", ".pytest_cache", ".ruff_cache"}
+
+
+def _archive_part(source: str | os.PathLike[str] | bytes, filename: str | None) -> tuple[str, bytes]:
+    """A zip or tar.gz as (filename, bytes). A folder is zipped in memory."""
+    if isinstance(source, (bytes, bytearray)):
+        return filename or "code.zip", bytes(source)
+    path = Path(source)
+    if not path.is_dir():
+        return filename or path.name, path.read_bytes()
+    buf = io.BytesIO()
+    count = 0
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for f in sorted(path.rglob("*")):
+            rel = f.relative_to(path)
+            if not f.is_file() or f.name == ".DS_Store" or _SKIP_DIRS & set(rel.parts[:-1]):
+                continue
+            zf.write(f, rel.as_posix())
+            count += 1
+    if not count:
+        raise ValueError(f"{path} has no files to upload")
+    return filename or f"{path.name or 'code'}.zip", buf.getvalue()
+
+
+_TEST_FIELDS = ("name", "facts", "expected", "expected_outcome", "as_of", "match")
+
+
 class DecisionsClient:
     """Versioned business rules: evaluate, compare, test and propose changes."""
 
@@ -714,8 +755,42 @@ class DecisionsClient:
     async def tests(self, key: str) -> list[dict[str, Any]]:
         return await self._call("GET", f"/api/decisions/{key}/tests") or []
 
-    async def add_test(self, key: str, name: str, facts: dict[str, Any], *, expected: Any = None, expected_outcome: str = "decided", as_of: str | None = None) -> dict[str, Any]:
-        return await self._call("POST", f"/api/decisions/{key}/tests", json={"name": name, "facts": facts, "expected": expected, "expected_outcome": expected_outcome, "as_of": as_of})
+    async def add_test(
+        self,
+        key: str,
+        name: str,
+        facts: dict[str, Any],
+        *,
+        expected: Any = None,
+        expected_outcome: str = "decided",
+        as_of: str | None = None,
+        match: str = "exact",
+    ) -> dict[str, Any]:
+        """match is exact, or subset where the expected keys must match and extra result keys are ignored."""
+        return await self._call(
+            "POST",
+            f"/api/decisions/{key}/tests",
+            json={"name": name, "facts": facts, "expected": expected, "expected_outcome": expected_outcome,
+                  "as_of": as_of, "match": match},
+        )
+
+    async def update_test(self, key: str, test_id: str, **fields: Any) -> dict[str, Any]:
+        """Change some of name, facts, expected, expected_outcome, as_of and match. The rest stay as they are."""
+        unknown = set(fields) - set(_TEST_FIELDS)
+        if unknown:
+            raise ValueError(f"unknown test fields: {', '.join(sorted(unknown))}")
+        current = next((t for t in await self.tests(key) if t.get("id") == test_id), None)
+        if current is None:
+            raise AbenixDecisionError(404, "Test not found", "NOT_FOUND")
+        body = {k: current.get(k) for k in _TEST_FIELDS}
+        body.update(fields)
+        body["facts"] = body.get("facts") or {}
+        body["expected_outcome"] = body.get("expected_outcome") or "decided"
+        body["match"] = body.get("match") or "exact"
+        return await self._call("PUT", f"/api/decisions/{key}/tests/{test_id}", json=body)
+
+    async def delete_test(self, key: str, test_id: str) -> dict[str, Any]:
+        return await self._call("DELETE", f"/api/decisions/{key}/tests/{test_id}")
 
     async def evaluations(self, key: str, limit: int = 50) -> list[dict[str, Any]]:
         return await self._call("GET", f"/api/decisions/{key}/evaluations", params={"limit": limit}) or []
@@ -888,53 +963,253 @@ class EventsClient:
         return hmac.compare_digest(want, signature.strip())
 
 
+# file extension for raw bytes when only the framework is given
+_FRAMEWORK_EXT = {"sklearn": ".joblib", "xgboost": ".joblib", "onnx": ".onnx", "pytorch": ".pt"}
+
+
+def _feature_schema(names: list[str], base: dict[str, Any] | None = None) -> dict[str, Any]:
+    names = [str(n) for n in names]
+    if base is not None:
+        return {**base, "features": names}
+    n = len(names)
+    return {
+        "type": "object",
+        "required": ["input_data"],
+        "features": names,
+        "properties": {
+            "input_data": {
+                "type": "array",
+                "description": f"Array of samples, each an array of {n} numeric features in this order: {', '.join(names)}.",
+                "items": {"type": "array", "items": {"type": "number"}, "minItems": n, "maxItems": n},
+                "x-feature-order": names,
+            },
+        },
+    }
+
+
 class MLModelsClient:
-    """The platform's ML model registry, and predictions from it."""
+    """The platform's ML model registry: register, read, predict and delete."""
 
     def __init__(self, client: "Abenix"):
         self._client = client
         self._ids: dict[str, str] = {}
+
+    async def _call(self, method: str, path: str, **kw: Any) -> Any:
+        return await _call(self._client, AbenixError, method, path, **kw)
 
     async def list(self) -> list[dict[str, Any]]:
         res = await self._client._get("/api/ml-models")
         items = (res.get("data") if isinstance(res, dict) else res) or []
         return items if isinstance(items, list) else []
 
+    async def _refresh_ids(self) -> None:
+        # the active version wins, otherwise the newest
+        best: dict[str, dict[str, Any]] = {}
+        for m in await self.list():
+            name = m.get("name") or ""
+            cur = best.get(name)
+            if cur is None or (m.get("is_active") and not cur.get("is_active")):
+                best[name] = m
+        self._ids = {n: str(m.get("id") or "") for n, m in best.items()}
+
     async def _id(self, name_or_id: str) -> str:
         if self._client._UUID_RE.match(name_or_id):
             return name_or_id
         if name_or_id not in self._ids:
-            for m in await self.list():
-                self._ids[m.get("name", "")] = m.get("id", "")
+            await self._refresh_ids()
         mid = self._ids.get(name_or_id)
         if not mid:
-            raise AbenixError(f"no ML model called {name_or_id}")
+            raise AbenixError(404, f"No ML model called {name_or_id}.", "NOT_FOUND")
         return mid
+
+    async def get(self, name_or_id: str) -> dict[str, Any]:
+        """One model version with its deployments. A name gives its active version."""
+        return await self._call("GET", f"/api/ml-models/{await self._id(name_or_id)}")
+
+    async def upload(
+        self,
+        name: str,
+        file: str | os.PathLike[str] | bytes,
+        *,
+        filename: str | None = None,
+        framework: str | None = None,
+        version: str | None = None,
+        description: str = "",
+        input_schema: dict[str, Any] | None = None,
+        feature_names: list[str] | None = None,
+        output_schema: dict[str, Any] | None = None,
+        tags: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Register a model file as a new version of name. Raw bytes need a filename or a framework.
+
+        A file that does not load raises AbenixError 422 MODEL_LOAD_FAILED, details["model"] holds the stored row.
+        """
+        if isinstance(file, (bytes, bytearray)) and not filename and framework in _FRAMEWORK_EXT:
+            filename = f"{name}{_FRAMEWORK_EXT[framework]}"
+        fname, content = _file_part(file, filename)
+        if feature_names:
+            input_schema = _feature_schema(feature_names, input_schema)
+        meta: dict[str, Any] = {"name": name, "description": description}
+        for k, v in (("framework", framework), ("version", version), ("input_schema", input_schema),
+                     ("output_schema", output_schema), ("tags", tags)):
+            if v is not None:
+                meta[k] = v
+        model = await self._call(
+            "POST",
+            "/api/ml-models",
+            files={"file": (fname, content, "application/octet-stream")},
+            data={"metadata": json.dumps(meta)},
+        )
+        self._ids.pop(name, None)
+        if model and model.get("is_active"):
+            self._ids[name] = str(model["id"])
+        return model
+
+    async def delete(self, name_or_id: str, *, all_versions: bool = False) -> dict[str, Any]:
+        """Delete one version, or with a name and all_versions=True every version of it."""
+        if all_versions and not self._client._UUID_RE.match(name_or_id):
+            ids = [str(m["id"]) for m in await self.list() if m.get("name") == name_or_id]
+            if not ids:
+                raise AbenixError(404, f"No ML model called {name_or_id}.", "NOT_FOUND")
+        else:
+            ids = [await self._id(name_or_id)]
+        for mid in ids:
+            await self._call("DELETE", f"/api/ml-models/{mid}")
+        self._ids = {n: i for n, i in self._ids.items() if i not in ids}
+        return {"deleted": ids}
 
     async def predict(
         self, name_or_id: str, input_data: Any, *, timeout: float | None = None
     ) -> dict[str, Any]:
         """Run the model on input_data, for example {"features": [...]} or a list of rows."""
         mid = await self._id(name_or_id)
-        res = await self._client._http.post(
+        return await self._call(
+            "POST",
             f"/api/ml-models/{mid}/predict",
             json={"input_data": input_data},
             timeout=timeout or self._client.timeout,
-        )
-        res.raise_for_status()
-        return (res.json() or {}).get("data") or {}
+        ) or {}
+
+    async def explain(
+        self,
+        name_or_id: str,
+        input_data: Any,
+        baseline: dict[str, Any] | list[float] | None = None,
+        *,
+        timeout: float | None = None,
+    ) -> dict[str, Any]:
+        """Per-feature contributions for one row, with the waterfall from baseline to prediction.
+
+        baseline is optional, the model's training means are used when it has them, zeros otherwise.
+        """
+        mid = await self._id(name_or_id)
+        body: dict[str, Any] = {"input_data": input_data}
+        if baseline is not None:
+            body["baseline"] = baseline
+        return await self._call(
+            "POST",
+            f"/api/ml-models/{mid}/explain",
+            json=body,
+            timeout=timeout or self._client.timeout,
+        ) or {}
 
 
-class CodeAssetsClient:
-    """Run an uploaded code asset directly, without an agent in between."""
+class LLMModelsClient:
+    """The model catalogue: which models exist, the default and how runs are billed."""
 
     def __init__(self, client: "Abenix"):
         self._client = client
+
+    async def list(self) -> dict[str, Any]:
+        """{"models": [...], "subscription": {...}, "default_model": "..."}."""
+        res = await _call(self._client, AbenixError, "GET", "/api/llm-models")
+        return res if isinstance(res, dict) else {"models": res or []}
+
+    async def billing(self) -> str:
+        """"subscription" when a Claude subscription serves the runs, otherwise "metered"."""
+        sub = (await self.list()).get("subscription") or {}
+        return "subscription" if sub.get("active") or sub.get("enabled") else "metered"
+
+
+class CodeAssetsClient:
+    """Upload code as an asset, ship new versions of it and run it without an agent in between."""
+
+    def __init__(self, client: "Abenix"):
+        self._client = client
+
+    async def _call(self, method: str, path: str, **kw: Any) -> Any:
+        return await _call(self._client, AbenixError, method, path, **kw)
+
+    async def update(self, name_or_id: str, **fields: Any) -> dict[str, Any]:
+        """Change an asset's details, such as description, input_schema or output_schema."""
+        aid = await self._id(name_or_id)
+        return await self._call("PUT", f"/api/code-assets/{aid}", json=fields)
 
     async def list(self) -> list[dict[str, Any]]:
         res = await self._client._get("/api/code-assets")
         items = (res.get("data") if isinstance(res, dict) else res) or []
         return items if isinstance(items, list) else []
+
+    async def _id(self, name_or_id: str) -> str:
+        if self._client._UUID_RE.match(name_or_id):
+            return name_or_id
+        for a in await self.list():
+            if a.get("name") == name_or_id:
+                return str(a["id"])
+        raise AbenixError(404, f"No code asset called {name_or_id}.", "NOT_FOUND")
+
+    async def get(self, name_or_id: str) -> dict[str, Any]:
+        return await self._call("GET", f"/api/code-assets/{await self._id(name_or_id)}")
+
+    def _upload_kw(
+        self, meta: dict[str, Any], source: Any, filename: str | None, git_url: str | None, git_ref: str | None
+    ) -> dict[str, Any]:
+        if source is None and not git_url:
+            raise ValueError("give a zip, a tar.gz, a folder or a git_url")
+        if git_url:
+            meta["git_url"] = git_url
+            if git_ref:
+                meta["git_ref"] = git_ref
+        # multipart even without a file, like the web form
+        files: dict[str, Any] = {"metadata": (None, json.dumps(meta))}
+        if source is not None:
+            fname, content = _archive_part(source, filename)
+            files["file"] = (fname, content, "application/octet-stream")
+        return {"files": files}
+
+    async def create(
+        self,
+        name: str,
+        source: str | os.PathLike[str] | bytes | None = None,
+        *,
+        description: str = "",
+        git_url: str | None = None,
+        git_ref: str | None = None,
+        filename: str | None = None,
+    ) -> dict[str, Any]:
+        """New asset from a zip, a tar.gz, a folder (zipped for you) or a git_url.
+
+        Analysis runs before this returns. Check status, ready or failed, and error on the row.
+        """
+        kw = self._upload_kw({"name": name, "description": description}, source, filename, git_url, git_ref)
+        return await self._call("POST", "/api/code-assets", **kw)
+
+    async def new_version(
+        self,
+        name_or_id: str,
+        source: str | os.PathLike[str] | bytes | None = None,
+        *,
+        git_url: str | None = None,
+        git_ref: str | None = None,
+        filename: str | None = None,
+    ) -> dict[str, Any]:
+        """Replace the code behind an asset. Agents keep the same asset id.
+
+        A version that does not analyse cleanly raises AbenixError 422 and the live version stays.
+        """
+        asset_id = await self._id(name_or_id)
+        kw = self._upload_kw({}, source, filename, git_url, git_ref)
+        return await self._call("POST", f"/api/code-assets/{asset_id}/versions", **kw)
 
     async def run(
         self,
@@ -1332,6 +1607,24 @@ class AutonomyClient:
         """Counts, every grant, what is ready to promote, recent demotions and unmanaged actions."""
         return await self._call("GET", "/api/autonomy/overview") or {}
 
+    async def enrol(
+        self,
+        agent_id: str,
+        tool_name: str,
+        action_type: dict[str, Any],
+        *,
+        scope: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Put one of an agent's actions on the autonomy ladder, starting at Watching."""
+        body: dict[str, Any] = {
+            "agent_id": agent_id,
+            "tool_name": tool_name,
+            "action_type": action_type,
+        }
+        if scope is not None:
+            body["scope"] = scope
+        return await self._call("POST", "/api/autonomy/enrol", json=body)
+
     async def grant(self, grant_id: str) -> dict[str, Any]:
         """One grant with its next-step checklist, level history and chart points."""
         return await self._call("GET", f"/api/autonomy/grants/{grant_id}")
@@ -1441,6 +1734,102 @@ class FeedbackClient:
         return await _call(self._client, AbenixError, "POST", "/api/improvements/feedback", json=body)
 
 
+class KillSwitchesClient:
+    """Stop agents, pipelines, tools, models and more across the tenant at once."""
+
+    def __init__(self, client: "Abenix"):
+        self._client = client
+
+    async def _call(self, method: str, path: str, **kw: Any) -> Any:
+        return await _call(self._client, AbenixError, method, path, **kw)
+
+    async def list(self, *, include_cleared: bool = False) -> list[dict[str, Any]]:
+        params = {"include_cleared": "true"} if include_cleared else None
+        data = await self._call("GET", "/api/governance/kill-switches", params=params) or {}
+        return data.get("switches") or []
+
+    async def set(self, scope: str, target: str, reason: str) -> dict[str, Any]:
+        """scope is all, agent, pipeline, tool, model, trigger, decision, source or improvements.
+
+        target is a name or id within the scope, * for all of them. Setting a switch that is
+        already on returns the existing one.
+        """
+        return await self._call(
+            "POST", "/api/governance/kill-switches", json={"scope": scope, "target": target or "*", "reason": reason}
+        )
+
+    async def clear(self, switch_id: str) -> dict[str, Any]:
+        return await self._call("POST", f"/api/governance/kill-switches/{switch_id}/clear")
+
+
+class ApiKeysClient:
+    """API keys of the calling user, or of the whole tenant for an admin."""
+
+    def __init__(self, client: "Abenix"):
+        self._client = client
+
+    async def _call(self, method: str, path: str, **kw: Any) -> Any:
+        return await _call(self._client, AbenixError, method, path, **kw)
+
+    async def list(self) -> list[dict[str, Any]]:
+        return await self._call("GET", "/api/api-keys") or []
+
+    async def create(
+        self,
+        name: str,
+        scopes: dict[str, Any] | list[str] | None = None,
+        *,
+        expires_at: str | None = None,
+        max_monthly_tokens: int | None = None,
+        max_monthly_cost: float | None = None,
+    ) -> dict[str, Any]:
+        """The new key. raw_key is only in this response, store it now.
+
+        scopes is {"can_delegate": True}, {"allowed_actions": [...]} or a list of actions.
+        """
+        if isinstance(scopes, list):
+            scopes = {"allowed_actions": scopes}
+        if scopes is not None and not ({"can_delegate", "allowed_actions"} & set(scopes)):
+            raise ValueError("scopes takes can_delegate or allowed_actions")
+        body: dict[str, Any] = {"name": name, "scopes": scopes}
+        for k, v in (("expires_at", expires_at), ("max_monthly_tokens", max_monthly_tokens),
+                     ("max_monthly_cost", max_monthly_cost)):
+            if v is not None:
+                body[k] = v
+        return await self._call("POST", "/api/api-keys", json=body)
+
+    async def revoke(self, key_id: str) -> dict[str, Any]:
+        return await self._call("DELETE", f"/api/api-keys/{key_id}")
+
+
+async def bootstrap_key(
+    base_url: str,
+    email: str,
+    password: str,
+    name: str,
+    *,
+    scopes: dict[str, Any] | list[str] | None = None,
+    timeout: float = 30.0,
+) -> str:
+    """Sign in once as a person and mint an API key for an app. Returns the raw key, shown only this once."""
+    async with httpx.AsyncClient(base_url=base_url.rstrip("/"), timeout=timeout) as http:
+        r = await http.post("/api/auth/login", json={"email": email, "password": password})
+        body = r.json() if r.content else {}
+        if r.status_code >= 400:
+            raise AbenixError(((body.get("error") or {}).get("message")) or f"sign-in failed ({r.status_code})")
+        token = (body.get("data") or {}).get("access_token")
+        if not token:
+            raise AbenixError("sign-in did not return an access token, two-factor accounts need a key made in Settings")
+        payload: dict[str, Any] = {"name": name}
+        if scopes is not None:
+            payload["scopes"] = scopes
+        r = await http.post("/api/api-keys", json=payload, headers={"Authorization": f"Bearer {token}"})
+        body = r.json() if r.content else {}
+        if r.status_code >= 400:
+            raise AbenixError(((body.get("error") or {}).get("message")) or f"key creation failed ({r.status_code})")
+        return (body.get("data") or {})["raw_key"]
+
+
 class Abenix:
     """Abenix Python SDK client."""
 
@@ -1470,6 +1859,7 @@ class Abenix:
         self.presets = PresetsClient(self)
         self.ml_models = MLModelsClient(self)
         self.code_assets = CodeAssetsClient(self)
+        self.llm_models = LLMModelsClient(self)
         self.decisions = DecisionsClient(self)
         self.sources = SourcesClient(self)
         self.events = EventsClient(self)
@@ -1478,6 +1868,8 @@ class Abenix:
         self.improvements = ImprovementsClient(self)
         self.lessons = LessonsClient(self)
         self.feedback = FeedbackClient(self)
+        self.kill_switches = KillSwitchesClient(self)
+        self.api_keys = ApiKeysClient(self)
         # no default Content-Type, httpx sets it per request and a fixed
         # JSON one broke multipart uploads through forge.http
         self._http = httpx.AsyncClient(
