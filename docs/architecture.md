@@ -112,9 +112,10 @@ All numbers from a laptop running Abenix on local Kubernetes (minikube), see the
 |---|---|
 | Twin step compute, 5 ticks, in process | p50 2.2 ms, p99 4.1 ms (0.8 ms per tick) |
 | Safety rules per 10 ms tick, in process | p99 0.50 ms |
-| Twin step through Abenix (SDK, warm runner, 16 KB in, 26 KB out) | p50 66 ms, p99 80 ms before the Abenix 2.5.6 inline path. Re-measured numbers in the README |
+| Twin step through Abenix (SDK, warm runner, 16 KB in, 26 KB out), bff in the cluster | p50 18.4 ms, a fixed 20 Hz step with 5 ticks, so site time is wall time |
+| Same, bff on a Windows host through `kubectl port-forward` | p50 64 ms, p99 183 ms. The forward stalls request bodies over about 6 KB by about 44 ms |
 | Decision evaluate (single, warm) | about 3 ms server side, 11 ms p50 through the SDK |
-| ML predict through the SDK | p50 12 to 19 ms |
+| ML predict through the SDK | p50 8 ms in the cluster, 10 to 19 ms from the host |
 | Pipeline with an agent step | 15 to 30 s |
 | Agent run | 15 to 20 s for the superintendent |
 
