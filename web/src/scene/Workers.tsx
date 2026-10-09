@@ -33,13 +33,16 @@ function WorkerFig({ id, role }: { id: string; role: string }) {
   const armR = useRef<THREE.Mesh>(null!)
   const ring = useRef<THREE.Mesh>(null!)
   const last = useRef({ x: 0, y: 0, phase: 0 })
-  useFrame((_, dt) => {
+  useFrame(({ camera }, dt) => {
     const w = workerAt(id, interpAlpha())
     if (!w) {
       g.current.visible = false
       return
     }
     g.current.visible = true
+    // limbs only matter up close
+    const near = camera.position.distanceToSquared(g.current.position) < 110 * 110
+    legL.current.visible = legR.current.visible = armL.current.visible = armR.current.visible = near
     g.current.position.set(w.x, heightAt(w.x, w.y), -w.y)
     g.current.rotation.y = w.heading
     const moved = Math.hypot(w.x - last.current.x, w.y - last.current.y)

@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { useRef } from 'react'
+import { useThree } from '@react-three/fiber'
 import { MAT, hazardMat } from '../materials'
 import { Beacon, Box, Cyl, Decal, Track, spanBetween } from './parts'
 import { useMachineDrive } from './common'
@@ -30,6 +31,7 @@ export function Excavator({ id }: { id: string }) {
   const aStickEnd = useRef<THREE.Object3D>(null!)
   const aBucketBase = useRef<THREE.Object3D>(null!)
   const aBucketEnd = useRef<THREE.Object3D>(null!)
+  const cam = useThree((s) => s.camera)
 
   useMachineDrive(id, root, 4.8, 3.2, (m) => {
     const j = m.joints
@@ -38,6 +40,9 @@ export function Excavator({ id }: { id: string }) {
     stick.current.rotation.z = (j.stick ?? 0.5) - 1.1
     bucket.current.rotation.z = -0.4 - (j.bucket ?? 0.3)
     soil.current.visible = m.load_t > 1
+    const near = cam.position.distanceToSquared(root.current.position) < 140 * 140
+    cylBoom.current.visible = cylStick.current.visible = cylBucket.current.visible = near
+    if (!near) return
     spanBetween(cylBoom.current, aBoomBase.current, aBoomMid.current)
     spanBetween(cylStick.current, aStickBase.current, aStickEnd.current)
     spanBetween(cylBucket.current, aBucketBase.current, aBucketEnd.current)

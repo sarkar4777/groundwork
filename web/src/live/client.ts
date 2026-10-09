@@ -201,11 +201,18 @@ function onEvent(e: EventFrame) {
   if (e.kind === 'autonomy') refreshAgents()
   if (e.kind === 'approval') {
     const id = typeof e.execution_id === 'string' ? e.execution_id : undefined
-    if (id || /approved|rejected/i.test(e.title)) {
+    if (/request|waiting|asks/i.test(e.title)) {
+      const key = id ?? (typeof e.approval_id === 'string' ? e.approval_id : `${e.t}`)
+      useUi.setState((s) => {
+        if (s.approvals.some((x) => x.key === key || (id && x.execution_id === id))) return s
+        const agent = typeof e.agent === 'string' ? e.agent : 'gw-site-superintendent'
+        const ap: Approval = { key, execution_id: id ?? (typeof e.approval_id === 'string' ? e.approval_id : undefined), agent, text: e.detail || e.title, t: e.t, status: 'pending' }
+        return { approvals: [...s.approvals.slice(-5), ap] }
+      })
+    } else if (/approved|rejected|denied|put to work/i.test(e.title)) {
+      const status = /reject|denied/i.test(e.title) ? 'rejected' : 'approved'
       useUi.setState((s) => ({
-        approvals: s.approvals.map((a) =>
-          (id ? a.execution_id === id : a.status === 'pending' || a.status === 'sending') ? { ...a, status: /reject/i.test(e.title) ? 'rejected' : 'approved' } : a,
-        ),
+        approvals: s.approvals.map((a) => ((id ? a.execution_id === id : a.status === 'pending' || a.status === 'sending') ? { ...a, status } : a)),
       }))
     }
   }
@@ -223,9 +230,10 @@ function onAgent(a: AgentFrame) {
       const ap: Approval = { key, execution_id: a.execution_id, agent: a.agent, text: a.text, t: a.t, status: 'pending' }
       return { approvals: [...s.approvals.slice(-5), ap] }
     })
-  } else if (a.execution_id && a.phase === 'answer') {
+  } else if (a.execution_id && a.phase === 'answer' && /^(approved|rejected)\b/i.test(a.text)) {
+    const status = /^rejected/i.test(a.text) ? 'rejected' : 'approved'
     useUi.setState((s) => ({
-      approvals: s.approvals.map((x) => (x.execution_id === a.execution_id && x.status !== 'pending' ? x : x.execution_id === a.execution_id ? { ...x, status: /reject/i.test(a.text) ? 'rejected' : 'approved' } : x)),
+      approvals: s.approvals.map((x) => (x.execution_id === a.execution_id && x.status === 'pending' ? { ...x, status } : x)),
     }))
   }
 }

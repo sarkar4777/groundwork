@@ -180,6 +180,7 @@ export function Ground() {
 
   const siteVer = useRef(-1)
   const painting = useRef(false)
+  const drapedAt = useRef(-1e9)
   const terrainVer = useRef(-1)
   const normalTick = useRef(0)
   const stampAt = useRef(0)
@@ -228,11 +229,14 @@ export function Ground() {
       for (let k = 0; k < n * n; k++) arr[k * 3 + 1] = shown[k]
       geo.attributes.position.needsUpdate = true
       normalTick.current++
-      if (normalTick.current % 3 === 1 || groundState.morph >= 1) {
+      if (normalTick.current % 8 === 1 || groundState.morph >= 1) {
         geo.computeVertexNormals()
         geo.computeBoundingSphere()
       }
-      if (groundState.morph >= 1) useUi.setState((s) => ({ terrainShown: s.terrainShown + 1 }))
+      if (groundState.morph >= 1 && performance.now() - drapedAt.current > 12000) {
+        drapedAt.current = performance.now()
+        useUi.setState((s) => ({ terrainShown: s.terrainShown + 1 }))
+      }
     }
 
     const now = performance.now()
