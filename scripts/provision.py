@@ -175,6 +175,9 @@ async def assets(f: Abenix, rep: Report) -> dict:
 
 # decisions
 
+SOLE_REASON = "Installed from the Groundwork repo by the only admin in this workspace"
+
+
 def _canon(rules):
     return json.dumps([{k: r.get(k) for k in ("ruleKey", "when", "then")} for r in rules], sort_keys=True)
 
@@ -189,40 +192,88 @@ async def _sync_tests(f: Abenix, key: str, tests: list) -> None:
             await f.decisions.update_test(key, h["id"], facts=t["facts"], expected=t.get("expected"))
 
 
+def _live(cur: dict) -> int | None:
+    return max((p["version"] for p in cur.get("published") or [] if p.get("state") == "published"), default=None)
+
+
+async def _settle(f: Abenix, rep: Report, key: str, n: int, state: str) -> None:
+    """Publish a version once its tier's sign-off is in. Sign alone only when nobody else can."""
+    link = f"/decisions/{key}"
+    if state == "approved":
+        await f.decisions.publish(key, n)
+        rep.add("decision", key, "published", link, f"v{n} in force, its tier needed no sign-off")
+        return
+    info = await f.decisions.sign_off_info(key, n)
+    if info.get("status") == "approved":
+        await f.decisions.publish(key, n)
+        rep.add("decision", key, "published", link, f"v{n} in force, signed off in Abenix")
+        return
+    if info.get("sole_operator_available") and info.get("approval_id"):
+        await f.approvals.signoff(info["approval_id"], "approve", reason=SOLE_REASON, sole_operator=True)
+        await f.decisions.publish(key, n)
+        rep.add("decision", key, "published", link, f"v{n} in force, {info.get('tier')} tier")
+        print(f"             This was a recorded self-approval: you are the only person in this workspace who can approve "
+              f"{info.get('tier')} risk decisions, so you signed it alone with the reason \"{SOLE_REASON}\". "
+              "Every admin was told and the audit log shows approval.self_approved.")
+        return
+    people = info.get("eligible_approvers") or []
+    who = ", ".join(f"{p.get('name')} <{p.get('email')}>" for p in people) or "nobody yet, an admin can grant approvals.sign and decisions.review"
+    rep.add("decision", key, "waiting", link, f"v{n} needs {info.get('required')} sign-off: {info.get('policy_text')}")
+    print(f"             Can approve: {who}")
+    print("             It waits in Abenix under Approvals. Run this script again after it is approved to publish it. "
+          "Until then the bff keeps using the version in force, or has none for this decision if nothing is published yet.")
+
+
 async def decisions(f: Abenix, rep: Report) -> None:
     for p in sorted((AB / "decisions").glob("*.json")):
         spec = json.loads(p.read_text())
         key = spec["key"]
+        link = f"/decisions/{key}"
+        tier = spec.get("risk_tier", "high")
         try:
             cur = await f.decisions.get(key)
         except AbenixDecisionError as e:
             if e.status != 404:
                 raise
-            cur = await f.decisions.create(spec["name"], key=key, rules=spec["rules"], risk_tier="low", description=spec.get("description", ""))
-        await _sync_tests(f, key, spec.get("tests", []))
-        if not cur.get("published"):
-            n = (cur.get("drafts") or [{}])[-1].get("version") or 1
-            await f.decisions.update(key, risk_tier="low")
-            await f.decisions.import_rules(key, n, spec["rules"], mode="replace")
-            await f.decisions.propose(key, n, note="Initial rules from the Groundwork repo")
-            await f.decisions.publish(key, n)
-            # later changes need the tier's sign-off
-            await f.decisions.update(key, risk_tier=spec.get("risk_tier", "high"))
-            rep.add("decision", key, "created", f"/decisions/{key}", f"v{n} published, later changes need {spec.get('risk_tier', 'high')} tier sign-off")
+            cur = None
+        if cur is not None:
+            waiting = [v for v in cur.get("proposed") or [] if v.get("state") in ("proposed", "approved")]
+            if waiting:
+                # a version from an earlier run still waits, finish that before proposing another
+                v = max(waiting, key=lambda x: x["version"])
+                await _settle(f, rep, key, v["version"], v["state"])
+                continue
+            live = _live(cur)
+            if live is not None:
+                exp = await f.decisions.export(key, live)
+                if _canon(exp.get("rules") or []) == _canon(spec["rules"]):
+                    await _sync_tests(f, key, spec.get("tests", []))
+                    rep.add("decision", key, "same", link, f"v{live} in force")
+                    if cur.get("risk_tier") != tier:
+                        print(f"             The repo says {tier} risk, Abenix has {cur.get('risk_tier')}. Change it on the decision page if that is wrong.")
+                    continue
+        preview = await f.decisions.import_file(spec, preview=True)
+        errors = [x for x in preview.get("problems") or [] if x.get("severity") == "error"]
+        if errors:
+            rep.add("decision", key, "refused", link, "; ".join(f"{x.get('path')}: {x.get('message')}" for x in errors)[:300])
             continue
-        exp = await f.decisions.export(key)
-        if _canon(exp.get("rules") or []) == _canon(spec["rules"]):
-            rep.add("decision", key, "same", f"/decisions/{key}", f"v{exp.get('version')} in force")
+        imp = await f.decisions.import_file(spec)
+        if imp.get("no_changes") or not imp.get("created", True) and imp.get("version") is None:
+            # the latest version already holds these rules, nothing new to propose
+            rep.add("decision", key, "same", link, "the latest version already has these rules")
             continue
-        if cur.get("proposed"):
-            rep.add("decision", key, "waiting", f"/decisions/{key}", "a proposal already waits for sign-off")
+        n = imp["version"]
+        rep.add("decision", key, "imported", link, f"v{n} draft at {imp.get('risk_tier')} risk, {imp.get('tests_added', 0)} tests added, "
+                f"{imp.get('tests_updated', 0)} updated")
+        if imp.get("tier_note"):
+            print(f"             {imp['tier_note']}")
+        note = "Initial rules from the Groundwork repo" if cur is None else "Rules changed in the Groundwork repo"
+        try:
+            v = await f.decisions.propose(key, n, note=note)
+        except AbenixDecisionError as e:
+            rep.add("decision", key, "not ready", link, f"v{n} stays a draft: {e}"[:300])
             continue
-        v = await f.decisions.propose_rules(key, spec["rules"], note="Rules changed in the Groundwork repo", mode="replace")
-        if v.get("state") == "approved":
-            await f.decisions.publish(key, v["version"])
-            rep.add("decision", key, "updated", f"/decisions/{key}", f"v{v['version']} published")
-        else:
-            rep.add("decision", key, "proposed", f"/decisions/{key}", f"v{v.get('version')} waits for a person to sign off")
+        await _settle(f, rep, key, n, v.get("state"))
 
 
 # agents and pipelines

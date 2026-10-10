@@ -41,7 +41,7 @@ Without a model the site, the safety rules, the ML models and the dispatch loop 
 
 ### 1. Start Abenix
 
-Groundwork needs Abenix 2.5.6 or later. The core platform is enough, the other Abenix apps are not needed.
+Groundwork needs Abenix 2.5.7 or later. The core platform is enough, the other Abenix apps are not needed.
 
 ```bash
 git clone https://github.com/sarkar4777/abenix.git
@@ -88,6 +88,8 @@ It signs in once as the admin and mints this clone's own API key, named `groundw
 - 7 pipelines
 - 2 knowledge bases
 - 4 Earned Autonomy action types
+
+The safety rules are high risk, so publishing them needs sign-off in Abenix. In a workspace where you are the only admin, provisioning signs them itself with a recorded reason, and Abenix marks that as self-approved. If someone else in the workspace can approve, it names them and the rules wait in Abenix under **Approvals** until one of them signs, then run step 3 again to publish. The site holds a plan change while the crane limits are not yet in force.
 
 It finishes by training the six ML models inside Abenix on data the twin generates. It ends with a table of everything it made and a link to each in the Abenix UI. It is safe to run again. It only changes what differs, and `--retrain` trains the models again.
 

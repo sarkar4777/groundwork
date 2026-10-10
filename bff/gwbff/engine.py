@@ -12,7 +12,7 @@ import logging
 import time
 from typing import Any
 
-from abenix_sdk import Abenix
+from abenix_sdk import Abenix, AbenixDecisionError
 
 from .lanes import Lane, Open, Rolling
 
@@ -212,7 +212,8 @@ class Engine:
                 if v is None:
                     continue
                 if force or (self.rules.get(key) or {}).get("version") != v:
-                    exp = await self.lanes["platform"].call(lambda k=key: self.forge.decisions.export(k))
+                    # the version in force, a newer draft or a version waiting for sign-off must not reach the twin
+                    exp = await self.lanes["platform"].call(lambda k=key, n=v: self.forge.decisions.export(k, n))
                     self.rules[key] = {"key": key, "version": exp.get("version", v), "rules": exp.get("rules") or []}
                     changed[key] = self.rules[key]
             except Exception as e:  # noqa: BLE001
@@ -503,10 +504,22 @@ class Engine:
                 r = await self.lanes["decisions"].call(lambda: self.forge.decisions.evaluate_batch("gw.crane.limits", [{"facts": f["facts"]} for f in facts]))
                 self.l4 = round((time.perf_counter() - t0) * 1000, 1)
                 self.l4w.add(self.l4)
-                bad = [f["id"] for f, x in zip(facts, r.get("results") or []) if (x.get("result") or {}).get("action") in ("stop_slew", "stop_hoist")]
+                results = r.get("results") or []
+                unchecked = [x.get("error") for x in results if x.get("outcome") == "error"]
+                if unchecked or len(results) != len(facts):
+                    # no published crane limits means no check, so the plan waits
+                    await self.event("plan_change", "Plan held, crane limits not checked",
+                                     (unchecked[0] if unchecked else "gw.crane.limits gave no answer") + " It may still wait for sign-off under Approvals.", agent=agent)
+                    return
+                bad = [f["id"] for f, x in zip(facts, results) if (x.get("result") or {}).get("action") in ("stop_slew", "stop_hoist")]
                 if bad:
                     await self.event("plan_change", "Plan refused by gw.crane.limits", f"Lifts over the limits: {', '.join(bad)}", agent=agent)
                     return
+            except AbenixDecisionError as e:
+                if e.status == 404:
+                    await self.event("plan_change", "Plan held, crane limits not checked", str(e), agent=agent)
+                    return
+                log.warning("plan crane check: %s", e)
             except Exception as e:  # noqa: BLE001
                 log.warning("plan crane check: %s", e)
         summary = out.get("summary", "Plan change")
