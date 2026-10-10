@@ -2,6 +2,8 @@
 
 <p align="center"><img src="docs/media/preview.gif" alt="Groundwork story: the title over the live ground station, the drone feed, a safety stop in 4.7 ms, the whole ground station, the end card" width="100%"></p>
 
+<p align="center"><a href="https://github.com/sarkar4777/groundwork/releases/tag/v1.0.0">Watch the full 64 s films</a>, on the painted site and on a real drone orthophoto, landscape and portrait with subtitles.</p>
+
 An autonomous construction site, run by [Abenix](https://github.com/sarkar4777/abenix). Northgate Yard is a fictional 4 hectare site digging the two-level basement of a 22-storey tower: two excavators, a dozer, six haul trucks, a luffing tower crane, a mobile crane, a piling rig, a roller, two survey drones and fourteen tagged workers. Every machine has its own virtual controllers talking J1939 on its own bus. Safety rules stop a machine in the same 10 ms tick a worker steps too close. Agents plan the day, a person approves the risky moves, and every number on screen is measured.
 
 > The AI plans in seconds. The safety layer reacts in milliseconds. Abenix runs both, and you can watch every layer do its job.
