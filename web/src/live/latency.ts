@@ -20,6 +20,8 @@ export function trackLatency(lat: Partial<Latency> & Record<string, unknown>) {
   }
 }
 
+export const hasServerP50 = (k: Key, lat?: Record<string, unknown>) => typeof lat?.[k.replace('_ms', '_p50_ms')] === 'number'
+
 export function p50(k: Key, lat?: Record<string, unknown>): number | null {
   const sent = lat?.[k.replace('_ms', '_p50_ms')]
   if (typeof sent === 'number' && isFinite(sent)) return sent

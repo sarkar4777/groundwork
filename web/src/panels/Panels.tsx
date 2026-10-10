@@ -5,7 +5,7 @@ import { ECU_NAMES, Icon, Panel, fmtMs, fmtT, modeTone } from '../ui/kit'
 import { LEVEL_NAMES, prettyAgent } from '../live/parse'
 import type { BusFrame, FaultKind, PlanNode } from '../proto/types'
 import { REPLAY } from '../live/config'
-import { latHistory, p50 } from '../live/latency'
+import { hasServerP50, latHistory, p50 } from '../live/latency'
 
 function useNow(hz: number) {
   const [, set] = useState(0)
@@ -188,7 +188,7 @@ export function SitePilot({ focus }: { focus?: boolean }) {
               <span className={`chip ${l.phase === 'waiting_approval' ? 'warn' : l.phase === 'answer' ? 'ok' : 'ai'}`}>{l.phase.replace('_', ' ')}</span>
               <span className="num faint" style={{ marginLeft: 'auto' }}>{fmtT(l.t)}</span>
             </header>
-            {l.text}
+            {l.text.replace(/\.\.(\s|$)/g, '.$1')}
           </div>
         ))}
       </div>
@@ -221,15 +221,15 @@ export function LatencyStrip({ focus }: { focus?: boolean }) {
   const lat = useUi((s) => s.state?.latency) as (Record<string, unknown> & Partial<Record<string, number>>) | undefined
   useUi((s) => s.state?.seq)
   return (
-    <Panel id="latency" title="Layer latency, p50" icon="gauge" focus={focus} extra={<span className="chip ok" title="Every value is measured by the running system, never set by hand. p50 over the recent window, the line shows each reading">measured</span>}>
+    <Panel id="latency" title="Layer latency" icon="gauge" focus={focus} extra={<span className="chip ok" title="Every value is measured by the running system, never set by hand. p50 over the recent window, the line shows each reading">measured</span>}>
       <div className="lat">
         {LAYERS.map((l) => {
           const v = p50(l.k, lat)
           const last = lat?.[l.k]
           const hist = latHistory[l.k].slice(-40)
           return (
-            <div key={l.k} className={`lat-cell ${l.n === 'L5' || l.n === 'L4' ? 'slow' : ''}`} title={`${l.n} ${l.label}, computed in ${l.where}. p50 of ${latHistory[l.k].length} readings${typeof last === 'number' ? `, last ${fmtMs(last)}` : ''}`}>
-              <div className="lk">{l.n} <span className="faint" style={{ fontWeight: 500, letterSpacing: 0 }}>p50</span></div>
+            <div key={l.k} className={`lat-cell ${l.n === 'L5' || l.n === 'L4' ? 'slow' : ''}`} title={`${l.n} ${l.label}, computed in ${l.where}. ${hasServerP50(l.k, lat) ? 'p50 from the bff' : `median of the last ${latHistory[l.k].length} readings as the bff reports them`}${typeof last === 'number' ? `, last ${fmtMs(last)}` : ''}`}>
+              <div className="lk">{l.n} <span className="faint" style={{ fontWeight: 500, letterSpacing: 0 }}>{hasServerP50(l.k, lat) ? 'p50' : 'median'}</span></div>
               <div className="ln">{l.label}</div>
               <div className="lv">{v !== null ? fmtMs(v) : '--'}</div>
               <Spark values={hist} />
@@ -248,7 +248,7 @@ export function Autonomy({ focus }: { focus?: boolean }) {
   const events = useUi((s) => s.events)
   const promoted = useMemo(() => {
     const set = new Set<string>()
-    for (const e of events.slice(-20)) if (e.kind === 'autonomy' && typeof e.agent === 'string') set.add(e.agent)
+    for (const e of events.slice(-20)) if (e.kind === 'autonomy' && typeof e.agent === 'string' && /promot/i.test(e.title)) set.add(e.agent)
     return set
   }, [events])
   const lastPromo = [...events].reverse().find((e) => e.kind === 'autonomy')
@@ -395,7 +395,7 @@ function ApprovalCard({ a }: { a: Approval }) {
   return (
     <div className="approval">
       <div className="who"><span>{prettyAgent(a.agent)}</span><span className="num">{fmtT(a.t)}</span></div>
-      <p>{a.text}</p>
+      <p>{a.text.replace(/\.\.(\s|$)/g, '.$1')}</p>
       {a.status === 'pending' && (
         <div className="acts">
           <button className="no" onClick={() => approve(a, 'reject')}>Reject</button>
