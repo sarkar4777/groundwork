@@ -237,7 +237,8 @@ export function Overlays() {
   const ex = useUi((s) => s.state?.machines.filter((m) => /excav/i.test(m.kind)).map((m) => m.id).join('|') ?? '')
   const [site, rev] = useSiteRev()
   const depthTest = cam !== 'drone'
-  if (cam === 'nervous') return null
+  const hero = useUi((s) => s.heroFx)
+  if (cam === 'nervous' || hero) return null
   return (
     <group>
       {site && ov.geofence && <Geofences site={site} depthTest={depthTest} rev={rev} />}

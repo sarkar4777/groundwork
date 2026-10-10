@@ -15,13 +15,13 @@ export const COLORS = {
 const std = (o: THREE.MeshStandardMaterialParameters) => new THREE.MeshStandardMaterial(o)
 
 export const MAT = {
-  paint: std({ color: COLORS.yellow, roughness: 0.42, metalness: 0.15 }),
-  paintDirty: std({ color: '#d9a21a', roughness: 0.62, metalness: 0.1 }),
+  paint: std({ color: '#e8a915', roughness: 0.55, metalness: 0.08 }),
+  paintDirty: std({ color: '#c99417', roughness: 0.66, metalness: 0.08 }),
   dark: std({ color: COLORS.grey, roughness: 0.55, metalness: 0.35 }),
   darkMatte: std({ color: '#1d2127', roughness: 0.85, metalness: 0.1 }),
   steel: std({ color: '#8b939c', roughness: 0.35, metalness: 0.85 }),
-  rubber: std({ color: '#141619', roughness: 0.92, metalness: 0 }),
-  glass: std({ color: '#0d2238', roughness: 0.08, metalness: 0.6, envMapIntensity: 1.4 }),
+  rubber: std({ color: '#0e0f10', roughness: 0.9, metalness: 0 }),
+  glass: std({ color: '#0b1520', roughness: 0.04, metalness: 0.9, envMapIntensity: 1.5 }),
   accent: std({ color: COLORS.sky, roughness: 0.35, metalness: 0.2, emissive: new THREE.Color(COLORS.sky), emissiveIntensity: 0.25 }),
   white: std({ color: '#e9edf2', roughness: 0.5, metalness: 0.05 }),
   concrete: std({ color: '#a9a69e', roughness: 0.9, metalness: 0 }),
@@ -162,3 +162,64 @@ export function latticeMat(): THREE.MeshStandardMaterial {
   dimWithNervous(lattice)
   return lattice
 }
+
+// Wear on the machines: dust settles on the up-facing panels, grime and scuffs everywhere else.
+const grimeTex = (() => {
+  const c = document.createElement('canvas')
+  c.width = c.height = 256
+  const g = c.getContext('2d')!
+  const img = g.createImageData(256, 256)
+  let s = 9
+  const r = () => ((s = (s * 16807) % 2147483647) / 2147483647)
+  for (let i = 0; i < 256 * 256; i++) {
+    const v = r()
+    img.data[i * 4] = v * 255
+    img.data[i * 4 + 1] = r() * 255
+    img.data[i * 4 + 2] = r() * 255
+    img.data[i * 4 + 3] = 255
+  }
+  g.putImageData(img, 0, 0)
+  const big = document.createElement('canvas')
+  big.width = big.height = 256
+  const bg = big.getContext('2d')!
+  bg.filter = 'blur(2px)'
+  bg.drawImage(c, 0, 0)
+  bg.filter = 'blur(6px)'
+  bg.globalAlpha = 0.6
+  bg.drawImage(c, 0, 0)
+  const t = new THREE.CanvasTexture(big)
+  t.wrapS = t.wrapT = THREE.RepeatWrapping
+  return t
+})()
+
+function weather(m: THREE.MeshStandardMaterial, dust: number, grime: number) {
+  m.customProgramCacheKey = () => 'gw-weather'
+  m.onBeforeCompile = (sh) => {
+    sh.uniforms.tGrime = { value: grimeTex }
+    sh.uniforms.uDust = { value: dust }
+    sh.uniforms.uGrimeK = { value: grime }
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vGW;\nvarying vec3 vGN;')
+      .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvec4 gwP = vec4(transformed, 1.0);\n#ifdef USE_INSTANCING\ngwP = instanceMatrix * gwP;\n#endif\nvGW = (modelMatrix * gwP).xyz;\nvGN = normalize(mat3(modelMatrix) * objectNormal);')
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vGW;\nvarying vec3 vGN;\nuniform sampler2D tGrime;\nuniform float uDust;\nuniform float uGrimeK;')
+      .replace(
+        '#include <color_fragment>',
+        `#include <color_fragment>
+float gA = texture2D(tGrime, vGW.xz * 0.35 + vGW.y * 0.21).r;
+float gB = texture2D(tGrime, vec2(vGW.x + vGW.z, vGW.y) * 0.9).g;
+float up = smoothstep(0.55, 0.95, vGN.y);
+vec3 dustC = vec3(0.62, 0.57, 0.5);
+diffuseColor.rgb = mix(diffuseColor.rgb, dustC * (0.85 + 0.3 * gA), up * uDust * (0.55 + 0.45 * gA));
+diffuseColor.rgb *= 1.0 - uGrimeK * smoothstep(0.45, 0.9, gB);`,
+      )
+      .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>\nroughnessFactor = clamp(roughnessFactor + up * uDust * 0.6, 0.0, 1.0);`)
+  }
+}
+
+weather(MAT.paint, 0.38, 0.28)
+weather(MAT.paintDirty, 0.55, 0.35)
+weather(MAT.dark, 0.45, 0.25)
+weather(MAT.darkMatte, 0.5, 0.2)
+weather(MAT.rubber, 0.35, 0.15)
+weather(MAT.white, 0.4, 0.25)

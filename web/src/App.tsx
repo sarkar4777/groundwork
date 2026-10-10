@@ -1,5 +1,6 @@
 import { Fragment, useEffect } from 'react'
 import { setCam, useUi } from './live/store'
+import type { Kpi } from './proto/types'
 import { startStory, stopStory } from './live/client'
 import { REPLAY, CAPTURE } from './live/config'
 import { Feed, MODES } from './ui/Feed'
@@ -7,15 +8,23 @@ import { Icon } from './ui/kit'
 import { Autonomy, Events, FaultDeck, LatencyStrip, PhoneApprovals, SignalTrace, SitePilot, VecuConsole } from './panels/Panels'
 import { downloadSrt } from './story/StoryLayer'
 
+// A Claude subscription serves the agent runs, so a zero cost is a billing mode, not a broken meter.
+function aiCost(k: Kpi | undefined): string {
+  if (!k) return '--'
+  if (k.ai_billing === 'subscription') return 'subscription'
+  if (typeof k.ai_cost_usd !== 'number') return '--'
+  return k.ai_cost_usd === 0 && k.ai_billing !== 'metered' ? 'subscription' : `$${k.ai_cost_usd.toFixed(2)}`
+}
+
 function Kpis() {
   const k = useUi((s) => s.state?.kpi)
   const wind = useUi((s) => s.state?.sensors.wind_ms)
   const env = useUi((s) => s.state?.safety.envelope)
   const items: [string, string, string?, string?][] = [
     ['Moved', k && typeof k.m3_moved === 'number' ? Math.round(k.m3_moved).toLocaleString('en-GB') : '--', 'm³'],
-    ['Cycles', k ? String(k.cycles) : '--'],
+    ['Load cycles', !k ? '--' : k.cycles > 0 ? String(k.cycles) : 'starting', undefined, k && k.cycles === 0 ? '#c9ecff' : undefined],
     ['Trucks waiting', k ? String(k.trucks_waiting) : '--', undefined, k && k.trucks_waiting > 1 ? '#ffb020' : undefined],
-    ['AI cost', k && typeof k.ai_cost_usd === 'number' ? `$${k.ai_cost_usd.toFixed(2)}` : '--'],
+    ['AI cost', aiCost(k), aiCost(k).startsWith('$') ? 'USD' : undefined],
     ['Wind', wind !== undefined ? wind.toFixed(1) : '--', 'm/s', wind !== undefined && wind >= 14 ? '#ffb020' : undefined],
     ['Safety', env ? env.toUpperCase() : '--', undefined, env === 'stop' ? '#ff4d5e' : env === 'warn' ? '#ffb020' : '#3ee6a8'],
   ]
@@ -24,7 +33,7 @@ function Kpis() {
       {items.map(([label, v, unit, color]) => (
         <div className="kpi" key={label}>
           <div className="k">{label}</div>
-          <div className="v" style={{ color }}>{v}{unit && <small>{unit}</small>}</div>
+          <div className={`v ${/[a-z]/.test(v) && v !== '--' ? 'word' : ''}`} style={{ color }}>{v}{unit && <small>{unit}</small>}</div>
         </div>
       ))}
     </div>

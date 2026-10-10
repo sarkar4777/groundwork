@@ -1,6 +1,7 @@
 import type { AgentFrame, BusFrame, EventFrame, FaultKind, Frame, StateFrame } from '../proto/types'
 import { REPLAY, SIM_HTTP, wsUrl } from './config'
 import { hot } from './hot'
+import { trackLatency } from './latency'
 import { parseAgents, parseSite, parseTerrain } from './parse'
 import { toast, useUi, type Approval } from './store'
 import type { Replay } from '../dev/replay'
@@ -121,6 +122,7 @@ export function ingest(f: Frame) {
       pending.state = f
       pending.dirty = true
       busRate.ticks++
+      if (f.latency) trackLatency(f.latency as Record<string, unknown>)
       const ui = useUi.getState()
       const off = typeof f.ai_offline === 'boolean' ? f.ai_offline : typeof f.ai_available === 'boolean' ? !f.ai_available : null
       if (off !== null && off !== ui.aiOffline) useUi.setState({ aiOffline: off })
@@ -217,7 +219,8 @@ function onEvent(e: EventFrame) {
     }
   }
   if (e.kind === 'story') {
-    if (/finish|end|stop/i.test(e.title)) useUi.setState((s) => ({ story: { ...s.story, running: false } }))
+    // a finish that lands right after our start belongs to the run we just replaced
+    if (/finish|end|stop/i.test(e.title)) useUi.setState((s) => (performance.now() - s.story.startedAt < 4000 ? s : { story: { ...s.story, running: false } }))
     else if (/start/i.test(e.title)) useUi.setState((s) => ({ story: { ...s.story, running: true, t0: e.t, startedAt: performance.now(), recorded: e.recorded === true }, captionLog: [] }))
   }
 }

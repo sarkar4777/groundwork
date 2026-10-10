@@ -41,7 +41,7 @@ export interface SafetyStop { machine: string; rule: string; since: number }
 
 export interface Latency { l1_ms: number; l2_ms: number; l3_ms: number; l4_ms: number; l5_ms: number }
 
-export interface Kpi { m3_moved: number; cycles: number; trucks_waiting: number; ai_cost_usd?: number }
+export interface Kpi { m3_moved: number; cycles: number; trucks_waiting: number; ai_cost_usd?: number; ai_billing?: 'subscription' | 'metered' | string }
 
 export interface StateFrame {
   type: 'state'

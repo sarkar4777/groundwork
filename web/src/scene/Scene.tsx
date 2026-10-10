@@ -2,8 +2,8 @@ import * as THREE from 'three'
 import { Suspense, useEffect, useMemo, useRef } from 'react'
 import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber'
 import { Environment } from '@react-three/drei'
-import { EffectComposer, Bloom, Vignette, Noise, ChromaticAberration, ToneMapping, FXAA } from '@react-three/postprocessing'
-import { BlendFunction, ToneMappingMode, type BloomEffect, type ChromaticAberrationEffect, type NoiseEffect, type VignetteEffect } from 'postprocessing'
+import { EffectComposer, Bloom, Vignette, Noise, ChromaticAberration, ToneMapping, FXAA, HueSaturation, BrightnessContrast, TiltShift } from '@react-three/postprocessing'
+import { BlendFunction, KernelSize, ToneMappingMode, type BloomEffect, type ChromaticAberrationEffect, type NoiseEffect, type VignetteEffect, type HueSaturationEffect } from 'postprocessing'
 import { Ground } from './ground/Ground'
 import { Machines } from './Machines'
 import { Workers } from './Workers'
@@ -15,15 +15,20 @@ import { nervous } from './nervousState'
 import { applyNervous, dimWithNervous } from './materials'
 import { useUi } from '../live/store'
 import { CAPTURE } from '../live/config'
+import { HIGH } from '../live/quality'
+import { ContactShadows } from './ContactShadows'
 
 const DEBUG = new URLSearchParams(location.search).get('debug') ?? ''
 const SUN = new THREE.Vector3(-165, 78, 92)
-const HAZE = new THREE.Color('#c9b49c')
+const HAZE = new THREE.Color('#b8c0c4')
+const SUN_DAY = new THREE.Color('#ffe4c8')
+const SUN_GOLD = new THREE.Color('#ffdab2')
 const NAVY = new THREE.Color('#041230')
 
 function Lights() {
   const sun = useRef<THREE.DirectionalLight>(null!)
   const hemi = useRef<THREE.HemisphereLight>(null!)
+  const heroK = useRef(0)
   const scene = useThree((s) => s.scene)
   const env = useRef<THREE.Texture | null>(null)
   const fog = useMemo(() => new THREE.Fog(HAZE.clone(), 520, 2200), [])
@@ -35,9 +40,13 @@ function Lights() {
   useFrame(() => {
     const k = nervous.k
     applyNervous(k)
-    sun.current.intensity = 3.4 * (1 - k * 0.9)
+    // the hero shot gets the golden hour, the survey feed a neutral late-afternoon sun
+    const hero = useUi.getState().heroFx ? 1 : 0
+    heroK.current += (hero - heroK.current) * 0.05
+    sun.current.color.copy(SUN_DAY).lerp(SUN_GOLD, heroK.current)
+    sun.current.intensity = (3.4 + heroK.current * 0.6) * (1 - k * 0.9)
     hemi.current.intensity = 0.55 * (1 - k * 0.8)
-    scene.environmentIntensity = 0.75 * (1 - k * 0.85)
+    scene.environmentIntensity = 0.5 * (1 - k * 0.85)
     if (!env.current && scene.background instanceof THREE.Texture) env.current = scene.background
     if (k > 0.5) {
       if (!(scene.background instanceof THREE.Color)) scene.background = NAVY.clone()
@@ -48,16 +57,17 @@ function Lights() {
   })
   return (
     <>
-      <hemisphereLight ref={hemi} args={['#bcd6ff', '#6b5137', 0.55]} />
+      <hemisphereLight ref={hemi} args={['#cfe0f2', '#6e6458', 0.55]} />
       <directionalLight
         ref={sun}
         position={SUN}
         intensity={3.4}
-        color="#ffd3a6"
+        color="#ffe4c8"
         castShadow
-        shadow-mapSize={[2048, 2048]}
-        shadow-bias={-0.0004}
-        shadow-normalBias={0.04}
+        shadow-mapSize={HIGH ? [4096, 4096] : [2048, 2048]}
+        shadow-radius={HIGH ? 3 : 1}
+        shadow-bias={-0.0006}
+        shadow-normalBias={0.09}
         shadow-camera-left={-125}
         shadow-camera-right={125}
         shadow-camera-top={125}
@@ -86,10 +96,15 @@ function Post() {
   const ca = useRef<ChromaticAberrationEffect>(null!)
   const noise = useRef<NoiseEffect>(null!)
   const vig = useRef<VignetteEffect>(null!)
+  const hue = useRef<HueSaturationEffect>(null!)
+  const hero = useUi((s) => s.heroFx)
   useFrame(() => {
     const k = nervous.k
-    const cam = useUi.getState().cam
-    const feed = cam === 'drone' ? 1 : 0.4
+    const ui = useUi.getState()
+    const cam = ui.cam
+    const feed = cam === 'drone' && !ui.heroFx ? 1 : 0.4
+    // survey footage reads slightly desaturated with neutral whites, the hero shot keeps its warmth
+    if (hue.current) hue.current.saturation = ui.heroFx ? -0.06 : -0.16 + k * 0.16
     if (bloom.current) {
       bloom.current.intensity = 0.35 + k * 1.6
       bloom.current.luminanceMaterial.threshold = 0.92 - k * 0.55
@@ -103,6 +118,9 @@ function Post() {
       <Bloom ref={bloom as never} mipmapBlur levels={5} resolutionScale={0.5} intensity={0.4} luminanceThreshold={0.92} luminanceSmoothing={0.2} radius={0.72} />
       <ChromaticAberration ref={ca as never} offset={new THREE.Vector2(0.0009, 0.0006)} radialModulation modulationOffset={0.3} />
       <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
+      <HueSaturation ref={hue as never} saturation={-0.16} />
+      <BrightnessContrast contrast={0.12} brightness={-0.02} />
+      {hero ? <TiltShift offset={0.08} rotation={0} focusArea={0.5} feather={0.35} kernelSize={KernelSize.LARGE} /> : <></>}
       <Noise ref={noise as never} premultiply blendFunction={BlendFunction.OVERLAY} opacity={0.1} />
       <Vignette ref={vig as never} offset={0.22} darkness={0.7} />
       <FXAA />
@@ -132,7 +150,7 @@ function FrameMeter() {
     useUi.setState({ fps: Math.round(fps) })
     ;(window as unknown as { __gwFps: number[] }).__gwFps ??= []
     ;(window as unknown as { __gwFps: number[] }).__gwFps.push(fps)
-    if (CAPTURE || document.hidden || now - a.since < 8000) return
+    if (CAPTURE || HIGH || document.hidden || now - a.since < 8000) return
     a.low = fps < 54 ? a.low + 1 : 0
     a.high = fps > 58.5 ? a.high + 1 : 0
     let next = a.scale
@@ -168,6 +186,21 @@ function ShadowThrottle() {
   return null
 }
 
+// Compile every program in parallel up front, so the first frames do not stall on shader builds.
+function Prewarm() {
+  const gl = useThree((s) => s.gl)
+  const scene = useThree((s) => s.scene)
+  const camera = useThree((s) => s.camera)
+  useEffect(() => {
+    const id = setTimeout(() => {
+      const r = gl as unknown as { compileAsync?: (s: THREE.Object3D, c: THREE.Camera) => Promise<void> }
+      r.compileAsync?.(scene, camera).catch(() => {})
+    }, 200)
+    return () => clearTimeout(id)
+  }, [gl, scene, camera])
+  return null
+}
+
 function hoverGround(e: ThreeEvent<PointerEvent>) {
   if (e.object.name !== 'ground') return
   const p = e.point
@@ -177,7 +210,7 @@ function hoverGround(e: ThreeEvent<PointerEvent>) {
 export function Scene() {
   return (
     <Canvas
-      shadows={DEBUG.includes('noshadow') ? false : { type: DEBUG.includes('soft') ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap }}
+      shadows={DEBUG.includes('noshadow') ? false : { type: HIGH || DEBUG.includes('soft') ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap }}
       dpr={[1, 1.75]}
       gl={{ antialias: false, powerPreference: 'high-performance', stencil: false, preserveDrawingBuffer: CAPTURE }}
       camera={{ fov: 58, near: 0.5, far: 7000, position: [0, 120, 1] }}
@@ -185,16 +218,18 @@ export function Scene() {
       onPointerLeave={() => useUi.setState({ hover: null })}
     >
       <Suspense fallback={null}>
-        <Environment files="/assets/hdri/belfast_sunset_puresky_1k.hdr" background environmentIntensity={0.75} />
+        <Environment files="/assets/hdri/kloofendal_48d_partly_cloudy_puresky_1k.hdr" background environmentIntensity={0.75} />
         <Lights />
         <Horizon />
         <group onPointerMove={hoverGround}>
           <Ground />
         </group>
         {!DEBUG.includes('nomachines') && <Machines />}
+        <ContactShadows />
         {!DEBUG.includes('noworkers') && <Workers />}
         <Overlays />
         <Nervous />
+        <Prewarm />
         {!DEBUG.includes('nopost') && <Post />}
       </Suspense>
       <CameraRig />

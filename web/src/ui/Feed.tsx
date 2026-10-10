@@ -72,7 +72,8 @@ function LabelLayer() {
     return undefined
   }
   const nerv = cam === 'nervous'
-  const showM = ov.labels && !nerv && cam !== 'seat' && cam !== 'cab'
+  const hero = useUi((s) => s.heroFx)
+  const showM = ov.labels && !nerv && !hero && cam !== 'seat' && cam !== 'cab'
   return (
     <div className="labels" aria-hidden>
       {showM &&
@@ -80,24 +81,26 @@ function LabelLayer() {
           const eta = /truck|haul/i.test(m.kind) && ov.roads ? truckEta(m) : null
           const air = /drone/i.test(m.kind)
           return (
-            <div key={m.id} className="lbl" ref={reg('m:' + m.id)}>
+            <div key={m.id} className="lbl" ref={reg('m:' + m.id)} data-state={m.mode !== 'auto' || m.health !== 'ok' ? 'alert' : 'ok'}>
               <div>
                 <span className={`mlabel ${sel === m.id ? 'sel' : ''}`} onClick={() => useUi.setState({ selected: m.id })} style={{ pointerEvents: 'auto' }} title={`${m.id} ${m.task}`}>
                   {m.id}
                   <span className={`md ${m.health === 'fault' ? 'fault' : m.mode}`}>{m.health === 'fault' ? 'FAULT' : m.mode.toUpperCase()}</span>
                   {eta && <span style={{ color: '#c9ecff' }}>ETA {eta}</span>}
+                  <span className="more" />
                 </span>
                 {(sel === m.id || (!air && /excav|crane|pil|tele/i.test(m.kind))) && m.task && <span className="mtask">{m.task}</span>}
               </div>
             </div>
           )
         })}
-      {ov.workers && !nerv &&
+      {ov.workers && !nerv && !hero &&
         st?.workers.map((w) => (
-          <div key={w.id} className="lbl" ref={reg('w:' + w.id)}>
+          <div key={w.id} className="lbl" ref={reg('w:' + w.id)} data-zone={w.zone}>
             <div>
-              <span className={`wtag ${w.zone}`}>
+              <span className={`wtag ${w.zone}`} title={`${w.id}, ${w.role}`}>
                 {w.id} <em>{w.role}</em>
+                <span className="more" />
               </span>
             </div>
           </div>
@@ -105,7 +108,7 @@ function LabelLayer() {
       {!nerv &&
         stops.map((s) => (
           <div key={'stop' + s.machine} className="lbl" ref={reg('stop:' + s.machine)}>
-            <div style={{ marginTop: -54 }}>
+            <div>
               <span className="stoplabel">Safety stop {stopMs(s.machine) !== undefined ? fmtMs(stopMs(s.machine)) : `· ${s.rule.replace(/_/g, ' ')}`}</span>
             </div>
           </div>

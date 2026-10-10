@@ -5,6 +5,7 @@ import { ECU_NAMES, Icon, Panel, fmtMs, fmtT, modeTone } from '../ui/kit'
 import { LEVEL_NAMES, prettyAgent } from '../live/parse'
 import type { BusFrame, FaultKind, PlanNode } from '../proto/types'
 import { REPLAY } from '../live/config'
+import { latHistory, p50 } from '../live/latency'
 
 function useNow(hz: number) {
   const [, set] = useState(0)
@@ -169,10 +170,11 @@ export function SitePilot({ focus }: { focus?: boolean }) {
   const plan = useUi((s) => s.plan)
   const lines = useUi((s) => s.agentLines)
   const cost = useUi((s) => s.state?.kpi.ai_cost_usd)
+  const billing = useUi((s) => s.state?.kpi.ai_billing)
   const ai = useUi((s) => s.aiOffline)
   const recent = lines.slice(-8).reverse()
   return (
-    <Panel id="pilot" title="Site Pilot" icon="tree" focus={focus} extra={<span className="chip ai num" title="AI spend this shift, from Abenix">AI ${typeof cost === 'number' ? cost.toFixed(2) : '--'}</span>}>
+    <Panel id="pilot" title="Site Pilot" icon="tree" focus={focus} extra={<span className="chip ai num" title="AI spend this shift, from Abenix">{billing === 'subscription' || (cost === 0 && billing !== 'metered') ? 'AI on subscription' : `AI $${typeof cost === 'number' ? cost.toFixed(2) : '--'}`}</span>}>
       <div className="tree">
         {plan ? <ul><Tree n={plan} /></ul> : <div className="empty">No behaviour tree yet. The Site Superintendent publishes it at shift start.</div>}
       </div>
@@ -202,21 +204,36 @@ const LAYERS = [
   { k: 'l5_ms', n: 'L5', label: 'Agent', where: 'Abenix', budget: 10000 },
 ] as const
 
-export function LatencyStrip({ focus }: { focus?: boolean }) {
-  const lat = useUi((s) => s.state?.latency)
-  const scale = (ms: number) => Math.max(3, Math.min(100, ((Math.log10(Math.max(0.05, ms)) + 1.3) / 5.4) * 100))
+function Spark({ values }: { values: number[] }) {
+  if (values.length < 2) return <svg className="spark" viewBox="0 0 100 22" preserveAspectRatio="none" aria-hidden><line x1="0" y1="20" x2="100" y2="20" /></svg>
+  const lo = Math.min(...values), hi = Math.max(...values)
+  const span = hi - lo || hi || 1
+  const pts = values.map((v, i) => `${((i / (values.length - 1)) * 100).toFixed(1)},${(20 - ((v - lo) / span) * 17).toFixed(1)}`).join(' ')
   return (
-    <Panel id="latency" title="Layer latency, measured" icon="gauge" focus={focus} extra={<span className="chip ok" title="Every value is measured by the running system, never set by hand">measured</span>}>
+    <svg className="spark" viewBox="0 0 100 22" preserveAspectRatio="none" aria-hidden>
+      <polyline points={`0,22 ${pts} 100,22`} className="fill" />
+      <polyline points={pts} />
+    </svg>
+  )
+}
+
+export function LatencyStrip({ focus }: { focus?: boolean }) {
+  const lat = useUi((s) => s.state?.latency) as (Record<string, unknown> & Partial<Record<string, number>>) | undefined
+  useUi((s) => s.state?.seq)
+  return (
+    <Panel id="latency" title="Layer latency, p50" icon="gauge" focus={focus} extra={<span className="chip ok" title="Every value is measured by the running system, never set by hand. p50 over the recent window, the line shows each reading">measured</span>}>
       <div className="lat">
         {LAYERS.map((l) => {
-          const v = lat?.[l.k]
+          const v = p50(l.k, lat)
+          const last = lat?.[l.k]
+          const hist = latHistory[l.k].slice(-40)
           return (
-            <div key={l.k} className={`lat-cell ${l.n === 'L5' || l.n === 'L4' ? 'slow' : ''}`} title={`${l.n} ${l.label}, computed in ${l.where}`}>
-              <div className="lk">{l.n}</div>
+            <div key={l.k} className={`lat-cell ${l.n === 'L5' || l.n === 'L4' ? 'slow' : ''}`} title={`${l.n} ${l.label}, computed in ${l.where}. p50 of ${latHistory[l.k].length} readings${typeof last === 'number' ? `, last ${fmtMs(last)}` : ''}`}>
+              <div className="lk">{l.n} <span className="faint" style={{ fontWeight: 500, letterSpacing: 0 }}>p50</span></div>
               <div className="ln">{l.label}</div>
-              <div className="lv">{v !== undefined && v !== null ? fmtMs(v) : '--'}</div>
-              <div className="lat-bar"><i style={{ width: `${v ? scale(v) : 0}%` }} /></div>
-              <div className="ln" style={{ fontSize: 10, marginTop: 4 }}>{l.where}</div>
+              <div className="lv">{v !== null ? fmtMs(v) : '--'}</div>
+              <Spark values={hist} />
+              <div className="ln" style={{ fontSize: 10, marginTop: 3 }}>{l.where}</div>
             </div>
           )
         })}

@@ -4,9 +4,9 @@ import { useFrame, useLoader, useThree } from '@react-three/fiber'
 import { hot } from '../../live/hot'
 import type { Terrain } from '../../proto/types'
 import { groundState, setTarget, stepMorph } from './heights'
-import { CITY, TEX, cityBlocks, paintCity, paintSite, riverX, type Imgs, type TexKey } from './paint'
+import { CITY, TEX, paintCity, paintSite, type Imgs, type TexKey } from './paint'
+import { City } from './City'
 import { nervous } from '../nervousState'
-import { dimWithNervous } from '../materials'
 import { Dressing } from './Dressing'
 import { useUi } from '../../live/store'
 
@@ -62,10 +62,21 @@ function canvasTex(c: HTMLCanvasElement, aniso = 8): THREE.CanvasTexture {
 
 export const groundUniforms = {
   uNervous: { value: 0 },
-  uDetail: { value: 0 },
+  uDetail: { value: 0.9 },
 }
 
-function terrainMaterial(site: THREE.Texture, mud: THREE.Texture, dirt: THREE.Texture, decal: THREE.Texture) {
+const DETAIL = /* glsl */ `
+float gwLum(vec3 c) { return dot(c, vec3(0.299, 0.587, 0.114)); }
+// photographic micro contrast: the 4k aerial scan at two scales and angles, high-passed around its own mean
+float gwDetail(sampler2D t, vec2 p) {
+  float m = gwLum(textureLod(t, vec2(0.5), 12.0).rgb);
+  float a = gwLum(texture2D(t, p / 7.5).rgb);
+  float b = gwLum(texture2D(t, mat2(0.8, -0.6, 0.6, 0.8) * p / 21.0 + 0.31).rgb);
+  return 1.0 + (a - m) * 1.25 + (b - m) * 0.85;
+}
+`
+
+function terrainMaterial(site: THREE.Texture, mud: THREE.Texture, dirt: THREE.Texture, decal: THREE.Texture, det: THREE.Texture) {
   const m = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.96, metalness: 0 })
   m.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, {
@@ -73,6 +84,7 @@ function terrainMaterial(site: THREE.Texture, mud: THREE.Texture, dirt: THREE.Te
       tMud: { value: mud },
       tDirt: { value: dirt },
       tDecal: { value: decal },
+      tDet: { value: det },
       uExt: { value: EXT },
       uNervous: groundUniforms.uNervous,
       uDetail: groundUniforms.uDetail,
@@ -90,9 +102,11 @@ uniform sampler2D tSite;
 uniform sampler2D tMud;
 uniform sampler2D tDirt;
 uniform sampler2D tDecal;
+uniform sampler2D tDet;
 uniform float uExt;
 uniform float uNervous;
-uniform float uDetail;`,
+uniform float uDetail;
+${DETAIL}`,
       )
       .replace(
         '#include <map_fragment>',
@@ -101,34 +115,43 @@ vec3 col = texture2D(tSite, suv).rgb;
 float depth = clamp(-vWP.y, 0.0, 30.0);
 if (depth > 0.8) {
   vec3 mud = texture2D(tMud, vWP.xz / 12.0).rgb * vec3(0.95, 0.92, 0.9);
-  col = mix(col, mud, smoothstep(0.8, 3.5, depth) * 0.7);
+  col = mix(col, mud, smoothstep(0.8, 3.5, depth) * 0.6);
 }
 float slope = 1.0 - clamp(vNW.y, 0.0, 1.0);
 if (slope > 0.08) {
-  vec3 wall = texture2D(tDirt, vec2(vWP.x - vWP.z, vWP.y * 2.5) / 7.0).rgb * vec3(0.78, 0.7, 0.62);
+  vec3 wall = texture2D(tDirt, vec2(vWP.x - vWP.z, vWP.y * 2.5) / 7.0).rgb;
+  wall = mix(vec3(dot(wall, vec3(0.333))), wall, 0.55) * vec3(0.62, 0.55, 0.48);
   col = mix(col, wall, smoothstep(0.08, 0.35, slope));
 }
-col = mix(col, col * vec3(1.1, 1.04, 0.95), smoothstep(0.5, 2.5, vWP.y));
+col = mix(col, col * vec3(1.06, 1.03, 0.98), smoothstep(0.5, 2.5, vWP.y));
 vec4 dec = texture2D(tDecal, suv);
 col = mix(col, dec.rgb, dec.a);
-if (uDetail > 0.01) {
-  float det = texture2D(tDirt, vWP.xz / 2.2).g;
-  col *= mix(1.0, 0.72 + det * 0.56, uDetail);
-}
+col *= mix(1.0, gwDetail(tDet, vWP.xz), uDetail);
+// standing water on the pit floor and in the low ruts
+float pn = texture2D(tDet, vWP.xz / 83.0 + 0.37).g * 0.6 + texture2D(tDet, vWP.xz / 29.0 + 0.71).b * 0.4;
+float wet = smoothstep(0.47, 0.53, pn) * smoothstep(1.2, 2.6, depth) * (1.0 - smoothstep(0.03, 0.12, slope));
+float damp = smoothstep(0.38, 0.5, pn) * smoothstep(0.8, 2.6, depth) * 0.35;
+col *= 1.0 - damp;
+col = mix(col, col * 0.42 + vec3(0.012, 0.016, 0.02), wet);
 col = mix(col, col * vec3(0.10, 0.16, 0.30) + vec3(0.004, 0.012, 0.03), uNervous);
 diffuseColor.rgb *= col;`,
       )
+      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 0.05, wet * (1.0 - uNervous));\nroughnessFactor = mix(roughnessFactor, 0.7, damp);')
   }
   return m
 }
 
-function cityMaterial(tex: THREE.Texture) {
+function cityMaterial(tex: THREE.Texture, det: THREE.Texture) {
   const m = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.95, metalness: 0 })
   m.onBeforeCompile = (sh) => {
     sh.uniforms.uNervous = groundUniforms.uNervous
+    sh.uniforms.tDet = { value: det }
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vCW;')
+      .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvCW = (modelMatrix * vec4(transformed, 1.0)).xyz;')
     sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform float uNervous;')
-      .replace('#include <map_fragment>', '#include <map_fragment>\ndiffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.08, 0.13, 0.26), uNervous);')
+      .replace('#include <common>', `#include <common>\nuniform float uNervous;\nuniform sampler2D tDet;\nvarying vec3 vCW;\n${DETAIL}`)
+      .replace('#include <map_fragment>', '#include <map_fragment>\ndiffuseColor.rgb *= mix(1.0, gwDetail(tDet, vCW.xz), 0.6);\ndiffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.08, 0.13, 0.26), uNervous);')
   }
   return m
 }
@@ -164,9 +187,10 @@ export function Ground() {
     g.fillRect(0, 0, 2048, 2048)
     return canvasTex(c, aniso)
   }, [aniso])
-  const mat = useMemo(() => terrainMaterial(siteTex, mud, dirt, decal.tex), [siteTex, mud, dirt, decal])
+  const det = useMemo(() => texFrom(imgs.detail), [imgs])
+  const mat = useMemo(() => terrainMaterial(siteTex, mud, dirt, decal.tex, det), [siteTex, mud, dirt, decal, det])
   const cityTex = useMemo(() => canvasTex(paintCity(imgs), aniso), [imgs, aniso])
-  const cityMat = useMemo(() => cityMaterial(cityTex), [cityTex])
+  const cityMat = useMemo(() => cityMaterial(cityTex, det), [cityTex, det])
   const cityGeo = useMemo(() => {
     const s = new THREE.Shape([new THREE.Vector2(-CITY.size / 2, -CITY.size / 2), new THREE.Vector2(CITY.size / 2, -CITY.size / 2), new THREE.Vector2(CITY.size / 2, CITY.size / 2), new THREE.Vector2(-CITY.size / 2, CITY.size / 2)])
     const h = CITY.hole / 2 - 0.05
@@ -293,130 +317,8 @@ export function Ground() {
       <mesh geometry={geo} material={mat} receiveShadow name="ground" />
       <mesh geometry={geo} material={cutMat} visible={showCut} renderOrder={1} />
       <mesh geometry={cityGeo} material={cityMat} receiveShadow position={[0, -0.02, 0]} />
-      <City />
-      <Dressing />
-    </group>
-  )
-}
-
-// Facades get floors and window bays from world position, roofs get plant boxes from noise.
-const blockMat = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.8, metalness: 0.05 })
-blockMat.onBeforeCompile = (sh) => {
-  sh.vertexShader = sh.vertexShader
-    .replace('#include <common>', `#include <common>
-varying vec3 vBW;
-varying vec3 vBN;`)
-    .replace('#include <worldpos_vertex>', `#include <worldpos_vertex>
-vBW = (modelMatrix * instanceMatrix * vec4(transformed, 1.0)).xyz;
-vBN = normalize(mat3(modelMatrix * instanceMatrix) * objectNormal);`)
-  sh.fragmentShader = sh.fragmentShader
-    .replace('#include <common>', `#include <common>
-varying vec3 vBW;
-varying vec3 vBN;
-float bh(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }`)
-    .replace(
-      '#include <color_fragment>',
-      `#include <color_fragment>
-      if (vBN.y > 0.5) {
-        vec2 cell = floor(vBW.xz / 3.0);
-        float r = bh(cell);
-        diffuseColor.rgb *= 0.62 + 0.12 * bh(floor(vBW.xz / 0.7));
-        if (r > 0.9) diffuseColor.rgb *= 0.55;
-      } else {
-        float along = abs(vBN.x) > 0.5 ? vBW.z : vBW.x;
-        float fl = fract(vBW.y / 3.3);
-        float bay = fract(along / 2.8);
-        float win = step(0.32, fl) * step(fl, 0.86) * step(0.18, bay) * step(bay, 0.82) * step(1.2, vBW.y);
-        float lit = step(0.93, bh(vec2(floor(along / 2.8), floor(vBW.y / 3.3))));
-        vec3 glass = mix(vec3(0.10, 0.14, 0.19), vec3(0.95, 0.78, 0.5), lit * 0.6);
-        diffuseColor.rgb = mix(diffuseColor.rgb, glass, win * 0.9);
-      }`,
-    )
-}
-const treeMat = new THREE.MeshStandardMaterial({ color: '#3f5a33', roughness: 1 })
-const waterMat = new THREE.MeshStandardMaterial({ color: '#173238', roughness: 0.12, metalness: 0.4, envMapIntensity: 0.8 })
-const hoardMat = new THREE.MeshStandardMaterial({ color: '#1f3f6e', roughness: 0.7 })
-dimWithNervous(blockMat, treeMat, waterMat, hoardMat)
-
-function City() {
-  const blocks = useMemo(() => cityBlocks(), [])
-  const ref = useRef<THREE.InstancedMesh>(null!)
-  const trees = useRef<THREE.InstancedMesh>(null!)
-  const treeList = useMemo(() => {
-    let s = 3
-    const r = () => ((s = (s * 16807) % 2147483647) / 2147483647)
-    const out: [number, number, number][] = []
-    for (let y = -560; y < 560; y += 9) {
-      for (const side of [-1, 1]) if (r() < 0.8) out.push([riverX(y) + side * (34 + r() * 14), y, 4 + r() * 4])
-    }
-    for (let i = 0; i < 140; i++) {
-      const x = -200 + r() * 760, y = -560 + r() * 1120
-      if (Math.abs(x) < 125 && Math.abs(y) < 125) continue
-      if (x > 175 && x < 225) continue
-      if (((x + 45) % 90 + 90) % 90 < 16 || ((y + 45) % 90 + 90) % 90 < 16) continue
-      out.push([x, y, 3 + r() * 4])
-    }
-    return out
-  }, [])
-  useEffect(() => {
-    const m = new THREE.Matrix4()
-    const c = new THREE.Color()
-    blocks.forEach((b, i) => {
-      m.compose(new THREE.Vector3(b.x, b.h / 2, -b.y), new THREE.Quaternion(), new THREE.Vector3(b.w, b.h, b.d))
-      ref.current.setMatrixAt(i, m)
-      const pal = ['#b9b2a6', '#9a8f84', '#c8c2b8', '#8e98a3', '#a7a196', '#b5a48f', '#7f8a86']
-      c.set(pal[Math.floor(b.tone * pal.length) % pal.length])
-      ref.current.setColorAt(i, c)
-    })
-    ref.current.instanceMatrix.needsUpdate = true
-    if (ref.current.instanceColor) ref.current.instanceColor.needsUpdate = true
-    treeList.forEach(([x, y, s], i) => {
-      m.compose(new THREE.Vector3(x, s * 0.9, -y), new THREE.Quaternion(), new THREE.Vector3(s, s * 1.2, s))
-      trees.current.setMatrixAt(i, m)
-    })
-    trees.current.instanceMatrix.needsUpdate = true
-  }, [blocks, treeList])
-  const riverGeo = useMemo(() => {
-    const pts: THREE.Vector2[] = []
-    for (let y = -600; y <= 600; y += 10) pts.push(new THREE.Vector2(riverX(y) - 26, y))
-    for (let y = 600; y >= -600; y -= 10) pts.push(new THREE.Vector2(riverX(y) + 26, y))
-    const g = new THREE.ShapeGeometry(new THREE.Shape(pts))
-    g.rotateX(-Math.PI / 2)
-    return g
-  }, [])
-  return (
-    <group>
-      <instancedMesh ref={ref} args={[undefined, undefined, blocks.length]} material={blockMat} castShadow receiveShadow>
-        <boxGeometry args={[1, 1, 1]} />
-      </instancedMesh>
-      <instancedMesh ref={trees} args={[undefined, undefined, treeList.length]} material={treeMat} castShadow>
-        <icosahedronGeometry args={[1, 1]} />
-      </instancedMesh>
-      <mesh geometry={riverGeo} material={waterMat} position={[0, 0.05, 0]} />
-      <Hoarding />
-    </group>
-  )
-}
-
-function Hoarding() {
-  const H = 2.4
-  const segs: [number, number, number, number][] = [
-    [-100, 100, 100, 100],
-    [100, 100, 100, -100],
-    [-100, -100, -8, -100],
-    [8, -100, 100, -100],
-    [-100, -100, -100, 100],
-  ]
-  return (
-    <group>
-      {segs.map(([x0, y0, x1, y1], i) => {
-        const len = Math.hypot(x1 - x0, y1 - y0)
-        return (
-          <mesh key={i} material={hoardMat} position={[(x0 + x1) / 2, H / 2, -(y0 + y1) / 2]} rotation={[0, Math.atan2(y1 - y0, x1 - x0), 0]} castShadow>
-            <boxGeometry args={[len, H, 0.12]} />
-          </mesh>
-        )
-      })}
+      {!location.search.includes('nocity') && <City />}
+      {!location.search.includes('nodress') && <Dressing />}
     </group>
   )
 }

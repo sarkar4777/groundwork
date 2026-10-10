@@ -134,9 +134,12 @@ export function CameraRig() {
         cut = true
         lastShot.current = shot.name
         if (ui.cam !== shot.mode) useUi.setState({ cam: shot.mode })
+        const hero = shot.name === 'hero' || shot.name === 'end'
+        if (ui.heroFx !== hero) useUi.setState({ heroFx: hero })
       }
       mode = shot.mode
     } else {
+      if (lastShot.current && ui.heroFx) useUi.setState({ heroFx: false })
       lastShot.current = ''
       if (mode !== lastMode.current) {
         blend.current = 0

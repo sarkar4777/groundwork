@@ -2,7 +2,7 @@
 
 Every third-party file shipped with Groundwork. All are CC0. The web build fails if a file under `web/public/assets` is not listed here.
 
-Machines, workers, the crane and the Abenix core glyph are built in code from parametric parts in `web/src/scene/machines`. They use no downloaded models.
+Machines, workers, cranes, cabins, stockpiles, fences, cars, trees, the city blocks and the Abenix core glyph are built in code from parametric parts in `web/src/scene`. They use no downloaded models. Facades, roofs, timber, steel and gravel on them come from the textures below.
 
 ## Textures, Poly Haven (CC0)
 
@@ -26,12 +26,23 @@ Licence: CC0 1.0, https://polyhaven.com/license
 | assets/textures/concrete_floor_02_nor_gl_1k.jpg | https://polyhaven.com/a/concrete_floor_02 |
 | assets/textures/gravel_road_diff_2k.jpg | https://polyhaven.com/a/gravel_road |
 | assets/textures/gravel_road_nor_gl_1k.jpg | https://polyhaven.com/a/gravel_road |
+| assets/textures/aerial_ground_rock_diff_4k.jpg | https://polyhaven.com/a/aerial_ground_rock |
+| assets/textures/brick_wall_10_diff_1k.jpg | https://polyhaven.com/a/brick_wall_10 |
+| assets/textures/dark_brick_wall_diff_1k.jpg | https://polyhaven.com/a/dark_brick_wall |
+| assets/textures/grey_plaster_02_diff_1k.jpg | https://polyhaven.com/a/grey_plaster_02 |
+| assets/textures/rectangular_facade_tiles_diff_1k.jpg | https://polyhaven.com/a/rectangular_facade_tiles |
+| assets/textures/tarred_gravel_diff_1k.jpg | https://polyhaven.com/a/tarred_gravel |
+| assets/textures/corrugated_iron_diff_1k.jpg | https://polyhaven.com/a/corrugated_iron |
+| assets/textures/plywood_diff_1k.jpg | https://polyhaven.com/a/plywood |
+| assets/textures/wood_planks_diff_1k.jpg | https://polyhaven.com/a/wood_planks |
+| assets/textures/gravel_diff_1k.jpg | https://polyhaven.com/a/gravel |
+| assets/textures/sandy_gravel_diff_1k.jpg | https://polyhaven.com/a/sandy_gravel |
 
 ## Light, Poly Haven (CC0)
 
 | File | Source |
 |---|---|
-| assets/hdri/belfast_sunset_puresky_1k.hdr | https://polyhaven.com/a/belfast_sunset_puresky |
+| assets/hdri/kloofendal_48d_partly_cloudy_puresky_1k.hdr | https://polyhaven.com/a/kloofendal_48d_partly_cloudy_puresky |
 
 ## Fonts
 
