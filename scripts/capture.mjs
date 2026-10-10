@@ -199,12 +199,15 @@ async function abenixAgents(browser) {
   }
   const page = await browser.newPage({ viewport: { width: 1920, height: 1080 } })
   await page.goto(`${web}/agents`)
-  if (/login|sign-?in/i.test(page.url()) && process.env.ABENIX_ADMIN_EMAIL) {
-    await page.locator('input[type="email"]').fill(process.env.ABENIX_ADMIN_EMAIL)
-    await page.locator('input[type="password"]').fill(process.env.ABENIX_ADMIN_PASSWORD || '')
-    await page.locator('button[type="submit"]').click()
-    await page.waitForURL((u) => !/login|sign-?in/i.test(u.toString()), { timeout: 20000 })
+  await page.waitForTimeout(2500)
+  const pw = page.locator('input[type="password"]')
+  if ((await pw.count()) && process.env.ABENIX_ADMIN_EMAIL) {
+    await page.locator('input[type="email"]').first().fill(process.env.ABENIX_ADMIN_EMAIL)
+    await pw.first().fill(process.env.ABENIX_ADMIN_PASSWORD || '')
+    await pw.first().press('Enter')
+    await page.waitForFunction(() => !document.querySelector('input[type="password"]'), null, { timeout: 30000 })
     await page.goto(`${web}/agents`)
+    await page.waitForTimeout(3000)
   }
   const search = page.locator('input[type="search"], input[placeholder*="Search" i]').first()
   if (await search.count()) await search.fill('gw-')
