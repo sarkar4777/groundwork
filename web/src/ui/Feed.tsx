@@ -240,7 +240,7 @@ function SceneFallback() {
 
 export function Feed() {
   const cam = useUi((s) => s.cam)
-  const story = useUi((s) => s.story.running)
+  const story = useUi((s) => s.story.running && s.storyBeat !== 'platform')
   const hud = useMemo(() => {
     switch (cam) {
       case 'drone':

@@ -16,9 +16,10 @@ export const BEATS: Beat[] = [
   { from: 9, to: 14, name: 'replan', mode: 'drone', focus: 'phone' },
   { from: 14, to: 21, name: 'nervous', mode: 'nervous', focus: 'latency' },
   { from: 21, to: 28, name: 'gust', mode: 'drone', focus: 'gust' },
-  { from: 28, to: 35, name: 'aioff', mode: 'drone', focus: 'aioff' },
-  { from: 35, to: 44, name: 'newmachine', mode: 'drone', focus: 'code' },
-  { from: 44, to: 52, name: 'autonomy', mode: 'drone', focus: 'autonomy' },
+  { from: 28, to: 33, name: 'aioff', mode: 'drone', focus: 'aioff' },
+  { from: 33, to: 41.5, name: 'platform', mode: 'drone' },
+  { from: 41.5, to: 46, name: 'newmachine', mode: 'drone', focus: 'code' },
+  { from: 46, to: 52, name: 'autonomy', mode: 'drone', focus: 'autonomy' },
   { from: 52, to: 61, name: 'end', mode: 'orbit', focus: 'endcard' },
 ]
 
@@ -74,6 +75,12 @@ export function storyShot(s: number, pose: Pose, t: number): { name: string; mod
     case 'gust': {
       const b0 = hot.site?.craneBases.find((c) => c.kind === 'tower') ?? { x: -20, y: 38 }
       dronePose(pose, b0.x + 14 - u * 4, b0.y - 12, 165, t, -84, 48)
+      break
+    }
+    case 'platform': {
+      // the operator's own view: EX1 and the pit, the inspector open beside it
+      const e = at('EX1')
+      dronePose(pose, e.x + 8, e.y + 4, 150, t, -89, 50)
       break
     }
     case 'aioff':

@@ -83,10 +83,11 @@ const EDIT = [
   [9.4, 14],
   [15, 20],
   [22, 27],
-  [28.6, 34.4],
-  [39.1, 43.9],
-  [45, 51],
-  [52, 56],
+  [28.6, 33],
+  [33, 41.5],
+  [41.5, 46],
+  [46.2, 51.4],
+  [52, 57.4],
 ]
 
 const BS = String.fromCharCode(92)
@@ -183,11 +184,15 @@ async function recordStory(page, tag, withShots) {
   let out = 0
   for (const [a, b] of EDIT) {
     // the title card carries the last line, so it gets no cue
-    const text = a === EDIT[EDIT.length - 1][0] ? '' : captionAt((a + b) / 2 + 0.5)
-    const last = cues[cues.length - 1]
-    if (last && last.text === text) last.end = out + (b - a)
-    else if (text) cues.push({ text, start: out, end: out + (b - a) })
-    out += b - a
+    const final = a === EDIT[EDIT.length - 1][0]
+    for (let x = a; x < b - 1e-6; x += 0.2) {
+      const step = Math.min(0.2, b - x)
+      const text = final ? '' : captionAt(Math.min(b - 0.1, x + 0.3))
+      const last = cues[cues.length - 1]
+      if (last && last.text === text && Math.abs(last.end - out) < 1e-6) last.end = out + step
+      else if (text) cues.push({ text, start: out, end: out + step })
+      out += step
+    }
   }
   const srtPath = join(MEDIA, `groundwork-story-${tag}.srt`)
   writeFileSync(srtPath, cues.map((c, i) => `${i + 1}\n${srtTime(c.start + 0.05)} --> ${srtTime(c.end - 0.05)}\n${c.text}\n`).join('\n'))

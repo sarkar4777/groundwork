@@ -58,6 +58,7 @@ export interface UiState {
   siteVersion: number
   terrainShown: number
   heroFx: boolean
+  storyBeat: string
 }
 
 export const useUi = create<UiState>(() => ({
@@ -92,6 +93,7 @@ export const useUi = create<UiState>(() => ({
   siteVersion: 0,
   terrainShown: 0,
   heroFx: false,
+  storyBeat: '',
 }))
 
 export const setCam = (cam: CamMode) =>

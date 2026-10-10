@@ -28,12 +28,13 @@ function simNow() {
 
 export function Captions() {
   const cap = useUi((s) => s.caption)
+  const platform = useUi((s) => s.storyBeat === 'platform')
   const [, tick] = useState(0)
   useEffect(() => {
     const id = setInterval(() => tick((x) => x + 1), 200)
     return () => clearInterval(id)
   }, [])
-  if (!cap) return null
+  if (!cap || platform) return null
   const now = simNow()
   if (now > cap.until + 0.05 || now < cap.t - 1) return null
   const lines = twoLines(cap.text)
@@ -119,6 +120,9 @@ export function StoryLayer() {
   }, [end])
   useEffect(() => {
     document.body.dataset.beat = running ? beat.name : ''
+    const prev = useUi.getState().storyBeat
+    const next = running ? beat.name : ''
+    if (prev !== next) useUi.setState({ storyBeat: next, ...(next === 'platform' ? { selected: 'EX1' } : prev === 'platform' ? { selected: null } : {}) })
   }, [running, beat.name])
   if (!running) return null
   return (

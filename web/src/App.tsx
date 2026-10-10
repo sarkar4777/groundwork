@@ -7,6 +7,7 @@ import { Feed, MODES } from './ui/Feed'
 import { Icon } from './ui/kit'
 import { Autonomy, Events, FaultDeck, LatencyStrip, PhoneApprovals, SignalTrace, SitePilot, VecuConsole } from './panels/Panels'
 import { downloadSrt } from './story/StoryLayer'
+import { TourCaption, useTour } from './story/Tour'
 
 // A Claude subscription serves the agent runs, so a zero cost is a billing mode, not a broken meter.
 function aiCost(k: Kpi | undefined): string {
@@ -166,9 +167,12 @@ export function App() {
   useKeys()
   const hidden = useUi((s) => s.panelsHidden)
   const story = useUi((s) => s.story.running)
-  const cinema = story || CAPTURE && hidden
+  const tour = useUi((s) => s.story.running && s.storyBeat === 'platform')
+  const cinema = (story && !tour) || (CAPTURE && hidden && !story)
+  useTour(tour)
   return (
-    <div className={`app ${hidden && !story ? 'hide-panels' : ''} ${cinema ? 'cinema' : ''}`}>
+    <>
+    <div className={`app ${hidden && !story ? 'hide-panels' : ''} ${cinema ? 'cinema' : ''} ${tour ? 'tour' : ''}`}>
       <TopBar />
       <aside className="col left" aria-label="Machine panels">
         <VecuConsole />
@@ -189,5 +193,7 @@ export function App() {
       <Toast />
       {REPLAY && <span className="sr-only">Replay mode, synthesised frames</span>}
     </div>
+    {tour && <TourCaption />}
+    </>
   )
 }

@@ -198,6 +198,7 @@ export function StoryEnd({ show }: { show: boolean }) {
       <div className="band">
         <h1>Groundwork</h1>
         <p>An autonomous construction site, run by Abenix</p>
+        <div className="line2">A real-time agentic ecosystem, worked out end to end on Abenix, driven by simulated live streams from machine buses, telematics, GNSS and weather.</div>
       </div>
       <div className="credits">
         <span>Built on Abenix · open source, MIT</span>
