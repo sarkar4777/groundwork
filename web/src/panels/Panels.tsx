@@ -77,10 +77,17 @@ export function VecuConsole({ focus }: { focus?: boolean }) {
 
 const hex = (s: string) => s.replace(/(..)/g, '$1 ').trim().toUpperCase()
 
+function fmtValue(v: unknown): string {
+  if (typeof v === 'number') return Number.isInteger(v) ? String(v) : v.toFixed(2)
+  if (Array.isArray(v)) return v.length ? `[${v.map(fmtValue).join(', ')}]` : 'none'
+  if (v && typeof v === 'object') return Object.entries(v).map(([k, x]) => `${k}:${fmtValue(x)}`).join(',')
+  return String(v)
+}
+
 function decodedText(d: Record<string, unknown>) {
   return Object.entries(d)
     .filter(([k]) => k !== 'seq')
-    .map(([k, v]) => `${k}=${typeof v === 'number' ? (Number.isInteger(v) ? v : v.toFixed(2)) : String(v)}`)
+    .map(([k, v]) => `${k}=${fmtValue(v)}`)
     .join('  ')
 }
 

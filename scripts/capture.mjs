@@ -1,19 +1,20 @@
 #!/usr/bin/env node
-// Records the 60 s story and the post screenshots from the running web app.
+// Renders the story film and takes the post screenshots from the running web app.
 //
-//   node scripts/capture.mjs                      live sim on 8710, web on 5710
-//   node scripts/capture.mjs --replay             synthesised frames, everything is marked REPLAY
-//   node scripts/capture.mjs --shots-only         skip the videos
+//   node scripts/capture.mjs                      render both films from .run/take.json, web on 5710
+//   node scripts/capture.mjs --retake             record a fresh live take first (bff on 8710)
 //   node scripts/capture.mjs --sizes 1920x1080    one size only
+//   node scripts/capture.mjs --shots-only         live story screenshots, no film
+//   node scripts/capture.mjs --replay             synthesised frames, everything is marked REPLAY
 //
-// Frames come from the Chrome screencast with their own timestamps and are resampled to a
-// constant 60 fps with ffmpeg, so the video keeps real time even when the browser drops a frame.
+// The film is one live take (scripts/record-take.mjs) played back on a virtual clock. Each frame
+// is stepped exactly 1/60 s, drawn, then screenshotted, so the video has no dropped or doubled frames.
 
 import { createRequire } from 'node:module'
-import { mkdirSync, writeFileSync, rmSync, existsSync } from 'node:fs'
+import { mkdirSync, writeFileSync, rmSync, existsSync, statSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { spawnSync } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const require = createRequire(join(root, 'web', 'package.json'))
@@ -91,6 +92,116 @@ const EDIT = [
 ]
 
 const BS = String.fromCharCode(92)
+
+// The film on the virtual clock: the opening title over the running site, then the story cut,
+// in story seconds. The end card runs on past the story's own 60 s.
+const OPENING = [1.0, 6.3]
+// a beat that changes the layout starts a few frames in, the 3D view takes three frames to resize
+const FILM = [
+  [0.3, 4],
+  [4.05, 9],
+  [9.4, 14],
+  [15, 20],
+  [22, 27],
+  [28.5, 32.1],
+  [32.17, 46.5],
+  [46.6, 51.1],
+  [51.15, 55.6],
+  [55.6, 65.05],
+]
+const TAKE = opt('--take', join(root, '.run', 'take.json'))
+
+async function renderFilm(browser, w, h) {
+  const tag = `${w}x${h}`
+  const context = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 1 })
+  const page = await context.newPage()
+  page.on('pageerror', (e) => log('page error:', e.message))
+  page.on('console', (m) => m.type() === 'error' && log('console:', m.text().slice(0, 200)))
+  await page.route('**/__take.json', (r) => r.fulfill({ path: TAKE, contentType: 'application/json' }))
+  await page.clock.install({ time: Date.now() })
+  await page.goto(`${WEB}/?capture=1&playback=1&render=1`)
+  await page.waitForFunction(() => window.__gw?.timeline()?.ready && window.__gwStep, null, { timeout: 60000 })
+  for (let i = 1; ; i++) {
+    try {
+      await page.clock.pauseAt((await page.evaluate(() => Date.now())) + 500 * i)
+      break
+    } catch (e) {
+      if (i >= 5) throw e
+    }
+  }
+
+  const flush = () =>
+    page.evaluate(async () => {
+      const mc = () => new Promise((r) => { const c = new MessageChannel(); c.port1.onmessage = () => r(); c.port2.postMessage(0) })
+      await mc()
+      await mc()
+      window.__gwStep()
+      window.__gw.frame()
+      await mc()
+      return document.querySelector('.caption:not(.off)')?.innerText?.trim() ?? ''
+    })
+  // the scene builds and its shaders compile on a still site before the clock starts
+  for (let i = 0; i < 90; i++) {
+    await page.clock.runFor(17)
+    await flush()
+    await page.waitForTimeout(i < 30 ? 120 : 30)
+  }
+  const st = await page.evaluate(() => window.__gw.status())
+  if (!st.hasState || !st.terrain || !st.site) throw new Error(`playback did not build the site: ${JSON.stringify(st)}`)
+  const tl = await page.evaluate(() => window.__gw.timeline())
+  log(tag, `take loaded, story at ${tl.storyV.toFixed(2)} s, ends ${tl.endV.toFixed(2)} s on the virtual clock`)
+  const base = await page.evaluate(() => {
+    window.__gw.go()
+    return performance.now()
+  })
+
+  const spans = [OPENING, ...FILM.map(([a, b]) => [tl.storyV + a, tl.storyV + b])]
+  const endV = spans[spans.length - 1][1]
+  if (endV > tl.endV + 0.5) throw new Error(`the take ends at ${tl.endV.toFixed(1)} s, the film needs ${endV.toFixed(1)} s`)
+  const mp4 = join(MEDIA, `groundwork-story-${tag}.mp4`)
+  const ff = spawn('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'image2pipe', '-framerate', String(FPS), '-c:v', 'mjpeg', '-i', '-', '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2', '-c:v', 'libx264', '-preset', 'slow', '-crf', '20', '-pix_fmt', 'yuv420p', '-r', String(FPS), '-movflags', '+faststart', mp4], { stdio: ['pipe', 'inherit', 'inherit'] })
+  const done = new Promise((res) => ff.on('close', res))
+  const cdp = await context.newCDPSession(page)
+  const write = (buf) => (ff.stdin.write(buf) ? null : new Promise((r) => ff.stdin.once('drain', r)))
+
+  const caps = []
+  let k = 0
+  let ms = 0
+  let shot = 0
+  const t0 = Date.now()
+  for (;;) {
+    k++
+    // the page sees the exact frame time, the timers run on the nearest whole millisecond
+    const v = k / FPS
+    await page.evaluate((t) => window.__gwNow(t), base + v * 1000)
+    const target = Math.round(v * 1000)
+    await page.clock.runFor(target - ms)
+    ms = target
+    if (v >= endV) break
+    const cap = await flush()
+    if (!spans.some(([a, b]) => v >= a && v < b)) continue
+    const { data } = await cdp.send('Page.captureScreenshot', { format: 'jpeg', quality: 92 })
+    await write(Buffer.from(data, 'base64'))
+    caps.push(v >= tl.storyV + FILM[FILM.length - 1][0] ? '' : cap)
+    shot++
+    if (shot % 600 === 0) log(tag, `${(shot / FPS).toFixed(0)} s rendered, ${((Date.now() - t0) / 1000).toFixed(0)} s so far`)
+  }
+  ff.stdin.end()
+  const code = await done
+  if (code !== 0) throw new Error('ffmpeg failed')
+
+  // subtitles come off the same frames, so they line up to the frame
+  const cues = []
+  caps.forEach((text, i) => {
+    const last = cues[cues.length - 1]
+    if (last && last.text === text && last.end === i) last.end = i + 1
+    else if (text) cues.push({ text, start: i, end: i + 1 })
+  })
+  const srtPath = join(MEDIA, `groundwork-story-${tag}.srt`)
+  writeFileSync(srtPath, cues.map((c, i) => `${i + 1}\n${srtTime(c.start / FPS)} --> ${srtTime(c.end / FPS)}\n${c.text}\n`).join('\n'))
+  log(tag, `video ${mp4}: ${shot} frames, ${(shot / FPS).toFixed(2)} s at ${FPS} fps, ${(statSync(mp4).size / 1e6).toFixed(1)} MB, ${cues.length} cues, rendered in ${((Date.now() - t0) / 60000).toFixed(1)} min`)
+  await context.close()
+}
 
 const srtTime = (s) => {
   const ms = Math.max(0, Math.round(s * 1000))
@@ -194,11 +305,11 @@ async function recordStory(page, tag, withShots) {
       out += step
     }
   }
+  if (!VIDEO) return
   const srtPath = join(MEDIA, `groundwork-story-${tag}.srt`)
   writeFileSync(srtPath, cues.map((c, i) => `${i + 1}\n${srtTime(c.start + 0.05)} --> ${srtTime(c.end - 0.05)}\n${c.text}\n`).join('\n'))
   log('captions', srtPath, `${cues.length} cues over ${out.toFixed(1)} s`)
 
-  if (!VIDEO) return
   if (!hasFfmpeg) {
     log('ffmpeg not found, skipped the video. Install ffmpeg and run again')
     return
@@ -272,17 +383,25 @@ async function abenixAgents(browser) {
 
 const browser = await chromium.launch({ args: ['--use-angle=d3d11', '--enable-gpu', '--ignore-gpu-blocklist', '--autoplay-policy=no-user-gesture-required'] })
 try {
-  for (const [w, h] of SIZES) {
+  if (VIDEO && !REPLAY) {
+    if (flag('--retake') || !existsSync(TAKE)) {
+      log('recording a live take')
+      const r = spawnSync(process.execPath, [join(root, 'scripts', 'record-take.mjs'), '--out', TAKE], { stdio: 'inherit' })
+      if (r.status !== 0) throw new Error('record-take failed')
+    }
+    if (!hasFfmpeg) throw new Error('ffmpeg not found')
+    for (const [w, h] of SIZES) await renderFilm(browser, w, h)
+  } else for (const [w, h] of SIZES) {
     const tag = `${w}x${h}`
     const page = await open(browser, w, h)
     const first = w === SIZES[0][0] && h === SIZES[0][1]
-    if (!flag('--shots-only') || first) await recordStory(page, tag, first)
+    if (first) await recordStory(page, tag, first)
     if (first) await panelShots(page)
     await page.close()
   }
-  await abenixAgents(browser)
+  if (!VIDEO) await abenixAgents(browser)
 } finally {
   await browser.close()
 }
 log('done', REPLAY ? '(replay frames, every image carries the REPLAY mark)' : '')
-if (!existsSync(join(SHOTS, '01-hero.png'))) process.exitCode = 1
+

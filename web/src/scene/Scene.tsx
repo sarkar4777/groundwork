@@ -14,7 +14,7 @@ import { LabelProjector } from './Labels'
 import { nervous, storyCut } from './nervousState'
 import { applyNervous, dimWithNervous } from './materials'
 import { useUi } from '../live/store'
-import { CAPTURE } from '../live/config'
+import { CAPTURE, RENDER } from '../live/config'
 import { HIGH } from '../live/quality'
 import { ContactShadows } from './ContactShadows'
 import { LensEffect, lens } from './LensEffect'
@@ -203,7 +203,7 @@ function ShadowThrottle() {
     }
   }, [gl])
   useFrame(() => {
-    if (++n.current % 2 === 0) gl.shadowMap.needsUpdate = true
+    if (RENDER || ++n.current % 2 === 0) gl.shadowMap.needsUpdate = true
   })
   return null
 }
@@ -234,6 +234,7 @@ export function Scene() {
     <Canvas
       shadows={DEBUG.includes('noshadow') ? false : { type: HIGH || DEBUG.includes('soft') ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap }}
       dpr={[1, 1.75]}
+      resize={{ offsetSize: true }}
       gl={{ antialias: false, powerPreference: 'high-performance', stencil: false, preserveDrawingBuffer: CAPTURE }}
       camera={{ fov: 58, near: 0.5, far: 7000, position: [0, 120, 1] }}
       onPointerMissed={() => useUi.setState({ selected: null })}

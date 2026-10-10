@@ -1,9 +1,11 @@
 import { setCam, useUi, type CamMode } from './store'
-import { startStory, stopStory } from './client'
+import { playback, startStory, stopStory } from './client'
 import { toSrt } from '../story/StoryLayer'
 import { hot } from './hot'
 
 // A small handle for scripts/capture.mjs and browser tests. Everything goes through the same paths the UI uses.
+const starts = new WeakMap<Animation, number>()
+
 export function installAutomation() {
   const api = {
     status: () => {
@@ -26,6 +28,24 @@ export function installAutomation() {
     select: (id: string | null) => useUi.setState({ selected: id }),
     panels: (show: boolean) => useUi.setState({ panelsHidden: !show }),
     clean: (on: boolean) => document.body.classList.toggle('shot-clean', on),
+    go: () => playback()?.go(),
+    timeline: () => {
+      const p = playback()
+      return p ? { ready: p.ready, storyV: p.storyV, endV: p.endV, v: p.vNow() } : null
+    },
+    // CSS animations run on real time, so a stepped render puts each one on the page clock instead
+    frame: () => {
+      const now = performance.now()
+      for (const a of document.getAnimations()) {
+        let t0 = starts.get(a)
+        if (t0 === undefined) {
+          t0 = now
+          starts.set(a, t0)
+          a.pause()
+        }
+        a.currentTime = now - t0
+      }
+    },
     srt: () => {
       const s = useUi.getState()
       return toSrt(s.captionLog, s.story.t0)

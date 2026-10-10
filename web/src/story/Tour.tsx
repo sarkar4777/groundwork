@@ -50,10 +50,32 @@ export const tourState = { text: TOUR[0].text, visible: true }
 type Listener = () => void
 const listeners = new Set<Listener>()
 
-export function useTour(active: boolean) {
+// The camera over the desktop moves on the page clock, so a frame-stepped render gets every in-between.
+const cam = { x: 0, y: 0, s: 1, from: { x: 0, y: 0, s: 1 }, to: { x: 0, y: 0, s: 1 }, t0: -1e9, live: false, raf: 0 }
+const ease = (k: number) => (k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2)
+
+function moveCamera(app: HTMLElement, to: { x: number; y: number; s: number }, snap: boolean) {
+  cam.from = { x: cam.x, y: cam.y, s: cam.s }
+  cam.to = to
+  cam.t0 = snap ? -1e9 : performance.now()
+  if (cam.live) return
+  cam.live = true
+  const step = () => {
+    if (!cam.live) return
+    const k = ease(Math.min(1, (performance.now() - cam.t0) / (MOVE_S * 1000)))
+    cam.x = cam.from.x + (cam.to.x - cam.from.x) * k
+    cam.y = cam.from.y + (cam.to.y - cam.from.y) * k
+    cam.s = cam.from.s + (cam.to.s - cam.from.s) * k
+    app.style.transform = `translate(${cam.x.toFixed(2)}px, ${cam.y.toFixed(2)}px) scale(${cam.s.toFixed(5)})`
+    cam.raf = requestAnimationFrame(step)
+  }
+  step()
+}
+
+export function useTour(active: boolean, opening = false) {
   const [focus, setFocus] = useState<Focus>('all')
   useEffect(() => {
-    if (!active) return
+    if (!active || opening) return
     const id = setInterval(() => {
       const t = storyT()
       let i = TOUR.findIndex((c) => t >= c.from && t < c.to)
@@ -69,15 +91,18 @@ export function useTour(active: boolean) {
       }
     }, 33)
     return () => clearInterval(id)
-  }, [active])
+  }, [active, opening])
   useEffect(() => {
     const app = document.querySelector<HTMLElement>('.app')
     if (!app) return
     if (!active) {
+      cam.live = false
+      cancelAnimationFrame(cam.raf)
       app.style.transform = ''
       delete document.body.dataset.tourcap
       return
     }
+    const first = !cam.live
     const vw = innerWidth, vh = innerHeight
     const portrait = vh > vw
     const W = 1920, H = 1080
@@ -86,12 +111,17 @@ export function useTour(active: boolean) {
     let s = fill
     let x = (vw - W * s) / 2, y = (vh - H * s) / 2
     let capTop = false
-    if (focus === 'all' && portrait) {
+    if (opening) {
+      // the whole window, contained, with room under it for the title on a phone
+      s = Math.min(vw / W, (portrait ? vh * 0.5 : vh) / H)
+      x = (vw - W * s) / 2
+      y = portrait ? vh * 0.1 : (vh - H * s) / 2
+    } else if (focus === 'all' && portrait) {
       // a phone shows the feed and the inspector, the heart of the screen
       const r = layoutRect(app, ['.feed'])
       if (r) x = clamp(vw / 2 - ((r.x0 + r.x1) / 2) * s, vw - W * s, 0)
     }
-    if (focus !== 'all') {
+    if (!opening && focus !== 'all') {
       const r = layoutRect(app, portrait ? SELECTORS[focus].port : SELECTORS[focus].land)
       if (r) {
         const pad = 18
@@ -111,14 +141,14 @@ export function useTour(active: boolean) {
         if (capTop && (r.y0 - pad) * s + y < bandH) y = clamp(bandH - (r.y0 - pad) * s, vh - H * s, 0)
       }
     }
-    app.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) scale(${s.toFixed(4)})`
-    app.dataset.tour = focus
+    moveCamera(app, { x, y, s }, first || opening)
+    app.dataset.tour = opening ? 'opening' : focus
     // landscape keeps the subtitle on the dimmed half, beside the lit column
     const place = !portrait && focus === 'right' ? 'side-left' : !portrait && focus === 'left' ? 'side-right' : capTop ? 'top' : 'bottom'
     const set = () => (document.body.dataset.tourcap = place)
     const id = setTimeout(set, LAND * 1000)
     return () => clearTimeout(id)
-  }, [active, focus])
+  }, [active, focus, opening])
   return focus
 }
 

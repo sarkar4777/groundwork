@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import type { AgentFrame, AgentInfo, BusFrame, CaptionFrame, EventFrame, PlanNode, StateFrame } from '../proto/types'
 
-export type Conn = 'connecting' | 'live' | 'offline' | 'replay'
+export type Conn = 'connecting' | 'live' | 'offline' | 'replay' | 'recorded'
 export type CamMode = 'drone' | 'orbit' | 'follow' | 'cab' | 'seat' | 'nervous'
 
 export interface Overlays {
@@ -59,6 +59,7 @@ export interface UiState {
   terrainShown: number
   heroFx: boolean
   storyBeat: string
+  opening: boolean
 }
 
 export const useUi = create<UiState>(() => ({
@@ -94,6 +95,7 @@ export const useUi = create<UiState>(() => ({
   terrainShown: 0,
   heroFx: false,
   storyBeat: '',
+  opening: false,
 }))
 
 export const setCam = (cam: CamMode) =>

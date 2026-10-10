@@ -190,15 +190,32 @@ export function StoryAutonomy() {
   )
 }
 
+export const TITLE = 'Groundwork'
+export const SUBTITLE = 'An autonomous construction site, run by Abenix'
+export const ECOSYSTEM = 'A real-time agentic ecosystem, worked out end to end on Abenix, driven by simulated live streams from machine buses, telematics, GNSS and weather.'
+
+// The film's opening: the whole ground station live behind the same title as the end card.
+export function OpeningTitle() {
+  return (
+    <div className="sc-open">
+      <div className="band">
+        <h1>{TITLE}</h1>
+        <p>{SUBTITLE}</p>
+        <div className="line2">{ECOSYSTEM}</div>
+      </div>
+    </div>
+  )
+}
+
 export function StoryEnd({ show }: { show: boolean }) {
   if (!show) return null
   const repo = (import.meta.env.VITE_REPO_URL as string | undefined) || 'github.com/sarkar4777/groundwork'
   return (
     <div className="sc-end">
       <div className="band">
-        <h1>Groundwork</h1>
-        <p>An autonomous construction site, run by Abenix</p>
-        <div className="line2">A real-time agentic ecosystem, worked out end to end on Abenix, driven by simulated live streams from machine buses, telematics, GNSS and weather.</div>
+        <h1>{TITLE}</h1>
+        <p>{SUBTITLE}</p>
+        <div className="line2">{ECOSYSTEM}</div>
       </div>
       <div className="credits">
         <span>Built on Abenix · open source, MIT</span>

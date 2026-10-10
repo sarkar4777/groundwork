@@ -2,6 +2,9 @@ const params = new URLSearchParams(location.search)
 
 export const REPLAY = params.get('replay') === '1'
 export const CAPTURE = params.get('capture') === '1'
+// a recorded live take rendered frame by frame by scripts/capture.mjs
+export const PLAYBACK = params.get('playback') === '1'
+export const RENDER = params.get('render') === '1'
 
 const simParam = params.get('sim')
 const envSim = import.meta.env.VITE_SIM_URL as string | undefined

@@ -1,5 +1,5 @@
 import type { AgentFrame, BusFrame, EventFrame, FaultKind, Frame, StateFrame } from '../proto/types'
-import { REPLAY, SIM_HTTP, wsUrl } from './config'
+import { PLAYBACK, REPLAY, SIM_HTTP, wsUrl } from './config'
 import { hot } from './hot'
 import { trackLatency } from './latency'
 import { parseAgents, parseSite, parseTerrain } from './parse'
@@ -7,6 +7,9 @@ import { toast, useUi, type Approval } from './store'
 import type { Replay } from '../dev/replay'
 
 let replay: Replay | null = null
+let pb: import('../dev/playback').Playback | null = null
+
+export const playback = () => pb
 let ws: WebSocket | null = null
 let retry = 0
 let lastFrameAt = 0
@@ -50,6 +53,17 @@ const pending = {
 
 export async function startClient() {
   setInterval(flush, 80)
+  if (PLAYBACK) {
+    const { Playback } = await import('../dev/playback')
+    pb = new Playback(ingest)
+    useUi.setState({ conn: 'recorded', opening: true })
+    await pb.load()
+    const h = pb.health() ?? {}
+    useUi.setState({ abenix: { url: String(h.abenix_url ?? 'Abenix'), reachable: h.abenix !== false } })
+    loadSite()
+    refreshAgents()
+    return
+  }
   if (REPLAY) {
     const { Replay } = await import('../dev/replay')
     replay = new Replay(ingest)
@@ -107,10 +121,10 @@ function scheduleReconnect(reason: string) {
   setTimeout(connect, delay)
 }
 
-export function ingest(f: Frame) {
+export function ingest(f: Frame, at?: number) {
   switch (f.type) {
     case 'state': {
-      const now = performance.now()
+      const now = at ?? performance.now()
       if (hot.curr && f.t < hot.curr.t - 1) {
         hot.prev = null
       } else {
@@ -220,8 +234,10 @@ function onEvent(e: EventFrame) {
   }
   if (e.kind === 'story') {
     // a finish that lands right after our start belongs to the run we just replaced
-    if (/finish|end|stop/i.test(e.title)) useUi.setState((s) => (performance.now() - s.story.startedAt < 4000 ? s : { story: { ...s.story, running: false } }))
-    else if (/start/i.test(e.title)) useUi.setState((s) => ({ story: { ...s.story, running: true, t0: e.t, startedAt: performance.now(), recorded: e.recorded === true }, captionLog: [] }))
+    if (/finish|end|stop/i.test(e.title) && PLAYBACK) {
+      /* the render decides where the film ends */
+    } else if (/finish|end|stop/i.test(e.title)) useUi.setState((s) => (performance.now() - s.story.startedAt < 4000 ? s : { story: { ...s.story, running: false } }))
+    else if (/start/i.test(e.title)) useUi.setState((s) => ({ opening: false, story: { ...s.story, running: true, t0: e.t, startedAt: performance.now(), recorded: e.recorded === true }, captionLog: [] }))
   }
 }
 
@@ -245,7 +261,7 @@ function trackStory(t: number) {
   const s = useUi.getState().story
   if (!s.running) return
   if (t < s.t0 - 1) useUi.setState({ story: { ...s, t0: t } })
-  if (t - s.t0 > 64 && performance.now() - s.startedAt > 62000) useUi.setState({ story: { ...s, running: false } })
+  if (!PLAYBACK && t - s.t0 > 64 && performance.now() - s.startedAt > 62000) useUi.setState({ story: { ...s, running: false } })
 }
 
 async function getJson(path: string): Promise<unknown> {
@@ -269,7 +285,7 @@ async function loadTerrain(rev: number) {
   if (terrainBusy) return
   terrainBusy = true
   try {
-    const j = replay ? replay.terrain() : await getJson(`/terrain?rev=${rev}`)
+    const j = pb ? pb.terrain(rev) : replay ? replay.terrain() : await getJson(`/terrain?rev=${rev}`)
     hot.terrain = parseTerrain(j as Record<string, unknown>, rev)
     hot.terrainVersion++
     terrainRev = rev
@@ -283,7 +299,7 @@ async function loadTerrain(rev: number) {
 
 async function loadSite() {
   try {
-    const j = replay ? replay.site() : await getJson('/site')
+    const j = pb ? pb.site() : replay ? replay.site() : await getJson('/site')
     hot.site = replay ? (j as typeof hot.site) : parseSite(j as Record<string, unknown>)
     hot.siteVersion++
     useUi.setState({ siteError: null, siteVersion: hot.siteVersion })
@@ -307,7 +323,7 @@ async function loadHealth() {
 
 export async function refreshAgents() {
   try {
-    const j = replay ? replay.agents() : await getJson('/agents')
+    const j = pb ? pb.agents() : replay ? replay.agents() : await getJson('/agents')
     useUi.setState({ agents: parseAgents(j), agentsError: null })
   } catch (e) {
     useUi.setState({ agentsError: String(e instanceof Error ? e.message : e) })
@@ -330,6 +346,7 @@ export async function sendFault(kind: FaultKind, target?: string): Promise<boole
 }
 
 export async function startStory(): Promise<boolean> {
+  if (pb) return true
   const s = useUi.getState()
   useUi.setState({ story: { running: true, t0: s.state?.t ?? 0, startedAt: performance.now(), error: null, recorded: false }, captionLog: [], caption: null })
   try {

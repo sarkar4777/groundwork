@@ -59,12 +59,15 @@ Play the story (or P) posts `/story/start`. The bff restarts the twin from a fix
 ## Capture
 
 ```bash
-node scripts/capture.mjs                 # live bff, 1920x1080 and 1080x1350
+node scripts/capture.mjs                 # render both films from .run/take.json, 1920x1080 and 1080x1350
+node scripts/capture.mjs --retake        # record a fresh live take from the bff first
+node scripts/capture.mjs --shots-only    # live story screenshots, no film
 node scripts/capture.mjs --replay        # synthesised frames, every image marked REPLAY
-node scripts/capture.mjs --shots-only    # screenshots only
 ```
 
-Videos go to `docs/media/` with the SRT, screenshots to `docs/screenshots/`. Frames come from the Chrome screencast with their timestamps and ffmpeg resamples them to a constant 60 fps. Screenshot 09 is the Abenix agents page and needs `ABENIX_WEB_URL`, `ABENIX_ADMIN_EMAIL` and `ABENIX_ADMIN_PASSWORD`.
+The film is one live run. `scripts/record-take.mjs` records every frame the bff sends during a story, a few seconds of the running site before it, and the site, terrain and agents it served. The capture then plays that take back with `?playback=1&render=1` on a virtual clock. Each film frame advances the page exactly 1/60 s, draws, and is screenshotted, so the 60 fps video has no dropped or doubled frames however slow the machine is. The top bar says Recorded live while it plays.
+
+The film opens on the whole ground station under the title, cuts through the story beats, and holds the end card for about 9 s while the orbit carries on. Subtitles come from the same frames, so the SRT lines up to the frame. Videos go to `docs/media/` with the SRT, screenshots to `docs/screenshots/`. Screenshot 09 is the Abenix agents page and needs `ABENIX_WEB_URL`, `ABENIX_ADMIN_EMAIL` and `ABENIX_ADMIN_PASSWORD`.
 
 ## Look and performance
 

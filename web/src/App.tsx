@@ -8,6 +8,7 @@ import { Icon } from './ui/kit'
 import { Autonomy, Events, FaultDeck, LatencyStrip, PhoneApprovals, SignalTrace, SitePilot, VecuConsole } from './panels/Panels'
 import { downloadSrt } from './story/StoryLayer'
 import { TourCaption, useTour } from './story/Tour'
+import { OpeningTitle } from './story/StoryCards'
 
 // A Claude subscription serves the agent runs, so a zero cost is a billing mode, not a broken meter.
 function aiCost(k: Kpi | undefined): string {
@@ -47,7 +48,7 @@ function TopBar() {
   const story = useUi((s) => s.story.running)
   const fps = useUi((s) => s.fps)
   const hasLog = useUi((s) => s.captionLog.length > 0)
-  const label = conn === 'replay' ? 'Replay' : conn === 'live' ? 'Live' : conn === 'connecting' ? 'Connecting' : 'Sim offline'
+  const label = conn === 'replay' ? 'Replay' : conn === 'live' ? 'Live' : conn === 'recorded' ? 'Recorded live' : conn === 'connecting' ? 'Connecting' : 'Sim offline'
   return (
     <header className="topbar glass">
       <div className="brand">
@@ -61,7 +62,7 @@ function TopBar() {
       </div>
       <Kpis />
       <div className="top-actions">
-        <span className={`status-pill ${conn}`} role="status" title={conn === 'replay' ? 'Synthesised frames for development, not from the simulator or Abenix' : undefined}>
+        <span className={`status-pill ${conn}`} role="status" title={conn === 'replay' ? 'Synthesised frames for development, not from the simulator or Abenix' : conn === 'recorded' ? 'One live run from the bff and Abenix, recorded and played back frame by frame' : undefined}>
           <span className="dot" />{label}
         </span>
         {conn === 'replay' ? (
@@ -167,9 +168,10 @@ export function App() {
   useKeys()
   const hidden = useUi((s) => s.panelsHidden)
   const story = useUi((s) => s.story.running)
-  const tour = useUi((s) => s.story.running && s.storyBeat === 'platform')
-  const cinema = (story && !tour) || (CAPTURE && hidden && !story)
-  useTour(tour)
+  const opening = useUi((s) => s.opening)
+  const tour = useUi((s) => (s.story.running && s.storyBeat === 'platform') || s.opening)
+  const cinema = (story && !tour) || (CAPTURE && hidden && !story && !opening)
+  useTour(tour, opening)
   return (
     <>
     <div className={`app ${hidden && !story ? 'hide-panels' : ''} ${cinema ? 'cinema' : ''} ${tour ? 'tour' : ''}`}>
@@ -193,7 +195,8 @@ export function App() {
       <Toast />
       {REPLAY && <span className="sr-only">Replay mode, synthesised frames</span>}
     </div>
-    {tour && <TourCaption />}
+    {tour && !opening && <TourCaption />}
+    {opening && <OpeningTitle />}
     </>
   )
 }

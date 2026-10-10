@@ -20,7 +20,7 @@ export const BEATS: Beat[] = [
   { from: 32.1, to: 46.5, name: 'platform', mode: 'drone' },
   { from: 46.5, to: 51.1, name: 'newmachine', mode: 'drone', focus: 'code' },
   { from: 51.1, to: 55.6, name: 'autonomy', mode: 'drone', focus: 'autonomy' },
-  { from: 55.6, to: 61, name: 'end', mode: 'orbit', focus: 'endcard' },
+  { from: 55.6, to: 70, name: 'end', mode: 'orbit', focus: 'endcard' },
 ]
 
 export const beatAt = (s: number): Beat => BEATS.find((b) => s >= b.from && s < b.to) ?? BEATS[BEATS.length - 1]

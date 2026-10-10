@@ -1,59 +1,59 @@
 1
-00:00:00,850 --> 00:00:03,950
+00:00:05,300 --> 00:00:09,000
 A construction site that runs itself.
 Every machine, every decision, on Abenix.
 
 2
-00:00:04,050 --> 00:00:08,950
+00:00:09,000 --> 00:00:13,950
 A worker walks into the swing zone.
 The safety layer stops the excavator in 4.7 ms.
 
 3
-00:00:09,050 --> 00:00:13,550
+00:00:13,950 --> 00:00:18,550
 Seconds later the AI replans the
 site and asks a person to approve.
 
 4
-00:00:13,650 --> 00:00:18,550
+00:00:18,550 --> 00:00:23,550
 Underneath, 45 machine controllers talk on
 real machine buses at 100 times a second.
 
 5
-00:00:18,650 --> 00:00:23,550
+00:00:23,550 --> 00:00:28,550
 A gust is forecast. The crane holds.
 The plan changes around it.
 
 6
-00:00:23,650 --> 00:00:27,150
+00:00:28,550 --> 00:00:32,150
 We switch the AI off. The site stays safe,
 because safety never waits for the AI.
 
 7
-00:00:27,250 --> 00:00:30,350
+00:00:32,150 --> 00:00:35,483
 The whole site on one screen.
 Every number live from Abenix.
 
 8
-00:00:31,650 --> 00:00:33,950
+00:00:36,700 --> 00:00:39,083
 AI back on. Agents, models and pipelines return,
 and the event log records every change.
 
 9
-00:00:35,250 --> 00:00:37,550
+00:00:40,300 --> 00:00:42,700
 Every machine's controllers, live on the bus.
 Every J1939 and Sparkplug frame decoded.
 
 10
-00:00:38,850 --> 00:00:41,550
+00:00:43,900 --> 00:00:46,483
 Every layer timed in Abenix,
 from the twin step to the agents.
 
 11
-00:00:41,650 --> 00:00:46,150
+00:00:46,483 --> 00:00:50,983
 A new machine arrives. The AI writes its controller,
 tests it, and puts it to work.
 
 12
-00:00:46,250 --> 00:00:50,650
+00:00:50,983 --> 00:00:55,433
 Agents earn trust from their record.
 Mistakes become lessons a person approves.
