@@ -96,7 +96,7 @@ async def mint_key(base: str) -> str:
         async with Abenix(api_key=have, base_url=base) as f:
             try:
                 await f.me()
-                print("  key        groundwork                   kept       the key in .env works")
+                print(f"  key        {key_name():<28} kept       the key in .env works")
                 return have
             except AbenixError as e:
                 # only a refused key is replaced, a platform blip must not revoke a key a running bff uses
@@ -104,15 +104,24 @@ async def mint_key(base: str) -> str:
                     raise SystemExit(f"Abenix did not answer cleanly ({e.status}: {e}), try again")
     email = env("ABENIX_ADMIN_EMAIL", "admin@abenix.dev")
     password = env("ABENIX_ADMIN_PASSWORD", "Admin123456")
-    key = await bootstrap_key(base, email, password, "groundwork")
-    # an older groundwork key is revoked once the new one works
+    name = key_name()
+    key = await bootstrap_key(base, email, password, name)
+    # only this install's older key is revoked, another clone on the same Abenix keeps working
     async with Abenix(api_key=key, base_url=base) as f:
         for k in await f.api_keys.list():
-            if k.get("name") == "groundwork" and not key.endswith(str(k.get("key_prefix", ""))[-4:]):
+            if k.get("name") == name and not key.endswith(str(k.get("key_prefix", ""))[-4:]):
                 await f.api_keys.revoke(k["id"])
     write_env({"ABENIX_URL": base, "ABENIX_API_KEY": key})
-    print("  key        groundwork                   minted     written to .env")
+    print(f"  key        {name:<28} minted     written to .env")
     return key
+
+
+def key_name() -> str:
+    """groundwork-<host>-<folder>, so each clone owns exactly one key."""
+    import socket
+
+    host = "".join(c for c in socket.gethostname().lower() if c.isalnum())[:16] or "host"
+    return f"groundwork-{host}-{hashlib.sha1(str(ROOT).encode()).hexdigest()[:6]}"
 
 
 # code assets

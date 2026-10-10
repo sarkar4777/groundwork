@@ -80,7 +80,7 @@ Open `.env` and set `ABENIX_ADMIN_PASSWORD=Admin123456`. If you moved the Abenix
 .venv/bin/python scripts/provision.py                   # Windows (Git Bash): .venv/Scripts/python
 ```
 
-It signs in once as the admin and mints an API key named `groundwork` into `.env`. Then it loads, through the Abenix SDK:
+It signs in once as the admin and mints this clone's own API key, named `groundwork-<host>-<folder>`, into `.env`. Another clone on the same Abenix gets its own key and keeps working. Then it loads, through the Abenix SDK:
 
 - 3 code assets
 - 4 decision tables
@@ -142,6 +142,7 @@ Everything the site does is visible in Abenix too: runs in the Flight Recorder, 
 | `provision.py` fails at a step | Fix what it names and run it again. `--only models` reruns one step, the steps are `key,assets,decisions,agents,pipelines,kb,autonomy,models,check` |
 | `dev.sh` says Abenix is not answering | Start Abenix first. After any Abenix pod restarts, run `bash scripts/deploy.sh forwards` in the `abenix` folder |
 | `dev.sh` says there is no ABENIX_API_KEY in .env | Run step 3 |
+| The bff health says `401 Unauthorized` | The key in `.env` was revoked. Run step 3 again, then `bash scripts/deploy-k8s.sh` so the bff picks up the new key |
 | The ground station says the bff is offline | `bash scripts/deploy-k8s.sh status`, then `bash scripts/deploy-k8s.sh forward` |
 | Agent runs fail with `OAuth access token has been revoked` | Run `bash scripts/sync-claude-subscription.sh` in the `abenix` folder |
 | Agent runs fail with an auth or key error | Add the key in Abenix under **Admin → Tool Configuration** (`ANTHROPIC_API_KEY`). It applies within 30 seconds |
