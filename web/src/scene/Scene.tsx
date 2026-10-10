@@ -11,7 +11,7 @@ import { Overlays } from './Overlays'
 import { Nervous } from './Nervous'
 import { CameraRig } from './CameraRig'
 import { LabelProjector } from './Labels'
-import { nervous } from './nervousState'
+import { nervous, storyCut } from './nervousState'
 import { applyNervous, dimWithNervous } from './materials'
 import { useUi } from '../live/store'
 import { CAPTURE } from '../live/config'
@@ -53,6 +53,7 @@ function Lights() {
     // the hero shot gets the golden hour, the survey feed a neutral late-afternoon sun
     const hero = useUi.getState().heroFx ? 1 : 0
     heroK.current += (hero - heroK.current) * 0.05
+    if (performance.now() - storyCut.at < 100) heroK.current = hero
     const g = heroK.current
     const elev = 17 - g * 6
     sunDir(elev, sun.current.position)

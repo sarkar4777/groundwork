@@ -357,7 +357,20 @@ export function Events({ focus }: { focus?: boolean }) {
 export function PhoneApprovals({ focus, tap }: { focus?: boolean; tap?: boolean }) {
   const approvals = useUi((s) => s.approvals)
   const pending = approvals.filter((a) => a.status === 'pending' || a.status === 'sending')
-  const recent = [...approvals].reverse().slice(0, 4)
+  return (
+    <Panel id="phone" title="Approvals on a phone" icon="phone" focus={focus} extra={pending.length ? <span className="chip warn">{pending.length} waiting</span> : undefined}>
+      <div className="phone-wrap">
+        <PhoneDevice tap={tap} />
+      </div>
+      <p className="disclaimer">A mock-up for the video. Real approvals happen in the Abenix approvals page{REPLAY ? '. Replay approvals stay local' : ''}.</p>
+    </Panel>
+  )
+}
+
+export function PhoneDevice({ tap, max = 4 }: { tap?: boolean; max?: number }) {
+  const approvals = useUi((s) => s.approvals)
+  const pending = approvals.filter((a) => a.status === 'pending' || a.status === 'sending')
+  const recent = [...approvals].reverse().slice(0, max)
   const [buzz, setBuzz] = useState(false)
   const lastCount = useRef(0)
   useEffect(() => {
@@ -371,8 +384,6 @@ export function PhoneApprovals({ focus, tap }: { focus?: boolean; tap?: boolean 
   }, [pending.length])
   const clock = new Date()
   return (
-    <Panel id="phone" title="Approvals on a phone" icon="phone" focus={focus} extra={pending.length ? <span className="chip warn">{pending.length} waiting</span> : undefined}>
-      <div className="phone-wrap">
         <div className={`phone ${buzz ? 'buzz' : ''}`}>
           <div className="phone-notch" />
           <div className="phone-screen">
@@ -385,9 +396,6 @@ export function PhoneApprovals({ focus, tap }: { focus?: boolean; tap?: boolean 
           </div>
           <div className={`thumb ${tap ? 'tap' : ''}`} />
         </div>
-      </div>
-      <p className="disclaimer">A mock-up for the video. Real approvals happen in the Abenix approvals page{REPLAY ? '. Replay approvals stay local' : ''}.</p>
-    </Panel>
   )
 }
 

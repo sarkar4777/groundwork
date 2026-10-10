@@ -6,6 +6,7 @@ import { startClient } from './live/client'
 import { installAutomation } from './live/automation'
 
 if (location.search.includes('noblur')) document.body.classList.add('noblur')
+if (new URLSearchParams(location.search).get('capture') === '1') document.body.classList.add('capture')
 startClient()
 installAutomation()
 

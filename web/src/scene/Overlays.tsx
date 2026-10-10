@@ -74,42 +74,68 @@ function Roads({ site, depthTest, rev }: { site: SiteLayout; depthTest: boolean;
 
 const ringGeo = new THREE.RingGeometry(0.965, 1, 96)
 const thinRingGeo = new THREE.RingGeometry(0.99, 1, 160)
+const edgeRingGeo = new THREE.RingGeometry(0.978, 1, 160)
 const discGeo = new THREE.CircleGeometry(1, 96)
 const ringMat = () => new THREE.MeshBasicMaterial({ color: COLORS.mint, transparent: true, opacity: 0.9, depthWrite: false, side: THREE.DoubleSide, toneMapped: false })
 
 export const swingR = () => hot.site?.swingRadius ?? 9.8
 
+// A crisp dashed edge that marches round the ring, drawn on the ring's own angle.
+function edgeMaterial() {
+  return new THREE.ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    toneMapped: false,
+    side: THREE.DoubleSide,
+    uniforms: { uColor: { value: new THREE.Color(COLORS.mint) }, uTime: { value: 0 }, uDash: { value: 0 }, uAlpha: { value: 1 } },
+    vertexShader: 'varying vec2 vP; void main(){ vP = position.xy; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader: `varying vec2 vP; uniform vec3 uColor; uniform float uTime; uniform float uDash; uniform float uAlpha;
+      void main(){
+        float a = atan(vP.y, vP.x) / 6.2831853 + 0.5;
+        float d = step(0.42, fract(a * 48.0 - uTime * 0.6));
+        gl_FragColor = vec4(uColor, uAlpha * mix(1.0, d, uDash));
+      }`,
+  })
+}
+
 function SwingRing({ id }: { id: string }) {
   const g = useRef<THREE.Group>(null!)
-  const ring = useMemo(ringMat, [])
+  const ring = useMemo(edgeMaterial, [])
   const outer = useMemo(ringMat, [])
   const disc = useMemo(() => new THREE.MeshBasicMaterial({ color: COLORS.mint, transparent: true, opacity: 0.08, depthWrite: false, toneMapped: false }), [])
   const m = useMemo(() => ({ joints: {} }) as Machine, [])
   const col = useMemo(() => new THREE.Color(), [])
+  const stopAt = useRef(0)
   useFrame(() => {
     const s = machineAt(id, m, interpAlpha())
     if (!s) return
     g.current.position.set(s.x, heightAt(s.x, s.y) + LIFT, -s.y)
-    const stopped = hot.curr?.safety.active_stops.some((a) => a.machine === id)
+    const stopped = !!hot.curr?.safety.active_stops.some((a) => a.machine === id)
     const R = swingR()
     const warn = hot.curr?.workers.some((w) => w.zone !== 'ok' && Math.hypot(w.x - s.x, w.y - s.y) < R + 6)
     const t = performance.now()
-    const pulse = stopped ? 0.5 + 0.5 * Math.sin(t / 110) : 0
+    if (stopped && !stopAt.current) stopAt.current = t
+    if (!stopped) stopAt.current = 0
+    // one ring: a translucent fill with a marching edge, and a single shockwave when the stop fires
+    const since = stopped ? (t - stopAt.current) / 1000 : 9
     col.set(stopped ? COLORS.red : warn ? COLORS.amber : COLORS.mint)
-    if (stopped) col.multiplyScalar(1.6 + pulse)
-    ring.color.copy(col)
-    outer.color.copy(col)
+    ring.uniforms.uColor.value.copy(col).multiplyScalar(stopped ? 1.5 : 1)
+    ring.uniforms.uTime.value = t / 1000
+    ring.uniforms.uDash.value = stopped || warn ? 1 : 0
+    ring.uniforms.uAlpha.value = stopped ? 1 : 0.8
     disc.color.copy(col)
-    disc.opacity = stopped ? 0.18 + pulse * 0.14 : warn ? 0.1 : 0.05
-    outer.opacity = stopped ? 0.9 * (1 - ((t / 900) % 1)) : 0.35
-    const sc = stopped ? R * (1 + ((t / 900) % 1) * 0.6) : R + 3
+    disc.opacity = stopped ? 0.25 + Math.max(0, 0.2 * (1 - since / 0.6)) : warn ? 0.1 : 0.05
+    const wave = Math.min(1, since / 1.1)
+    outer.color.copy(col).multiplyScalar(1.6)
+    outer.opacity = stopped && since < 1.1 ? 0.9 * (1 - wave) : 0
     g.current.children[0].scale.setScalar(R)
     g.current.children[1].scale.setScalar(R)
-    g.current.children[2].scale.setScalar(sc)
+    g.current.children[2].scale.setScalar(R * (1 + wave * 0.7))
+    g.current.children[2].visible = stopped && since < 1.1
   })
   return (
     <group ref={g} rotation={[0, 0, 0]}>
-      <mesh geometry={ringGeo} material={ring} rotation={[-Math.PI / 2, 0, 0]} renderOrder={4} />
+      <mesh geometry={edgeRingGeo} material={ring} rotation={[-Math.PI / 2, 0, 0]} renderOrder={4} />
       <mesh geometry={discGeo} material={disc} rotation={[-Math.PI / 2, 0, 0]} renderOrder={3} />
       <mesh geometry={ringGeo} material={outer} rotation={[-Math.PI / 2, 0, 0]} renderOrder={4} />
     </group>
@@ -161,11 +187,12 @@ function CraneEnvelopes() {
       sectorMesh.scale.setScalar(Math.max(4, r.radius + 3))
       sectorMesh.rotation.z = r.slew
       const m = mats[i]
-      const glow = conflict ? 1.8 + Math.sin(t / 120) * 0.6 : 1
-      m.ring.color.set(conflict ? COLORS.red : COLORS.amber).multiplyScalar(glow)
-      m.ring.opacity = conflict ? 1 : 0.45
-      m.sector.color.set(conflict ? COLORS.red : COLORS.amber).multiplyScalar(glow)
-      m.sector.opacity = conflict ? 0.32 : 0.14
+      const held = conflict || !!hot.curr?.safety.active_stops.some((st) => st.machine === ids[i]) || hot.curr?.machines.find((mm) => mm.id === ids[i])?.mode === 'hold'
+      const glow = held ? 1.8 + Math.sin(t / 120) * 0.6 : 1
+      m.ring.color.set(held ? COLORS.red : COLORS.amber).multiplyScalar(glow)
+      m.ring.opacity = held ? 1 : 0.45
+      m.sector.color.set(held ? COLORS.red : COLORS.amber).multiplyScalar(glow)
+      m.sector.opacity = held ? 0.32 : 0.14
     })
   })
   return (

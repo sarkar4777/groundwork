@@ -3,7 +3,7 @@ import { useUi, type CaptionLog } from '../live/store'
 import { hot } from '../live/hot'
 import { stopStory } from '../live/client'
 import { beatAt } from './shots'
-import { Autonomy, FaultDeck, LatencyStrip, PhoneApprovals, SitePilot } from '../panels/Panels'
+import { StoryAiOff, StoryAutonomy, StoryCode, StoryEnd, StoryGust, StoryLatency, StoryPhone } from './StoryCards'
 import { Icon } from '../ui/kit'
 
 // Numbers with their units read in amber, the rest stays white.
@@ -113,13 +113,14 @@ export function StoryLayer() {
   }, [s, running, recorded])
   const beat = beatAt(s)
   const f = beat.focus
-  const end = running && f === 'endcard' && s > 53
+  const end = running && f === 'endcard' && s > 52.8
   useEffect(() => {
     document.body.dataset.endcard = end ? '1' : '0'
   }, [end])
+  useEffect(() => {
+    document.body.dataset.beat = running ? beat.name : ''
+  }, [running, beat.name])
   if (!running) return null
-  // a tall frame has room for one floating panel at a time
-  const portrait = window.innerHeight > window.innerWidth
   return (
     <>
       <div className="story-chip glass">
@@ -128,22 +129,13 @@ export function StoryLayer() {
         <span className="story-progress"><i style={{ width: `${Math.min(100, (s / 60) * 100)}%` }} /></span>
         <button className="btn sm" onClick={stopStory} aria-label="Stop the story"><Icon name="stop" /></button>
       </div>
-      {f === 'phone' && (!portrait || s < 11.2) && (
-        <div className="story-float left" key="pilot"><SitePilot focus /></div>
-      )}
-      {f === 'phone' && (!portrait || s >= 11.2) && <div className="story-float right" key="phone"><PhoneApprovals focus tap={tap} /></div>}
-      {f === 'latency' && <div className="story-float bottomc" key="lat"><LatencyStrip focus /></div>}
-      {f === 'faults' && <div className="story-float right" key="faults"><FaultDeck focus /></div>}
-      {f === 'autonomy' && <div className="story-float right" key="auto"><Autonomy focus /></div>}
-      {end && (
-        <div className="endcard">
-          <div className="inner">
-            <h1>Groundwork</h1>
-            <p>Built on Abenix, open source.</p>
-            <div className="tag">NORTHGATE YARD · MIT LICENCE</div>
-          </div>
-        </div>
-      )}
+      {f === 'phone' && <StoryPhone tap={tap} />}
+      {f === 'latency' && <StoryLatency />}
+      {f === 'gust' && <StoryGust />}
+      {f === 'aioff' && <StoryAiOff />}
+      {f === 'code' && <StoryCode />}
+      {f === 'autonomy' && <StoryAutonomy />}
+      <StoryEnd show={end} />
     </>
   )
 }

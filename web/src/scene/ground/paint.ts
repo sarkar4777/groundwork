@@ -125,14 +125,14 @@ export async function paintSite(imgs: Imgs, site: SiteLayout | null, N = 2048): 
   await tick()
   layer(g, N, pat(g, imgs.sand, 9, ppm, 33), noiseMask(N, 12, 0.42, 2.8), 0.55, 'saturate(0.6) brightness(1.05)')
   await tick()
-  layer(g, N, pat(g, imgs.stone, 7, ppm, 71), noiseMask(N, 16, 0.3, 3), 0.45, 'saturate(0.35) brightness(1.25)')
+  layer(g, N, pat(g, imgs.stone, 7, ppm, 71), noiseMask(N, 16, 0.32, 3.2), 0.7, 'saturate(0.3) brightness(1.3)')
   await tick()
   // damp clay where the ground holds water, and dry dust where plant has scoured it
-  layer(g, N, pat(g, imgs.dirt, 30, ppm, 110), noiseMask(N, 9, 0.3, 2.6), 0.45, 'saturate(0.75) brightness(0.75) blur(1px)')
+  layer(g, N, pat(g, imgs.dirt, 30, ppm, 110), noiseMask(N, 9, 0.3, 2.8), 0.65, 'saturate(0.85) brightness(0.62) blur(1px)')
   await tick()
-  layer(g, N, '#d9d1c4', noiseMask(N, 20, 0.18, 3), 0.1)
+  layer(g, N, '#e3dccf', noiseMask(N, 20, 0.2, 3.2), 0.22)
   await tick()
-  layer(g, N, '#1c1510', noiseMask(N, 26, 0.16, 3), 0.18)
+  layer(g, N, '#1c1510', noiseMask(N, 26, 0.2, 3.2), 0.34)
 
   // grass margins inside the hoarding, worn ragged by the plant
   const margin: MaskFn = (m) => {
@@ -232,10 +232,10 @@ export async function paintSite(imgs: Imgs, site: SiteLayout | null, N = 2048): 
   // tyre ruts everywhere the plant turns: paired curved tracks with a little spoil on the outside
   g.save()
   g.lineCap = 'round'
-  for (let i = 0; i < 130; i++) {
+  for (let i = 0; i < 210; i++) {
     const x = rnd() * N, y = rnd() * N, a = rnd() * Math.PI * 2, l = (8 + rnd() * 34) * ppm, bend = (rnd() - 0.5) * 0.018
     const dark = rnd() < 0.7
-    g.strokeStyle = dark ? `rgba(38, 30, 24, ${0.08 + rnd() * 0.12})` : `rgba(235, 228, 214, ${0.05 + rnd() * 0.06})`
+    g.strokeStyle = dark ? `rgba(34, 26, 20, ${0.16 + rnd() * 0.16})` : `rgba(238, 232, 218, ${0.08 + rnd() * 0.08})`
     const half = rnd() < 0.5 ? 1.1 : 1.6
     g.lineWidth = (0.45 + rnd() * 0.35) * ppm
     for (const off of [-half, half]) {

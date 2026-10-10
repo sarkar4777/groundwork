@@ -75,6 +75,28 @@ async function shot(page, name, selector) {
   log('saved', path)
 }
 
+// The cut: the part of each beat on the bff's story clock that goes into the video, in order.
+// Cutting inside beats keeps every join a clean hard cut and the film under 60 s.
+const EDIT = [
+  [0, 4],
+  [4, 9],
+  [9.4, 14],
+  [15, 20],
+  [22, 27],
+  [28.6, 34.4],
+  [37, 43],
+  [45, 51],
+  [52, 56],
+]
+
+const BS = String.fromCharCode(92)
+
+const srtTime = (s) => {
+  const ms = Math.max(0, Math.round(s * 1000))
+  const p = (n, w = 2) => String(n).padStart(w, '0')
+  return `${p(Math.floor(ms / 3600000))}:${p(Math.floor(ms / 60000) % 60)}:${p(Math.floor(ms / 1000) % 60)},${p(ms % 1000, 3)}`
+}
+
 async function recordStory(page, tag, withShots) {
   const cdp = await page.context().newCDPSession(page)
   const dir = join(MEDIA, `frames-${tag}`)
@@ -103,76 +125,94 @@ async function recordStory(page, tag, withShots) {
     await page.waitForTimeout(100)
   }
   recording = true
-  // captions as they were on screen, in wall time, so the SRT lines up with the video
-  const t0 = Date.now() / 1000
-  const shown = []
-  const poll = setInterval(async () => {
-    const text = await page.evaluate(() => document.querySelector('.caption')?.innerText ?? '').catch(() => '')
-    const now = Date.now() / 1000 - t0
-    const last = shown[shown.length - 1]
-    if (last && last.text === text) last.end = now
-    else if (text) shown.push({ text, start: now, end: now })
-  }, 100)
+  // story clock against wall clock, and the caption on screen at each moment
+  const clock = []
+  let polling = true
+  const pollLoop = (async () => {
+    while (polling) {
+      const r = await page.evaluate(() => ({ s: window.__gw.status().storyT, c: document.querySelector('.caption')?.innerText ?? '' })).catch(() => null)
+      if (r && r.s !== null) clock.push({ wall: Date.now() / 1000, s: r.s, c: r.c })
+      await new Promise((res) => setTimeout(res, 80))
+    }
+  })()
   log(tag, 'story running')
 
   if (withShots) {
     const clean = (on) => page.evaluate((v) => window.__gw.clean(v), on)
-    await waitStory(page, 2.6)
+    await waitStory(page, 1.3)
     await clean(true)
     await shot(page, '01-hero.png')
     await clean(false)
-    await waitStory(page, 6.8)
+    await waitStory(page, 6.6)
     await shot(page, '03-safety-stop.png')
-    await waitStory(page, 10.4)
-    await shot(page, '04-site-pilot-replan.png', '.story-float.left')
-    await shot(page, '05-phone-approval.png', '.phone')
+    await waitStory(page, 11.2)
+    await shot(page, '05-phone-approval.png', '.sc-phone .phone')
     await waitStory(page, 17.5)
     await clean(true)
     await shot(page, '02-nervous-system.png')
     await clean(false)
-    await waitStory(page, 24.5)
-    await shot(page, '07-crane-cab.png')
-    await waitStory(page, 46.5)
-    await shot(page, '08-earned-autonomy.png', '.story-float.right')
+    await waitStory(page, 48.5)
+    await shot(page, '08-earned-autonomy.png', '.sc-auto')
   }
 
-  const started = Date.now()
   for (;;) {
     const st = await page.evaluate(() => window.__gw.status())
-    if ((st.storyT ?? 0) > 61.5) break
-    if (!st.story) {
-      if ((Date.now() - started) / 1000 < 55) log('story ended early', JSON.stringify(st))
-      break
-    }
+    if (!st.story || (st.storyT ?? 0) > EDIT[EDIT.length - 1][1] + 1) break
     await page.waitForTimeout(250)
   }
   recording = false
-  clearInterval(poll)
+  polling = false
+  await pollLoop
   if (hasFfmpeg && VIDEO) await cdp.send('Page.stopScreencast')
-  const ts = (s) => {
-    const ms = Math.max(0, Math.round(s * 1000))
-    const p = (n, w = 2) => String(n).padStart(w, '0')
-    return `${p(Math.floor(ms / 3600000))}:${p(Math.floor(ms / 60000) % 60)}:${p(Math.floor(ms / 1000) % 60)},${p(ms % 1000, 3)}`
+
+  // story seconds to wall seconds, by linear interpolation over the samples
+  const wallAt = (s) => {
+    let i = clock.findIndex((c) => c.s >= s)
+    if (i <= 0) i = 1
+    if (i >= clock.length) i = clock.length - 1
+    const a = clock[i - 1], b = clock[i]
+    return a.wall + ((s - a.s) / Math.max(1e-3, b.s - a.s)) * (b.wall - a.wall)
   }
-  const offset = frames.length ? frames[0].ts - t0 : 0
-  const srt = shown.map((c, i) => `${i + 1}\n${ts(c.start - offset)} --> ${ts(c.end - offset + 0.1)}\n${c.text.trim()}\n`).join('\n')
-  writeFileSync(join(MEDIA, `groundwork-story-${tag}.srt`), srt)
-  log('captions', join(MEDIA, `groundwork-story-${tag}.srt`), `${shown.length} lines, timed to the video`)
+  const captionAt = (s) => {
+    let best = clock[0]
+    for (const c of clock) if (Math.abs(c.s - s) < Math.abs(best.s - s)) best = c
+    return best?.c?.trim() ?? ''
+  }
+
+  const cues = []
+  let out = 0
+  for (const [a, b] of EDIT) {
+    const text = captionAt((a + b) / 2 + 0.5)
+    const last = cues[cues.length - 1]
+    if (last && last.text === text) last.end = out + (b - a)
+    else if (text) cues.push({ text, start: out, end: out + (b - a) })
+    out += b - a
+  }
+  const srtPath = join(MEDIA, `groundwork-story-${tag}.srt`)
+  writeFileSync(srtPath, cues.map((c, i) => `${i + 1}\n${srtTime(c.start + 0.05)} --> ${srtTime(c.end - 0.05)}\n${c.text}\n`).join('\n'))
+  log('captions', srtPath, `${cues.length} cues over ${out.toFixed(1)} s`)
 
   if (!VIDEO) return
   if (!hasFfmpeg) {
     log('ffmpeg not found, skipped the video. Install ffmpeg and run again')
     return
   }
-  if (frames.length < 10) throw new Error('no screencast frames')
-  const list = frames.map((f, i) => `file '${f.file.replaceAll('\\', '/')}'\nduration ${((frames[i + 1]?.ts ?? f.ts + 1 / FPS) - f.ts).toFixed(5)}`).join('\n')
+  if (frames.length < 10 || clock.length < 10) throw new Error('no screencast frames')
+  const entries = []
+  for (const [a, b] of EDIT) {
+    const w0 = wallAt(a), w1 = wallAt(b)
+    const seg = frames.filter((f) => f.ts >= w0 && f.ts < w1)
+    if (!seg.length) throw new Error(`no frames for ${a} to ${b} s`)
+    seg.forEach((f, i) => entries.push({ file: f.file, d: (seg[i + 1]?.ts ?? w1) - Math.max(f.ts, i === 0 ? w0 : f.ts) }))
+  }
+  const list = entries.map((e) => `file '${e.file.replaceAll(BS, '/')}'\nduration ${Math.max(0.001, e.d).toFixed(5)}`).join('\n')
   const concat = join(dir, 'frames.txt')
-  writeFileSync(concat, `ffconcat version 1.0\n${list}\nfile '${frames[frames.length - 1].file.replaceAll('\\', '/')}'\n`)
+  writeFileSync(concat, `ffconcat version 1.0\n${list}\nfile '${entries[entries.length - 1].file.replaceAll(BS, '/')}'\n`)
   const mp4 = join(MEDIA, `groundwork-story-${tag}.mp4`)
-  const r = spawnSync('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'concat', '-safe', '0', '-i', concat, '-vf', `fps=${FPS},scale=trunc(iw/2)*2:trunc(ih/2)*2`, '-c:v', 'libx264', '-preset', 'slow', '-crf', '20', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', mp4], { stdio: 'inherit' })
+  const r = spawnSync('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'concat', '-safe', '0', '-i', concat, '-vf', `fps=${FPS},scale=trunc(iw/2)*2:trunc(ih/2)*2`, '-t', out.toFixed(3), '-c:v', 'libx264', '-preset', 'slow', '-crf', '20', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', mp4], { stdio: 'inherit' })
   if (r.status !== 0) throw new Error('ffmpeg failed')
   const span = frames[frames.length - 1].ts - frames[0].ts
-  log(`video ${mp4}: ${frames.length} source frames over ${span.toFixed(1)} s, ${(frames.length / span).toFixed(1)} fps captured, encoded at ${FPS} fps`)
+  log(`video ${mp4}: ${out.toFixed(1)} s cut from a ${span.toFixed(1)} s take, ${(frames.length / span).toFixed(1)} fps captured, encoded at ${FPS} fps`)
   if (!flag('--keep-frames')) rmSync(dir, { recursive: true, force: true })
 }
 
@@ -189,6 +229,14 @@ async function panelShots(page) {
   await page.waitForTimeout(1500)
   await shot(page, '06-signal-trace.png')
   await shot(page, '10-latency-strip.png', 'section[aria-labelledby="h-latency"]')
+  await shot(page, '04-site-pilot-replan.png', 'section[aria-labelledby="h-pilot"]')
+  await page.evaluate(() => {
+    window.__gw.panels(false)
+    window.__gw.select(null)
+    window.__gw.cam('cab')
+  })
+  await page.waitForTimeout(5000)
+  await shot(page, '07-crane-cab.png')
 }
 
 async function abenixAgents(browser) {

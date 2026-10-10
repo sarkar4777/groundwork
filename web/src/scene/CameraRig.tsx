@@ -8,7 +8,7 @@ import { useUi, type CamMode } from '../live/store'
 import type { Machine } from '../proto/types'
 import { heightAt } from './ground/heights'
 import { craneRig } from './machines/Cranes'
-import { nervous } from './nervousState'
+import { nervous, storyCut } from './nervousState'
 import { storyShot } from '../story/shots'
 
 export const drone = { x: 4, y: -2, alt: 150, fov: 58, gimbal: -89.5, yaw: 0, flightStart: performance.now() }
@@ -132,6 +132,7 @@ export function CameraRig() {
       const shot = storyShot(s, pose, t)
       if (shot.name !== lastShot.current) {
         cut = true
+        storyCut.at = performance.now()
         lastShot.current = shot.name
         if (ui.cam !== shot.mode) useUi.setState({ cam: shot.mode })
         const hero = shot.name === 'hero' || shot.name === 'end'
@@ -173,6 +174,7 @@ export function CameraRig() {
     lastMode.current = mode
 
     nervous.k += ((mode === 'nervous' ? 1 : 0) - nervous.k) * Math.min(1, dt * 2.5)
+    if (cut) nervous.k = mode === 'nervous' ? 1 : 0
     if (Math.abs(nervous.k - (mode === 'nervous' ? 1 : 0)) < 0.002) nervous.k = mode === 'nervous' ? 1 : 0
 
     const orbitLive = mode === 'orbit' && !ui.story.running && orbitArmed.current
