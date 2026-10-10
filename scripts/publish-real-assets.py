@@ -74,8 +74,8 @@ def main() -> None:
         "sites": sites,
         "files": files,
     }
-    (out / "manifest.json").write_text(json.dumps(manifest, indent=2))
-    (out / "SHA256SUMS").write_text("".join(f"{f['sha256']}  {f['name']}\n" for f in files))
+    (out / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8", newline="\n")
+    (out / "SHA256SUMS").write_text("".join(f"{f['sha256']}  {f['name']}\n" for f in files), encoding="utf-8", newline="\n")
     total = sum(f["bytes"] for f in files)
     (out / "UPLOAD.md").write_text(f"""# Upload {a.tag}
 
@@ -95,7 +95,7 @@ Then fetch from it:
     python scripts/fetch-real-imagery.py --release https://github.com/{REPO}/releases/download/{a.tag}
 
 {len(files)} files, {total / 1e6:.1f} MB.
-""")
+""", encoding="utf-8", newline="\n")
     print(f"packaged {len(files)} files, {total / 1e6:.1f} MB, into {out}")
     for m in missing:
         print("  not prepared yet, skipped:", m)
