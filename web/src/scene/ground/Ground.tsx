@@ -62,7 +62,7 @@ function canvasTex(c: HTMLCanvasElement, aniso = 8): THREE.CanvasTexture {
 
 export const groundUniforms = {
   uNervous: { value: 0 },
-  uDetail: { value: 0.9 },
+  uDetail: { value: 1.15 },
 }
 
 const DETAIL = /* glsl */ `

@@ -84,18 +84,38 @@ function fenceTexture() {
 
 // Irregular stockpile: a squashed, noisy cone that keeps a flat base.
 function heapGeometry() {
-  // a hemisphere squashed into a pile: rounded crest, lobed footprint, settled toe
-  const g = new THREE.SphereGeometry(1, 40, 14, 0, Math.PI * 2, 0, Math.PI / 2)
+  // a tipped pile: angle-of-repose flanks, a rounded crest, lobed footprint and lumps where loads were dropped
+  const g = new THREE.SphereGeometry(1, 72, 22, 0, Math.PI * 2, 0, Math.PI / 2)
   const p = g.attributes.position as THREE.BufferAttribute
+  const hgt = new Float32Array(p.count)
   for (let i = 0; i < p.count; i++) {
     const x = p.getX(i), y = p.getY(i), z = p.getZ(i)
     const a = Math.atan2(z, x)
     const k = 1 + 0.1 * Math.sin(a * 3 + 1) + 0.06 * Math.sin(a * 7) + 0.03 * Math.sin(a * 13 + 2)
-    const h = Math.pow(y, 1.35)
-    p.setXYZ(i, x * k, h - 0.5, z * k)
+    const t = Math.min(1, y)
+    const lump = (Math.sin(x * 9.1 + z * 4.3) * Math.cos(z * 8.7 - x * 3.1) * 0.5 + Math.sin(x * 23.0 + z * 19.0) * 0.25) * 0.05 * Math.sin(t * Math.PI)
+    const h = Math.pow(t, 1.3) + lump
+    const r = 1 + lump * 0.6
+    p.setXYZ(i, x * k * r, h - 0.5, z * k * r)
+    hgt[i] = h
   }
+  g.setAttribute('aH', new THREE.BufferAttribute(hgt, 1))
   g.computeVertexNormals()
   return g
+}
+
+// Soft dark ground under each pile where fines and moisture collect.
+function apronTexture() {
+  const c = document.createElement('canvas')
+  c.width = c.height = 128
+  const g = c.getContext('2d')!
+  const grd = g.createRadialGradient(64, 64, 20, 64, 64, 64)
+  grd.addColorStop(0, 'rgba(0,0,0,0.75)')
+  grd.addColorStop(0.55, 'rgba(0,0,0,0.4)')
+  grd.addColorStop(1, 'rgba(0,0,0,0)')
+  g.fillStyle = grd
+  g.fillRect(0, 0, 128, 128)
+  return new THREE.CanvasTexture(c)
 }
 
 const mats = {
@@ -110,6 +130,7 @@ const mats = {
   stone: new THREE.MeshStandardMaterial({ map: tex('gravel_diff_1k.jpg', 5, 2), roughness: 1, color: '#c8c4bc' }),
   topsoil: new THREE.MeshStandardMaterial({ map: tex('aerial_ground_rock_diff_2k.jpg', 2, 1), roughness: 1, color: '#b0a290' }),
   cone: new THREE.MeshStandardMaterial({ color: '#ff5a14', roughness: 0.55 }),
+  apron: new THREE.MeshBasicMaterial({ map: apronTexture(), color: '#1a120c', transparent: true, opacity: 0.55, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3 }),
   pile: new THREE.MeshStandardMaterial({ color: '#b9b5ac', roughness: 0.9 }),
   tube: new THREE.MeshStandardMaterial({ color: '#9ea4aa', roughness: 0.4, metalness: 0.8 }),
   board: new THREE.MeshStandardMaterial({ color: '#a07d52', roughness: 0.9 }),
@@ -117,8 +138,8 @@ const mats = {
   foot: new THREE.MeshStandardMaterial({ color: '#2a2d31', roughness: 0.8 }),
   car: new THREE.MeshStandardMaterial({ roughness: 0.5, metalness: 0.25, envMapIntensity: 0.6 }),
 }
-for (const k of ['sand', 'stone', 'topsoil'] as const) worldMapped(mats[k], k === 'topsoil' ? 9 : 3.5)
-dimWithNervous(...Object.values(mats))
+for (const k of ['sand', 'stone', 'topsoil'] as const) worldMapped(mats[k], k === 'topsoil' ? 5 : 2.2)
+dimWithNervous(...Object.values(mats).filter((m): m is THREE.MeshStandardMaterial => m instanceof THREE.MeshStandardMaterial))
 
 // Tile the map by world position so a stockpile has no cone seams.
 function worldMapped(m: THREE.MeshStandardMaterial, metres: number) {
@@ -126,11 +147,18 @@ function worldMapped(m: THREE.MeshStandardMaterial, metres: number) {
   m.onBeforeCompile = (sh) => {
     sh.uniforms.uMetres = { value: metres }
     sh.vertexShader = sh.vertexShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vMW;')
-      .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvMW = (modelMatrix * instanceMatrix * vec4(transformed, 1.0)).xyz;')
+      .replace('#include <common>', '#include <common>\nvarying vec3 vMW;\nattribute float aH;\nvarying float vH;')
+      .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvMW = (modelMatrix * instanceMatrix * vec4(transformed, 1.0)).xyz;\nvH = aH;')
     sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vMW;\nuniform float uMetres;')
-      .replace('#include <map_fragment>', 'diffuseColor *= texture2D(map, vMW.xz / uMetres + vMW.y * 0.07);')
+      .replace('#include <common>', '#include <common>\nvarying vec3 vMW;\nvarying float vH;\nuniform float uMetres;')
+      .replace(
+        '#include <map_fragment>',
+        `vec3 tA = texture2D(map, vMW.xz / uMetres + vMW.y * 0.11).rgb;
+vec3 tB = texture2D(map, vMW.zx / (uMetres * 0.37) + 0.5).rgb;
+vec3 agg = mix(tA, tB, 0.35) * mix(0.82, 1.08, smoothstep(0.0, 0.5, vH));
+agg *= mix(0.78, 1.0, smoothstep(0.0, 0.12, vH));
+diffuseColor.rgb *= agg;`,
+      )
   }
 }
 
@@ -252,9 +280,10 @@ export function Dressing() {
     const cone = new THREE.ConeGeometry(0.5, 1, 10)
     const cyl = new THREE.CylinderGeometry(0.5, 0.5, 1, 14)
     const heap = heapGeometry()
+    const apron = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2)
     const fence = new THREE.PlaneGeometry(1, 1)
     const car = mergeGeometries([rbox(4.4, 0.75, 1.8, 0.25).clone().translate(0, 0.55, 0), rbox(2.4, 0.6, 1.62, 0.25).clone().translate(-0.2, 1.15, 0)])!
-    return { box, sharp, cone, cyl, heap, fence, car }
+    return { box, sharp, cone, cyl, heap, fence, car, apron }
   }, [])
   return (
     <group>
@@ -266,6 +295,7 @@ export function Dressing() {
       <Inst items={L.rebar} geo={g.sharp} mat={mats.rebar} />
       <Inst items={L.board} geo={g.sharp} mat={mats.board} />
       <Inst items={L.tube} geo={g.sharp} mat={mats.tube} />
+      <Inst items={[...L.stone, ...L.sand, ...L.topsoil].map((h) => ({ ...h, w: h.w * 1.35, d: h.d * 1.35, h: 0.02, z: 0.04 }))} geo={g.apron} mat={mats.apron} shadow={false} receive={false} />
       <Inst items={L.stone} geo={g.heap} mat={mats.stone} receive={false} />
       <Inst items={L.sand} geo={g.heap} mat={mats.sand} receive={false} />
       <Inst items={L.topsoil} geo={g.heap} mat={mats.topsoil} receive={false} />

@@ -3,7 +3,7 @@ import { Suspense, useEffect, useMemo, useRef } from 'react'
 import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber'
 import { Environment } from '@react-three/drei'
 import { EffectComposer, Bloom, Vignette, Noise, ChromaticAberration, ToneMapping, FXAA, HueSaturation, BrightnessContrast } from '@react-three/postprocessing'
-import { BlendFunction, ToneMappingMode, type BloomEffect, type ChromaticAberrationEffect, type NoiseEffect, type VignetteEffect, type HueSaturationEffect } from 'postprocessing'
+import { BlendFunction, ToneMappingMode, type BloomEffect, type ChromaticAberrationEffect, type NoiseEffect, type VignetteEffect, type HueSaturationEffect, type BrightnessContrastEffect } from 'postprocessing'
 import { Ground } from './ground/Ground'
 import { Machines } from './Machines'
 import { Workers } from './Workers'
@@ -30,7 +30,7 @@ const SUN = sunDir(17, new THREE.Vector3())
 const HAZE = new THREE.Color('#b8c0c4')
 const HAZE_GOLD = new THREE.Color('#d9bfa0')
 const SUN_DAY = new THREE.Color('#ffe2c2')
-const SUN_GOLD = new THREE.Color('#ffc88e')
+const SUN_GOLD = new THREE.Color('#ffd7ab')
 const SKY_DAY = new THREE.Color('#cfe0f2')
 const SKY_GOLD = new THREE.Color('#8fb0e0')
 const NAVY = new THREE.Color('#041230')
@@ -112,6 +112,7 @@ function Post() {
   const noise = useRef<NoiseEffect>(null!)
   const vig = useRef<VignetteEffect>(null!)
   const hue = useRef<HueSaturationEffect>(null!)
+  const bc = useRef<BrightnessContrastEffect>(null!)
   const lensFx = useMemo(() => new LensEffect(), [])
   useFrame((state) => {
     const k = nervous.k
@@ -119,7 +120,8 @@ function Post() {
     const cam = ui.cam
     const feed = cam === 'drone' && !ui.heroFx ? 1 : 0.4
     // survey footage reads slightly desaturated with neutral whites, the hero shot keeps its warmth
-    if (hue.current) hue.current.saturation = ui.heroFx ? -0.06 : -0.16 + k * 0.16
+    if (hue.current) hue.current.saturation = ui.heroFx ? -0.12 : -0.16 + k * 0.16
+    if (bc.current) bc.current.contrast = ui.heroFx ? 0.18 : 0.12
     if (bloom.current) {
       // in daylight only beacons and glints bloom, the ground never does
       bloom.current.intensity = 0.25 + k * 1.7
@@ -139,7 +141,7 @@ function Post() {
       <ChromaticAberration ref={ca as never} offset={new THREE.Vector2(0.0009, 0.0006)} radialModulation modulationOffset={0.3} />
       <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
       <HueSaturation ref={hue as never} saturation={-0.16} />
-      <BrightnessContrast contrast={0.12} brightness={-0.02} />
+      <BrightnessContrast ref={bc as never} contrast={0.12} brightness={-0.02} />
       <Noise ref={noise as never} premultiply blendFunction={BlendFunction.OVERLAY} opacity={0.1} />
       <Vignette ref={vig as never} offset={0.22} darkness={0.7} />
       <FXAA />

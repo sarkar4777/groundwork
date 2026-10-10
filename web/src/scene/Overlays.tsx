@@ -73,6 +73,7 @@ function Roads({ site, depthTest, rev }: { site: SiteLayout; depthTest: boolean;
 }
 
 const ringGeo = new THREE.RingGeometry(0.965, 1, 96)
+const thinRingGeo = new THREE.RingGeometry(0.99, 1, 160)
 const discGeo = new THREE.CircleGeometry(1, 96)
 const ringMat = () => new THREE.MeshBasicMaterial({ color: COLORS.mint, transparent: true, opacity: 0.9, depthWrite: false, side: THREE.DoubleSide, toneMapped: false })
 
@@ -146,6 +147,9 @@ function CraneEnvelopes() {
     craneConflict.on = conflict
     craneConflict.dist = dist
     const t = performance.now()
+    // a machine stop owns the frame: the crane envelopes step back unless a crane is the one stopped
+    const machineStop = hot.curr?.safety.active_stops.some((s) => !/^(TC|MC)/i.test(s.machine)) && !conflict
+    g.current.visible = !machineStop
     g.current.children.forEach((child, i) => {
       const r = rigs[i]
       child.visible = !!r
@@ -159,7 +163,7 @@ function CraneEnvelopes() {
       const m = mats[i]
       const glow = conflict ? 1.8 + Math.sin(t / 120) * 0.6 : 1
       m.ring.color.set(conflict ? COLORS.red : COLORS.amber).multiplyScalar(glow)
-      m.ring.opacity = conflict ? 1 : 0.55
+      m.ring.opacity = conflict ? 1 : 0.45
       m.sector.color.set(conflict ? COLORS.red : COLORS.amber).multiplyScalar(glow)
       m.sector.opacity = conflict ? 0.32 : 0.14
     })
@@ -168,7 +172,7 @@ function CraneEnvelopes() {
     <group ref={g}>
       {mats.map((m, i) => (
         <group key={i}>
-          <mesh geometry={ringGeo} material={m.ring} rotation={[-Math.PI / 2, 0, 0]} renderOrder={4} />
+          <mesh geometry={thinRingGeo} material={m.ring} rotation={[-Math.PI / 2, 0, 0]} renderOrder={3} />
           <group rotation={[-Math.PI / 2, 0, 0]}>
             <mesh geometry={sectorGeo} material={m.sector} renderOrder={3} />
           </group>
