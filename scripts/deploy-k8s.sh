@@ -38,6 +38,9 @@ deploy() {
   say "applying deploy/k8s/groundwork.yaml"
   $K apply -f deploy/k8s/groundwork.yaml
   $K -n groundwork create secret generic groundwork-abenix --from-literal=api-key="$key" --dry-run=client -o yaml | $K apply -f -
+  # links from the ground station into Abenix, 3000 unless .env moves it
+  local web="${ABENIX_WEB_URL:-$(grep -s '^ABENIX_WEB_URL=' .env | cut -d= -f2- || true)}"
+  $K -n groundwork set env deploy/groundwork-bff ABENIX_WEB_URL="${web:-http://localhost:3000}" >/dev/null
   $K -n groundwork rollout restart deploy/groundwork-bff
   $K -n groundwork rollout status deploy/groundwork-bff --timeout=180s
   say "bff running in the cluster with a fixed 20 Hz step"

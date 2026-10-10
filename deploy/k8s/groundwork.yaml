@@ -26,7 +26,7 @@ spec:
           ports: [{containerPort: 8710, name: http}]
           env:
             - {name: ABENIX_URL, value: "http://abenix-api.abenix.svc.cluster.local:8000"}
-            - {name: ABENIX_WEB_URL, value: "http://localhost:3100"}
+            - {name: ABENIX_WEB_URL, value: "http://localhost:3000"}
             - {name: GW_RATE_HZ, value: "20"}
             - {name: GW_FIXED_TICKS, value: "5"}
             - name: ABENIX_API_KEY

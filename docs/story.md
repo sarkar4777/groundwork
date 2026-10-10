@@ -1,6 +1,6 @@
 # Story mode
 
-The 60 second day from PLAN.md section 13, played by the app itself. Press Play the story on the start screen, or `POST /story/start`.
+The 60 second day, played by the app itself. Press Play the story on the start screen, or `POST /story/start`.
 
 ## How a take works
 
@@ -41,4 +41,4 @@ The twin itself is never cached. In every take the excavator's stop, the crane's
 
 ## The autonomy beat, honestly
 
-PLAN.md has the Dispatcher climbing a level in the video. A promotion in Abenix needs 20 reviews with enough agreement and a person who did not build the agent. Groundwork never fakes that. The beat shows the Dispatcher's real level and what it still needs. Run the site for a while, answer the Dispatcher's reviews in Abenix, approve the promotion, then record the story again and the beat shows the new level.
+The story never shows a promotion that did not happen. A promotion in Abenix needs 20 reviews with enough agreement and a person who did not build the agent. Groundwork never fakes that. The beat shows the Dispatcher's real level and what it still needs. Run the site for a while, answer the Dispatcher's reviews in Abenix, approve the promotion, then record the story again and the beat shows the new level.

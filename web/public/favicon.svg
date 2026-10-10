@@ -1,1 +1,40 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="#0a2a5e"/><path d="M6 22 L13 10 L18 18 L21 14 L26 22 Z" fill="none" stroke="#5cc8ff" stroke-width="2.2" stroke-linejoin="round"/><circle cx="23" cy="9" r="2.4" fill="#ffb020"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Groundwork">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0d3b7a"/>
+      <stop offset="0.55" stop-color="#0a2a5e"/>
+      <stop offset="1" stop-color="#04122b"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.72" cy="0.22" r="0.6">
+      <stop offset="0" stop-color="#5cc8ff" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#5cc8ff" stop-opacity="0"/>
+    </radialGradient>
+    <clipPath id="tile"><rect width="512" height="512" rx="112"/></clipPath>
+  </defs>
+  <g clip-path="url(#tile)">
+    <rect width="512" height="512" fill="url(#bg)"/>
+    <rect width="512" height="512" fill="url(#glow)"/>
+    <!-- survey contours, the ground seen from the drone -->
+    <path d="M-20 392 C 80 352, 170 410, 270 378 S 450 330, 540 362" fill="none" stroke="#5cc8ff" stroke-opacity="0.9" stroke-width="10" stroke-linecap="round"/>
+    <path d="M-20 432 C 90 398, 190 452, 300 420 S 460 380, 540 404" fill="none" stroke="#5cc8ff" stroke-opacity="0.55" stroke-width="8" stroke-linecap="round"/>
+    <path d="M-20 470 C 100 440, 210 490, 320 462 S 470 426, 540 446" fill="none" stroke="#5cc8ff" stroke-opacity="0.3" stroke-width="6" stroke-linecap="round"/>
+    <!-- tower crane -->
+    <g stroke="#e8f6ff" stroke-linecap="round" stroke-linejoin="round" fill="none">
+      <path d="M184 380 V 150 M222 380 V 150" stroke-width="10"/>
+      <path d="M184 372 L 222 334 L 184 296 L 222 258 L 184 220 L 222 182 L 184 150" stroke-width="6" stroke-opacity="0.8"/>
+      <path d="M112 150 H 424" stroke-width="16"/>
+      <path d="M203 150 V 92 M203 92 L 124 150 M203 92 L 400 150" stroke-width="6" stroke-opacity="0.85"/>
+      <path d="M166 380 H 240" stroke-width="12"/>
+    </g>
+    <rect x="114" y="158" width="48" height="34" rx="6" fill="#c9ecff"/>
+    <!-- hook and load -->
+    <path d="M352 158 V 262" stroke="#ffb020" stroke-width="6" stroke-linecap="round"/>
+    <rect x="322" y="262" width="60" height="40" rx="7" fill="#ffb020"/>
+    <rect x="322" y="262" width="60" height="12" rx="6" fill="#ffd27a"/>
+    <circle cx="352" cy="158" r="9" fill="#ffb020"/>
+    <!-- live dot -->
+    <circle cx="420" cy="92" r="16" fill="#3ee6a8"/>
+    <circle cx="420" cy="92" r="28" fill="none" stroke="#3ee6a8" stroke-opacity="0.45" stroke-width="5"/>
+  </g>
+  <rect x="2" y="2" width="508" height="508" rx="110" fill="none" stroke="#78b4ff" stroke-opacity="0.25" stroke-width="4"/>
+</svg>

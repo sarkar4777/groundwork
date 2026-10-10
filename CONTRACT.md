@@ -2,7 +2,7 @@
 
 The single source both halves of the build follow. Change it only by agreement, and say so in the change.
 
-Groundwork is an open-source showcase: an autonomous construction site, Northgate Yard, run by Abenix. It is a separate project from Abenix and talks to it only through the public API and the Python SDK, the way any customer would. The full plan is `PLAN.md`.
+Groundwork is an open-source showcase: an autonomous construction site, Northgate Yard, run by Abenix. It is a separate project from Abenix and talks to it only through the public API and the Python SDK, the way any customer would.
 
 ## Layout
 
