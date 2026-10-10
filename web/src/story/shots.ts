@@ -16,11 +16,11 @@ export const BEATS: Beat[] = [
   { from: 9, to: 14, name: 'replan', mode: 'drone', focus: 'phone' },
   { from: 14, to: 21, name: 'nervous', mode: 'nervous', focus: 'latency' },
   { from: 21, to: 28, name: 'gust', mode: 'drone', focus: 'gust' },
-  { from: 28, to: 33, name: 'aioff', mode: 'drone', focus: 'aioff' },
-  { from: 33, to: 41.5, name: 'platform', mode: 'drone' },
-  { from: 41.5, to: 46, name: 'newmachine', mode: 'drone', focus: 'code' },
-  { from: 46, to: 52, name: 'autonomy', mode: 'drone', focus: 'autonomy' },
-  { from: 52, to: 61, name: 'end', mode: 'orbit', focus: 'endcard' },
+  { from: 28, to: 32.1, name: 'aioff', mode: 'drone', focus: 'aioff' },
+  { from: 32.1, to: 46.5, name: 'platform', mode: 'drone' },
+  { from: 46.5, to: 51.1, name: 'newmachine', mode: 'drone', focus: 'code' },
+  { from: 51.1, to: 55.6, name: 'autonomy', mode: 'drone', focus: 'autonomy' },
+  { from: 55.6, to: 61, name: 'end', mode: 'orbit', focus: 'endcard' },
 ]
 
 export const beatAt = (s: number): Beat => BEATS.find((b) => s >= b.from && s < b.to) ?? BEATS[BEATS.length - 1]
@@ -98,7 +98,7 @@ export function storyShot(s: number, pose: Pose, t: number): { name: string; mod
       break
     default:
       // the establishing shot: high oblique, slow orbit, the far blocks soft in the haze
-      orbitPose(pose, 175 + u * 20, 118 + u * 10, 2.32 + (s - 52) * 0.02, new THREE.Vector3(0, 0, 0))
+      orbitPose(pose, 175 + u * 20, 118 + u * 10, 2.32 + (s - b.from) * 0.02, new THREE.Vector3(0, 0, 0))
       pose.fov = 36
   }
   return { name: b.name, mode: b.mode }

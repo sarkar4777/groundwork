@@ -83,11 +83,11 @@ const EDIT = [
   [9.4, 14],
   [15, 20],
   [22, 27],
-  [28.6, 33],
-  [33, 41.5],
-  [41.5, 46],
-  [46.2, 51.4],
-  [52, 57.4],
+  [28.5, 32.1],
+  [32.1, 46.5],
+  [46.5, 51.1],
+  [51.1, 55.6],
+  [55.6, 59.8],
 ]
 
 const BS = String.fromCharCode(92)
@@ -152,7 +152,7 @@ async function recordStory(page, tag, withShots) {
     await clean(true)
     await shot(page, '02-nervous-system.png')
     await clean(false)
-    await waitStory(page, 48.5)
+    await waitStory(page, 53.5)
     await shot(page, '08-earned-autonomy.png', '.sc-auto')
   }
 

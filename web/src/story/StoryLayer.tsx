@@ -26,6 +26,8 @@ function simNow() {
   return hot.curr ? hot.curr.t + (performance.now() - hot.currAt) / 1000 : 0
 }
 
+const BEAT_CAPTION: Record<string, number> = { hero: 0, stop: 1, replan: 2, nervous: 3, gust: 4, aioff: 5, newmachine: 6, autonomy: 7 }
+
 export function Captions() {
   const cap = useUi((s) => s.caption)
   const platform = useUi((s) => s.storyBeat === 'platform')
@@ -34,7 +36,23 @@ export function Captions() {
     const id = setInterval(() => tick((x) => x + 1), 200)
     return () => clearInterval(id)
   }, [])
+  const log = useUi((s) => s.captionLog)
+  const running = useUi((s) => s.story.running)
+  const beatName = useUi((s) => s.storyBeat)
   if (!cap || platform) return null
+  // in the story each beat shows its own line, in the bff's order, whatever the clock says
+  const idx = BEAT_CAPTION[beatName]
+  if (running && idx !== undefined) {
+    const sorted = [...log].sort((a, b) => a.t - b.t)
+    const line = sorted[idx]
+    if (!line) return null
+    return (
+      <div className="captions" aria-live="polite">
+        <div className="caption" key={line.t}>{highlight(twoLines(line.text))}</div>
+      </div>
+    )
+  }
+  if (running && beatName === 'end') return null
   const now = simNow()
   if (now > cap.until + 0.05 || now < cap.t - 1) return null
   const lines = twoLines(cap.text)
@@ -114,7 +132,7 @@ export function StoryLayer() {
   }, [s, running, recorded])
   const beat = beatAt(s)
   const f = beat.focus
-  const end = running && f === 'endcard' && s > 52.8
+  const end = running && f === 'endcard' && s > beat.from + 0.3
   useEffect(() => {
     document.body.dataset.endcard = end ? '1' : '0'
   }, [end])
