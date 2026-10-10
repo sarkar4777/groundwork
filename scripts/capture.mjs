@@ -84,7 +84,7 @@ const EDIT = [
   [15, 20],
   [22, 27],
   [28.6, 34.4],
-  [37, 43],
+  [39.1, 43.9],
   [45, 51],
   [52, 56],
 ]
@@ -182,7 +182,8 @@ async function recordStory(page, tag, withShots) {
   const cues = []
   let out = 0
   for (const [a, b] of EDIT) {
-    const text = captionAt((a + b) / 2 + 0.5)
+    // the title card carries the last line, so it gets no cue
+    const text = a === EDIT[EDIT.length - 1][0] ? '' : captionAt((a + b) / 2 + 0.5)
     const last = cues[cues.length - 1]
     if (last && last.text === text) last.end = out + (b - a)
     else if (text) cues.push({ text, start: out, end: out + (b - a) })

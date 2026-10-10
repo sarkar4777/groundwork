@@ -93,7 +93,7 @@ function heapGeometry() {
     const a = Math.atan2(z, x)
     const k = 1 + 0.1 * Math.sin(a * 3 + 1) + 0.06 * Math.sin(a * 7) + 0.03 * Math.sin(a * 13 + 2)
     const t = Math.min(1, y)
-    const lump = (Math.sin(x * 9.1 + z * 4.3) * Math.cos(z * 8.7 - x * 3.1) * 0.5 + Math.sin(x * 23.0 + z * 19.0) * 0.25) * 0.05 * Math.sin(t * Math.PI)
+    const lump = Math.sin(x * 5.1 + z * 2.3) * Math.cos(z * 4.7 - x * 1.9) * 0.035 * Math.sin(t * Math.PI)
     const h = Math.pow(t, 1.3) + lump
     const r = 1 + lump * 0.6
     p.setXYZ(i, x * k * r, h - 0.5, z * k * r)
@@ -138,7 +138,7 @@ const mats = {
   foot: new THREE.MeshStandardMaterial({ color: '#2a2d31', roughness: 0.8 }),
   car: new THREE.MeshStandardMaterial({ roughness: 0.5, metalness: 0.25, envMapIntensity: 0.6 }),
 }
-for (const k of ['sand', 'stone', 'topsoil'] as const) worldMapped(mats[k], k === 'topsoil' ? 5 : 2.2)
+for (const k of ['sand', 'stone', 'topsoil'] as const) worldMapped(mats[k], k === 'topsoil' ? 14 : k === 'sand' ? 8 : 18)
 dimWithNervous(...Object.values(mats).filter((m): m is THREE.MeshStandardMaterial => m instanceof THREE.MeshStandardMaterial))
 
 // Tile the map by world position so a stockpile has no cone seams.
@@ -153,9 +153,8 @@ function worldMapped(m: THREE.MeshStandardMaterial, metres: number) {
       .replace('#include <common>', '#include <common>\nvarying vec3 vMW;\nvarying float vH;\nuniform float uMetres;')
       .replace(
         '#include <map_fragment>',
-        `vec3 tA = texture2D(map, vMW.xz / uMetres + vMW.y * 0.11).rgb;
-vec3 tB = texture2D(map, vMW.zx / (uMetres * 0.37) + 0.5).rgb;
-vec3 agg = mix(tA, tB, 0.35) * mix(0.82, 1.08, smoothstep(0.0, 0.5, vH));
+        `vec3 agg = texture2D(map, vMW.xz / uMetres + vMW.y * 0.05).rgb;
+agg = mix(vec3(dot(agg, vec3(0.333))), agg, 0.7) * mix(0.84, 1.06, smoothstep(0.0, 0.5, vH));
 agg *= mix(0.78, 1.0, smoothstep(0.0, 0.12, vH));
 diffuseColor.rgb *= agg;`,
       )

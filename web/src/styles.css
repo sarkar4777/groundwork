@@ -516,3 +516,5 @@ body[data-endcard='1'] .story-chip, body[data-endcard='1'] .hud { display: none;
 }
 
 body.capture .story-chip { display: none !important; }
+
+body[data-beat='end'] .captions { display: none; }
