@@ -2,10 +2,13 @@
 """Fetch the real drone imagery Groundwork can render on, and prepare it for the web.
 
     pip install -r scripts/requirements-real.txt
-    python scripts/fetch-real-imagery.py            # download, verify, prepare
-    python scripts/fetch-real-imagery.py --check    # verify what is already on disk
+    python scripts/fetch-real-imagery.py                    # tiles from the release, or the sources prepared here
+    python scripts/fetch-real-imagery.py --sources          # skip the release, download and prepare the sources
+    python scripts/fetch-real-imagery.py --only caliterra   # one site, here the 77 photos for scripts/reconstruct.py
+    python scripts/fetch-real-imagery.py --check            # verify what is already on disk
 
-Nothing here is committed. Sources land in data/real/src, prepared tiles in data/real/<site>.
+Nothing here is committed. Sources land in data/real/src, prepared tiles in data/real/<site>. The release is
+made by scripts/publish-real-assets.py, every file in it is checked against its manifest SHA-256.
 See docs/real-imagery.md for the licences and why this site.
 """
 
@@ -20,6 +23,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "data" / "real"
+RELEASE = "https://github.com/sarkar4777/groundwork/releases/download/real-assets-v1"
+PHOTO_SETS = {
+    # CC0 1.0, credit not required, kept as the reconstruction test set
+    "caliterra": ROOT / "scripts" / "real-sources" / "caliterra.json",
+}
 
 SOURCES = {
     "nh108": {
@@ -40,6 +48,8 @@ SOURCES = {
         "aoi": [4600, 6900, 12800, 11900],
         # where the twin's EX1 works, in source pixels
         "anchor": [10976, 10232],
+        # source pixels around the real excavator in the middle of the floor
+        "scale_patch": [8100, 9650, 10100, 10850],
         # three machines parked on site that day, one with a maker's logo, and their shadows
         # [x0, y0, x1, y1, donor dx, donor dy] in source pixels
         "retouch": [
@@ -122,6 +132,9 @@ def prepare(key: str, src: dict, path: Path) -> None:
         tf = d.transform
         x0, y0, x1, y1 = src["aoi"]
         detail = np.moveaxis(d.read([1, 2, 3], window=Window(x0, y0, x1 - x0, y1 - y0)), 0, -1).copy()
+        # an untouched patch around a real excavator, for checking the 3D machines' scale against it
+        sc = src.get("scale_patch")
+        scale_px = np.moveaxis(d.read([1, 2, 3], window=Window(sc[0], sc[1], sc[2] - sc[0], sc[3] - sc[1])), 0, -1).copy() if sc else None
         sw, sh = d.width // 4, d.height // 4
         surround = np.moveaxis(d.read([1, 2, 3], out_shape=(3, sh, sw)), 0, -1).copy()
         mask_valid = d.read_masks(1, out_shape=(sh, sw))
@@ -152,6 +165,8 @@ def prepare(key: str, src: dict, path: Path) -> None:
     surround[sy0 : sy0 + small.shape[0], sx0 : sx0 + small.shape[1]] = small
     surround[mask_valid == 0] = (58, 66, 52)
     Image.fromarray(detail).save(out / "detail.jpg", quality=90, optimize=True)
+    if scale_px is not None:
+        Image.fromarray(scale_px).save(out / "scale.jpg", quality=92)
     Image.fromarray(surround).save(out / "surround.jpg", quality=88, optimize=True)
 
     t0, t1 = (datetime.fromisoformat(s.replace("Z", "+00:00")) for s in src["capture_utc"])
@@ -179,6 +194,7 @@ def prepare(key: str, src: dict, path: Path) -> None:
         # west, south, east, north in metres from the anchor, east and north positive
         "detail": {"file": "detail.jpg", "rect": rect(x0, y0, x1, y1), "px": [x1 - x0, y1 - y0]},
         "surround": {"file": "surround.jpg", "rect": rect(0, 0, sw * 4, sh * 4), "px": [sw, sh]},
+        **({"scale_patch": {"file": "scale.jpg", "rect": rect(*src["scale_patch"]), "note": "untouched, a real excavator at work"}} if src.get("scale_patch") else {}),
         "bounds_utm": [b.left, b.bottom, b.right, b.top],
         "sun": {
             "azimuth_deg": round(az, 2),
@@ -194,10 +210,63 @@ def prepare(key: str, src: dict, path: Path) -> None:
     print(f"{key}: detail {x1 - x0}x{y1 - y0} at {res:.4f} m, surround {sw}x{sh}, sun az {az:.1f} el {el:.1f} at {meta['sun']['at_utc']}")
 
 
+def get(url: str, dst: Path) -> None:
+    req = urllib.request.Request(url, headers={"User-Agent": "groundwork-fetch/1.0"})
+    tmp = dst.with_suffix(dst.suffix + ".part")
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    with urllib.request.urlopen(req, timeout=120) as r, tmp.open("wb") as f:
+        while chunk := r.read(1 << 20):
+            f.write(chunk)
+    tmp.replace(dst)
+
+
+def from_release(site: str, base: str) -> bool:
+    """Prepared tiles from a release made by publish-real-assets.py. False when there is none yet."""
+    try:
+        req = urllib.request.Request(f"{base}/manifest.json", headers={"User-Agent": "groundwork-fetch/1.0"})
+        man = json.loads(urllib.request.urlopen(req, timeout=30).read())
+    except Exception as e:  # noqa: BLE001
+        print(f"{site}: no release at {base} ({str(e)[:80]}), using the original sources")
+        return False
+    files = [f for f in man.get("files", []) if f["site"] == site]
+    if not files:
+        print(f"{site}: the release has no files for this site, using the original sources")
+        return False
+    for f in files:
+        dst = OUT / site / f["path"]
+        if dst.exists() and sha256(dst) == f["sha256"]:
+            continue
+        get(f"{base}/{f['name']}", dst)
+        if sha256(dst) != f["sha256"]:
+            dst.unlink()
+            sys.exit(f"{site}: checksum mismatch on {f['name']} from the release")
+    print(f"{site}: {len(files)} files from {base}, checksums ok")
+    return True
+
+
+def fetch_photos(site: str, listing: Path) -> None:
+    """A photo set for scripts/reconstruct.py, pinned to one commit, each photo checked."""
+    spec = json.loads(listing.read_text())
+    dst = OUT / site / "photos"
+    dst.mkdir(parents=True, exist_ok=True)
+    got = 0
+    for name, size, digest in spec["files"]:
+        p = dst / name
+        if not (p.exists() and p.stat().st_size == size and sha256(p) == digest):
+            get(f"https://raw.githubusercontent.com/{spec['repo']}/{spec['commit']}/{spec['path']}/{name}", p)
+            if sha256(p) != digest:
+                p.unlink()
+                sys.exit(f"{site}: checksum mismatch on {name}")
+            got += 1
+    print(f"{site}: {len(spec['files'])} photos in {dst}, {got} downloaded, checksums ok")
+
+
 def main() -> None:
-    ap = argparse.ArgumentParser()
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--check", action="store_true")
     ap.add_argument("--only", default="")
+    ap.add_argument("--sources", action="store_true", help="skip the release, prepare from the original sources")
+    ap.add_argument("--release", default=RELEASE, help="where publish-real-assets.py output was uploaded")
     a = ap.parse_args()
     for key, src in SOURCES.items():
         if a.only and key != a.only:
@@ -205,9 +274,23 @@ def main() -> None:
         if a.check:
             p = OUT / "src" / f"{key}.tif"
             ok = p.exists() and sha256(p) == src["sha256"]
-            print(f"{key}: {'ok' if ok else 'missing or changed'}")
+            print(f"{key}: source {'ok' if ok else 'missing or changed'}")
+            continue
+        if not a.sources and from_release(key, a.release.rstrip("/")):
             continue
         prepare(key, src, fetch(key, src))
+    for key, listing in PHOTO_SETS.items():
+        if a.only and key != a.only:
+            continue
+        if a.check:
+            spec = json.loads(listing.read_text())
+            bad = [n for n, size, d in spec["files"] if not ((OUT / key / "photos" / n).exists() and sha256(OUT / key / "photos" / n) == d)]
+            print(f"{key}: {len(spec['files']) - len(bad)} of {len(spec['files'])} photos ok")
+            continue
+        if not a.only:
+            # the photo set is only needed to run the reconstruction, ask for it by name
+            continue
+        fetch_photos(key, listing)
 
 
 if __name__ == "__main__":

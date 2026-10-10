@@ -118,7 +118,7 @@ export class Playback {
   }
 
   site() {
-    return this.take.site_story ?? this.take.site
+    return this.inStory() ? (this.take.site_story ?? this.take.site) : this.take.site
   }
 
   agents() {

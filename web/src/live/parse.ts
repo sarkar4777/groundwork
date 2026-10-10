@@ -132,6 +132,7 @@ export function parseSite(j: Json): SiteLayout {
     designDepth,
     piles: Array.isArray(j.piles) ? (j.piles as unknown[]).filter(Array.isArray).map((p) => [Number((p as number[])[0]), Number((p as number[])[1])] as Vec2) : [],
     swingRadius: swingRadius || 9.8,
+    imagery: isObj(j.imagery) && typeof j.imagery.site === 'string' ? { site: j.imagery.site, kind: String(j.imagery.kind ?? 'orthophoto') } : null,
   }
 }
 

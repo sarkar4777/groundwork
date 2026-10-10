@@ -202,6 +202,7 @@ export function OpeningTitle() {
         <h1>{TITLE}</h1>
         <p>{SUBTITLE}</p>
         <div className="line2">{ECOSYSTEM}</div>
+        <RealLine />
       </div>
     </div>
   )
@@ -219,8 +220,26 @@ export function StoryEnd({ show }: { show: boolean }) {
       </div>
       <div className="credits">
         <span>Built on Abenix · open source, MIT</span>
+        <RealLine />
         <span className="mono">{repo}</span>
       </div>
+    </div>
+  )
+}
+
+// On real ground the film says what is a photograph and what is the twin.
+function RealLine() {
+  const rg = useUi((s) => s.realGround)
+  if (!rg) return null
+  return <span className="real-line">Real drone orthophoto: {rg.attribution}. Machines, people and every number simulated by the twin in Abenix.</span>
+}
+
+export function RealCredit() {
+  const rg = useUi((s) => s.realGround)
+  if (!rg) return null
+  return (
+    <div className="real-credit" aria-label="Imagery credit">
+      <b>REAL</b> drone orthophoto, {rg.attribution} · <b className="sim">SIMULATED</b> machines and people
     </div>
   )
 }

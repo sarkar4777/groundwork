@@ -1,5 +1,6 @@
 import type { AgentFrame, BusFrame, EventFrame, FaultKind, Frame, StateFrame } from '../proto/types'
 import { PLAYBACK, REPLAY, SIM_HTTP, wsUrl } from './config'
+import { syncReal } from '../real/realSite'
 import { hot } from './hot'
 import { trackLatency } from './latency'
 import { parseAgents, parseSite, parseTerrain } from './parse'
@@ -237,7 +238,11 @@ function onEvent(e: EventFrame) {
     if (/finish|end|stop/i.test(e.title) && PLAYBACK) {
       /* the render decides where the film ends */
     } else if (/finish|end|stop/i.test(e.title)) useUi.setState((s) => (performance.now() - s.story.startedAt < 4000 ? s : { story: { ...s.story, running: false } }))
-    else if (/start/i.test(e.title)) useUi.setState((s) => ({ opening: false, story: { ...s.story, running: true, t0: e.t, startedAt: performance.now(), recorded: e.recorded === true }, captionLog: [] }))
+    else if (/start/i.test(e.title)) {
+      // a story may run on another layout, so the site is read again
+      loadSite()
+      useUi.setState((s) => ({ opening: false, story: { ...s.story, running: true, t0: e.t, startedAt: performance.now(), recorded: e.recorded === true }, captionLog: [] }))
+    }
   }
 }
 
@@ -303,6 +308,7 @@ async function loadSite() {
     hot.site = replay ? (j as typeof hot.site) : parseSite(j as Record<string, unknown>)
     hot.siteVersion++
     useUi.setState({ siteError: null, siteVersion: hot.siteVersion })
+    await syncReal()
   } catch (e) {
     useUi.setState({ siteError: String(e instanceof Error ? e.message : e) })
   }

@@ -18,6 +18,7 @@ import { CAPTURE, RENDER } from '../live/config'
 import { HIGH } from '../live/quality'
 import { ContactShadows } from './ContactShadows'
 import { LensEffect, lens } from './LensEffect'
+import { RealGround, RealLights, RealPost } from '../real/RealScene'
 
 const DEBUG = new URLSearchParams(location.search).get('debug') ?? ''
 // Late afternoon from the west-south-west. The survey feed holds the sun at 17 degrees, the hero drops it to 11.
@@ -230,6 +231,7 @@ function hoverGround(e: ThreeEvent<PointerEvent>) {
 }
 
 export function Scene() {
+  const realG = useUi((s) => !!s.realGround)
   return (
     <Canvas
       shadows={DEBUG.includes('noshadow') ? false : { type: HIGH || DEBUG.includes('soft') ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap }}
@@ -242,18 +244,16 @@ export function Scene() {
     >
       <Suspense fallback={null}>
         <Environment files="/assets/hdri/kloofendal_48d_partly_cloudy_puresky_1k.hdr" background environmentIntensity={0.75} />
-        <Lights />
-        <Horizon />
-        <group onPointerMove={hoverGround}>
-          <Ground />
-        </group>
+        {realG ? <RealLights /> : <Lights />}
+        {!realG && <Horizon />}
+        <group onPointerMove={hoverGround}>{realG ? <RealGround /> : <Ground />}</group>
         {!DEBUG.includes('nomachines') && <Machines />}
         <ContactShadows />
         {!DEBUG.includes('noworkers') && <Workers />}
         <Overlays />
         <Nervous />
         <Prewarm />
-        {!DEBUG.includes('nopost') && <Post />}
+        {!DEBUG.includes('nopost') && (realG ? <RealPost composerRef={composerRef} /> : <Post />)}
       </Suspense>
       <CameraRig />
       <LabelProjector />

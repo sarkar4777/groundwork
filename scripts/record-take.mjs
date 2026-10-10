@@ -23,6 +23,8 @@ const PRE = Number(opt('--pre', '8'))
 const POST = Number(opt('--post', '8'))
 // --free 45 records the running site for 45 s and starts no story
 const FREE = Number(opt('--free', '0'))
+// --site nh108 runs the story on the real-site layout, the bff's own default otherwise
+const SITE = opt('--site', '')
 const log = (...a) => console.log('[take]', ...a)
 
 const get = async (path, tries = 5) => {
@@ -108,7 +110,7 @@ if (FREE > 0) {
 }
 log('recording pre-roll', PRE, 's')
 await new Promise((r) => setTimeout(r, PRE * 1000))
-const r = await fetch(BFF + '/story/start', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' })
+const r = await fetch(BFF + '/story/start', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(SITE ? { site: SITE } : {}) })
 log('story/start', r.status, await r.text())
 const deadline = Date.now() + 150000
 while (Date.now() < deadline) {

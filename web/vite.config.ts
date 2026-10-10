@@ -22,6 +22,8 @@ function realImagery(): Plugin {
     }
     res.setHeader('content-type', types[extname(file)] ?? 'application/octet-stream')
     res.setHeader('cache-control', 'no-cache')
+    // the splat loader sizes its buffer from this
+    res.setHeader('content-length', String(statSync(file).size))
     createReadStream(file).pipe(res)
   }
   return {

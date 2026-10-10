@@ -56,11 +56,21 @@ Inter and JetBrains Mono load from Google Fonts at runtime under the SIL Open Fo
 |---|---|---|---|
 | Proof site orthophoto, `data/real/src/nh108.tif` and the tiles made from it | https://map.openaerialmap.org/#/-70.9315,43.0419,18/square/0320010023/65088140f17ffb0001796e73 (file https://oin-hotosm-temp.s3.us-east-1.amazonaws.com/65088140f17ffb0001796e72/0/65088140f17ffb0001796e73.tif, SHA-256 cc0167b362f338695cd401f4be4a0948e531274ebe18956cac6bb2d4c87c1776) | CC BY 4.0, https://creativecommons.org/licenses/by/4.0/ | Orthophoto © Craig Goodspeed, via OpenAerialMap (Open Imagery Network), CC BY 4.0. Changes: cropped, reprojected to a local grid, three parked machines retouched out |
 
-Shortlisted for phase 2, not fetched yet:
+| Reconstruction test set, `data/real/caliterra/photos` (77 photos) and everything made from them | https://github.com/OpenDroneMap/odm_data_caliterra at commit bec3dc7296e90aacb3930eb9df8061849fbfe0d0, per-photo SHA-256 in `scripts/real-sources/caliterra.json` | CC0 1.0, `license.html` in the repo | Aerial photos of Caliterra, Dennis Baldwin, CC0 1.0 (credit not required, given anyway) |
+
+Tools the reconstruction runs, downloaded or pulled, never shipped:
+
+| Tool | Source | Licence |
+|---|---|---|
+| OpenDroneMap, Docker image `opendronemap/odm` | https://github.com/OpenDroneMap/ODM | AGPL-3.0, run as a separate program, none of its code is in Groundwork |
+| Brush 0.3.0, Windows build, `data/tools/brush` | https://github.com/ArthurBrussee/brush/releases/tag/v0.3.0, SHA-256 b68e3e9cf052d51bf3ee30776fa5a364de7f2ba13b58443128ff797bb7bcfcd6 | Apache-2.0 |
+
+The photographic machines on real ground are built in code in `web/src/scene/hd`, from parametric parts with PBR materials and wear worked out in the shader. They use no downloaded models or textures, so they add no entries here.
+
+Shortlisted, not fetched yet:
 
 | Use | Source | Licence | Attribution |
 |---|---|---|---|
 | Opening drone video | https://commons.wikimedia.org/wiki/File:Cerro_Armazones_drone_footage.webm | CC BY 4.0 | G. Hüdepohl (atacamaphoto.com)/ESO |
-| Photo set for reconstruction, fallback site | https://github.com/OpenDroneMap/odm_data_caliterra | CC0 1.0 | Aerial photos of Caliterra, Dennis Baldwin (credit not required) |
 | Context orthophoto, surface and buildings | https://www.swisstopo.admin.ch/en/orthoimage-swissimage-10 | swisstopo free geodata terms | © swisstopo |
 | Context orthophoto | https://www.pdok.nl/introductie/-/article/pdok-luchtfoto-rgb-open- | CC BY 4.0 | Luchtfoto © Beeldmateriaal Nederland, via PDOK, CC BY 4.0 |

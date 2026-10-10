@@ -222,9 +222,13 @@ class Engine:
             self.queue("rules", changed)
         self.last_rules_check = time.monotonic()
 
-    async def init_twin(self, seed: int) -> None:
+    async def init_twin(self, seed: int, site: str | None = None) -> None:
         self.epoch += 1
-        out = await self.twin({"op": "init", "seed": seed}, 300)
+        site = site or self.cfg.get("site") or "northgate"
+        req = {"op": "init", "seed": seed}
+        if site != "northgate":
+            req["layout"] = site
+        out = await self.twin(req, 300)
         self.state_z = out["state_z"]
         self.site = out.get("site")
         self.terrain_cache = {}

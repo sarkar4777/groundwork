@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import type { CamMode } from '../live/store'
 import { hot } from '../live/hot'
 import { dronePose, orbitPose } from '../scene/CameraRig'
+import { useUi } from '../live/store'
 
 interface Pose { pos: THREE.Vector3; look: THREE.Vector3; fov: number }
 
@@ -42,9 +43,53 @@ function siteFocus(): { x: number; y: number } {
 const clampSite = (v: number) => Math.max(-70, Math.min(70, v))
 const tmp: Pose = { pos: new THREE.Vector3(), look: new THREE.Vector3(), fov: 40 }
 
+// The middle of the work: pit, spoil and laydown together.
+function workCentre(): { x: number; y: number } {
+  const zs = hot.site?.zones.filter((z) => /excavation|spoil|laydown/.test(z.kind)) ?? []
+  const pts = zs.flatMap((z) => z.polygon)
+  if (!pts.length) return siteFocus()
+  const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1])
+  return { x: (Math.min(...xs) + Math.max(...xs)) / 2, y: (Math.min(...ys) + Math.max(...ys)) / 2 }
+}
+
+function orbitAround(out: Pose, c: { x: number; y: number }, r: number, h: number, ang: number, fov: number) {
+  out.pos.set(c.x + Math.cos(ang) * r, h, -c.y + Math.sin(ang) * r)
+  out.look.set(c.x, 0, -c.y)
+  out.fov = fov
+}
+
+// On a real orthophoto the ground is a flat photograph, so every shot stays steep: near nadir or high angle,
+// never the low oblique that would show the flatness.
+function realShot(b: Beat, s: number, u: number, pose: Pose, t: number) {
+  const c = workCentre()
+  switch (b.name) {
+    case 'hero': {
+      const d = siteFocus()
+      const k = ease((s - b.from) / 4.2)
+      dronePose(pose, c.x - 10 + (d.x + 6 - c.x + 10) * k, c.y + 6 + (d.y - 4 - c.y - 6) * k, 175 - 45 * k, t, -76 - 10 * k, 46 - 4 * k)
+      return true
+    }
+    case 'nervous':
+      orbitAround(pose, c, 120 - u * 20, 165 - u * 15, 0.6 + u * 0.5, 50)
+      pose.look.y = 20
+      return true
+    case 'aioff':
+      dronePose(pose, c.x + 10, c.y - 4, 120 - u * 15, t, -88, 52)
+      return true
+    case 'autonomy':
+      dronePose(pose, c.x + 8, c.y, 125, t, -86, 50)
+      return true
+    case 'end':
+      orbitAround(pose, c, 58 + u * 6, 132 + u * 6, 2.1 + (s - b.from) * 0.025, 44)
+      return true
+  }
+  return false
+}
+
 export function storyShot(s: number, pose: Pose, t: number): { name: string; mode: CamMode } {
   const b = beatAt(s)
   const u = ease((s - b.from) / (b.to - b.from))
+  if (useUi.getState().realGround && realShot(b, s, u, pose, t)) return { name: b.name, mode: b.mode }
   switch (b.name) {
     case 'hero': {
       // a slow descending push-in: golden-hour oblique over the city, settling near nadir above the dig

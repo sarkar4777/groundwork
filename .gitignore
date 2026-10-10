@@ -14,3 +14,5 @@ docs/media/*.mp4
 docs/media/*.webm
 PLAN.md
 data/real/
+data/tools/
+dist/

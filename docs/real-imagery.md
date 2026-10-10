@@ -81,12 +81,74 @@ The twin queues trucks closer than the 3D model is long. On the textured site th
 
 `docs/media/groundwork-real-proof-1920x1080.mp4`, 30 s at 60 fps, 1799 frames, every one unique. Rendered with the same frame-stepped capture as the story film from a recorded live take of the bff (`.run/take-free.json`). A slow near-nadir push-in from 64 m to 30 m with the drone-feed lens, grain and HUD. The bottom plate labels the photo as real with its credit and the machines as simulated.
 
-## What phase 2 would do
+## Phase 2
 
-1. Get the photos. Ask Craig Goodspeed for the NH108 photo set and permission under CC BY 4.0, or fly a capture of our own. Without photos there is no surface model.
-2. Reconstruct with OpenDroneMap: orthophoto, DSM, textured mesh. Train a Gaussian splat from the same photos for the low oblique views.
-3. Drive the twin's terrain from the DSM, so machines sit on the real spoil heaps and the cut faces cast real occlusion.
-4. Redraw the twin's site layout on the real ground: haul roads on the real tracks, the pit on the real cut, spoil where the real spoil is. That is a bff change.
-5. Replace the parametric machines in close shots with higher detail CC0 models. Next to photographic ground they are now the weakest part of the frame.
-6. Match-move the ESO Armazones opening with our machines composited in, then run the computer vision in Abenix (stockpile volumes from the DSM, progress against the design surface).
-7. Host the prepared tiles on GitHub Releases or Hugging Face with checksums, so the fetch script does not depend on OAM's bucket.
+Phase 2 builds everything that does not need the NH108 photo set, which is not published yet, and leaves the pipeline ready for it.
+
+### The twin on the real ground
+
+The site layout lives in the Abenix code asset `gw-site-twin`. It now carries two layouts with the same work: `northgate`, the rendered site the original films were made on, and `nh108`, laid on the orthophoto in metres east and north of the photo anchor. Every haul road follows a track the photo shows, and none crosses a heap, the pond, the slab or the trench.
+
+- `"layout": "nh108"` on `init` or `site` selects it. The layout then rides in the twin's state, so steps need nothing extra and a warm runner can serve both at once.
+- `northgate` is unchanged. A full 1200-step story run hashes to the same value before and after the change.
+- The bff passes `GW_SITE` (default `northgate`) to `init`, and `/story/start` takes `{"site": "nh108"}`. That is the whole bff change.
+- `bff/tests/test_layouts.py` checks that switching leaves `northgate` alone, that the layout survives in the state, that every route clears the photographed obstacles with a truck's half width to spare, and that no truck, dozer, roller or telehandler stands on one during a full story.
+- Shipped to Abenix as `gw-site-twin` v11 through `scripts/provision.py`.
+
+To run it beside the rendered site:
+
+```bash
+GW_BFF_PORT=8712 GW_NO_WEB=1 GW_SITE=nh108 bash scripts/dev.sh
+# then http://localhost:5710/?sim=http://localhost:8712
+```
+
+The web switches to real ground by itself when `/site` carries `imagery`: the photo instead of the painted ground, the measured sun, the photographic machines, and a REAL / SIMULATED credit line in the feed, the opening title and the end card.
+
+### Photographic machines
+
+`web/src/scene/hd` builds the excavator, articulated hauler, dozer, single-drum roller, wheel loader, telehandler and piling rig at photographic detail in code. Each piece is merged into one mesh per material, so a machine is a handful of draw calls.
+
+- PBR paint with wear worked out in world space in the shader: mud thrown up to about a metre, dust on what faces up, grime streaks down the sides, chipped edges.
+- Rubber with tread, track shoes with grousers, grilles and walkway plate as bump maps, clear-coated glass, chrome rams.
+- Fictional fleet numbers and hazard stripes only, no brand names.
+- Every joint the twin reports drives the same pivot as before: swing, boom, stick, bucket, blade, drum, steer and body tip, boom and extension, auger and hammer. Rams stretch between their anchors each frame.
+- Dimensions follow real machines of each class: a 20 t excavator, 30 t articulated hauler, 20 t dozer, 12 t roller, 14 m telehandler, 24 m piling mast. `docs/screenshots/real/14-scale-check.jpg` puts the simulated excavator top-down at the photo's own scale beside the real excavator in the untouched patch of the orthophoto.
+- The cranes keep their models and take the same wear and plain trim on real ground.
+- `scripts/capture-machines.mjs` renders each machine from three angles on the real ground for review.
+
+No downloaded models are used. CC0 machine models of photographic quality with the right joints were not found, and editorial or no-redistribution models were ruled out.
+
+### Reconstruction pipeline
+
+One command takes drone photos to the files the web stands machines on:
+
+```bash
+python scripts/fetch-real-imagery.py --only caliterra      # the CC0 test set, 77 photos, checksums
+python scripts/reconstruct.py caliterra                     # or: python scripts/reconstruct.py nh108 --photos D:/flight
+```
+
+Stages: `odm` runs OpenDroneMap in Docker for the orthophoto, DSM, DTM, textured mesh and camera poses. `colmap` writes the undistorted cameras as a COLMAP model. `splat` trains a Gaussian splat with Brush (WebGPU, no CUDA). `dem` levels the reconstruction and resamples the DSM, DTM and orthophoto onto the site grid. `pack` writes the splat in the same frame as a compact `.splat`.
+
+Proven end to end on Caliterra: OpenDroneMap took 16 minutes, Brush 12,000 steps on the RTX 4070 in about 9 minutes, 1.26 M gaussians, 887 k kept after cropping (28 MB).
+
+Two traps found and fixed in the script:
+
+- PoissonRecon crashes at octree depth 11 inside Docker Desktop and ODM sized its threads from the host CPU count. The script now passes the Docker VM's CPU count and depth 10.
+- The Caliterra camera's GPS altitude tilted the whole reconstruction by 39 degrees. The `dem` stage fits the ground plane from the lowest points per 2 m cell, rotates the dense cloud, the orthophoto and the splat level, and reports the tilt it removed. After levelling the site's relief is a believable -2 to +13 m, pipes and trees standing up.
+
+`?ground=caliterra` lays any prepared site under the live twin, and `&layer=splat` adds the splat. Machines then sit on the reconstructed heights.
+
+### Hosting
+
+`scripts/publish-real-assets.py` packages the prepared tiles, DSM, DTM and splat with a manifest (site, path, size, SHA-256, licence and attribution) and SHA256SUMS, plus the exact `gh release` and Hugging Face commands. It uploads nothing. `scripts/fetch-real-imagery.py` reads the release by default, checks every file, and falls back to the original sources when there is no release yet. Both paths were tested against a local server.
+
+### The films on real ground
+
+`scripts/record-take.mjs --site nh108` records the story on the real-site layout, `scripts/capture.mjs --real` renders it frame by frame. The camera stays steep on the flat orthophoto: near nadir for the beats, high angle for the hero push-in and a high orbit for the end card. The original films and screenshots are untouched.
+
+## What is still open
+
+1. The NH108 photo set. Ask Craig Goodspeed for it under CC BY 4.0, or fly our own. With it, `scripts/reconstruct.py nh108 --photos ...` gives the site heights and a splat, and low oblique shots become possible.
+2. Match-move the ESO Armazones opening with our machines composited in.
+3. Computer vision in Abenix: stockpile volumes from the DSM, progress against the design surface.
+4. Upload the tiles with the commands in `dist/real-assets/<tag>/UPLOAD.md`, which is the owner's call.

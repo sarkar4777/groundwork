@@ -579,3 +579,11 @@ body[data-tourcap='side-right'] .tour-captions { right: 3%; left: auto; transfor
   .sc-open p { font-size: 3.6vmin; }
 }
 body:has(.sc-open) { background: #04122b; overflow: hidden; }
+
+/* real ground: what is a photograph and what is the twin, always on screen */
+.real-credit { position: absolute; z-index: 4; left: 50%; top: 52px; transform: translateX(-50%); max-width: calc(100% - 32px); padding: 3px 10px; border-radius: 7px; background: rgba(4, 18, 43, 0.62); border: 1px solid rgba(201, 236, 255, 0.16); font: 500 11px/1.35 var(--sans); color: #e8f4ff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
+.real-credit b { font: 700 9.5px var(--mono); letter-spacing: 0.1em; padding: 0 4px; border-radius: 3px; background: rgba(62, 230, 168, 0.2); color: var(--mint); }
+.real-credit b.sim { background: rgba(255, 176, 32, 0.22); color: var(--amber); }
+.cinema .real-credit, body.capture .real-credit { top: 74px; font-size: max(11px, 1.3vmin); }
+.cinema .real-credit b, body.capture .real-credit b { font-size: max(9.5px, 1.1vmin); }
+.sc-end .real-line, .sc-open .real-line { display: block; margin-top: 1.4vmin; font: 500 max(11px, 1.6vmin)/1.35 var(--sans); color: rgba(232, 244, 255, 0.92); text-shadow: 0 0.3vmin 1.4vmin rgba(0, 10, 30, 0.9); max-width: min(90vw, 120vmin); }

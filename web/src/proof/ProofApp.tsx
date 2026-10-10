@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useUi } from '../live/store'
 import { DroneHud } from '../hud/Hud'
 import { ProofScene, SHOWN, type RealMeta } from './ProofScene'
+import { Gallery } from './Gallery'
 
 const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })
 
@@ -27,6 +28,11 @@ function Tags() {
 }
 
 export function ProofApp() {
+  if (new URLSearchParams(location.search).get('gallery')) return <Gallery />
+  return <ProofPage />
+}
+
+function ProofPage() {
   const [meta, setMeta] = useState<RealMeta | null>(null)
   const [err, setErr] = useState('')
   const conn = useUi((s) => s.conn)

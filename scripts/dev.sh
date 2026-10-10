@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Starts the bff on 8710 and the web on 5710. Ctrl+C stops both.
+#   GW_BFF_PORT=8711 GW_NO_WEB=1 GW_SITE=nh108 bash scripts/dev.sh   a second bff on the real-site layout, no web
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -11,6 +12,8 @@ else PY=python3; fi
 
 ABENIX_URL="${ABENIX_URL:-$(grep -s '^ABENIX_URL=' .env | cut -d= -f2- || true)}"
 ABENIX_URL="${ABENIX_URL:-http://localhost:8000}"
+
+PORT="${GW_BFF_PORT:-8710}"
 
 say() { printf '\033[1;36m[groundwork]\033[0m %s\n' "$*"; }
 fail() { printf '\033[1;31m[groundwork]\033[0m %s\n' "$*"; exit 1; }
@@ -25,16 +28,18 @@ cleanup() { say "stopping"; for p in "${pids[@]}"; do kill "$p" 2>/dev/null || t
 trap cleanup EXIT INT TERM
 
 say "Abenix   $ABENIX_URL"
-say "bff      http://localhost:8710  (websocket ws://localhost:8710/ws, health /health)"
-(cd bff && exec "../$PY" -m uvicorn gwbff.app:app --host 0.0.0.0 --port 8710 --log-level warning) &
+say "bff      http://localhost:$PORT  (websocket ws://localhost:$PORT/ws, health /health, site ${GW_SITE:-northgate})"
+(cd bff && exec "../$PY" -m uvicorn gwbff.app:app --host 0.0.0.0 --port "$PORT" --log-level warning) &
 pids+=($!)
 
-say "web      http://localhost:5710"
-(cd web && exec npm run dev --silent) &
-pids+=($!)
+if [ "${GW_NO_WEB:-0}" != "1" ]; then
+  say "web      http://localhost:5710"
+  (cd web && exec npm run dev --silent) &
+  pids+=($!)
+fi
 
 for i in $(seq 1 60); do
-  if curl -fsS -m 2 http://localhost:8710/health 2>/dev/null | grep -q '"ok":true'; then
+  if curl -fsS -m 2 "http://localhost:$PORT/health" 2>/dev/null | grep -q '"ok":true'; then
     say "site twin running in Abenix, open http://localhost:5710"
     break
   fi

@@ -25,6 +25,9 @@ def run(inp: dict) -> dict:
     op = inp.get("op", "step")
     if inp.get("state_z"):
         inp["state"] = unpack(inp.pop("state_z"))
+    # the layout travels in the state, init and site take it as an input
+    st_in = inp.get("state") or {}
+    L.use(st_in.get("layout") if st_in and op != "init" else inp.get("layout"))
     t0 = time.perf_counter()
     if op == "init":
         st = W.init_state(int(inp.get("seed", 42)))

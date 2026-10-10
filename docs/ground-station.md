@@ -63,6 +63,7 @@ node scripts/capture.mjs                 # render both films from .run/take.json
 node scripts/capture.mjs --retake        # record a fresh live take from the bff first
 node scripts/capture.mjs --shots-only    # live story screenshots, no film
 node scripts/capture.mjs --replay        # synthesised frames, every image marked REPLAY
+node scripts/capture.mjs --real          # the same story on real drone ground, see docs/real-imagery.md
 ```
 
 The film is one live run. `scripts/record-take.mjs` records every frame the bff sends during a story, a few seconds of the running site before it, and the site, terrain and agents it served. The capture then plays that take back with `?playback=1&render=1` on a virtual clock. Each film frame advances the page exactly 1/60 s, draws, and is screenshotted, so the 60 fps video has no dropped or doubled frames however slow the machine is. The top bar says Recorded live while it plays.

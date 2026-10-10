@@ -7,6 +7,7 @@
 //   node scripts/capture.mjs --shots-only         live story screenshots, no film
 //   node scripts/capture.mjs --replay             synthesised frames, everything is marked REPLAY
 //   node scripts/capture.mjs --proof --sizes 1920x1080   the real-imagery proof clip, see docs/real-imagery.md
+//   node scripts/capture.mjs --real                       the story on real ground, from .run/take-real.json
 //
 // The film is one live take (scripts/record-take.mjs) played back on a virtual clock. Each frame
 // is stepped exactly 1/60 s, drawn, then screenshotted, so the video has no dropped or doubled frames.
@@ -110,7 +111,9 @@ const FILM = [
   [51.15, 55.6],
   [55.6, 65.05],
 ]
-const TAKE = opt('--take', join(root, '.run', 'take.json'))
+const REAL = flag('--real')
+// --real renders the same story on the real-site layout, from a take recorded with record-take.mjs --site nh108
+const TAKE = opt('--take', join(root, '.run', REAL ? 'take-real.json' : 'take.json'))
 
 async function renderFilm(browser, w, h, film = {}) {
   const take = film.take ?? TAKE
@@ -144,7 +147,7 @@ async function renderFilm(browser, w, h, film = {}) {
       return document.querySelector('.caption:not(.off)')?.innerText?.trim() ?? ''
     })
   // the scene builds and its shaders compile on a still site before the clock starts
-  for (let i = 0; i < 90; i++) {
+  for (let i = 0; i < (REAL ? 160 : 90); i++) {
     await page.clock.runFor(17)
     await flush()
     await page.waitForTimeout(i < 30 ? 120 : 30)
@@ -395,13 +398,14 @@ try {
     }
     for (const [w, h] of SIZES) await renderFilm(browser, w, h, { take, page: 'proof.html', name: 'groundwork-real-proof', spans: [[0, 30]] })
   } else if (VIDEO && !REPLAY) {
+    if (REAL && !existsSync(TAKE)) throw new Error(`no ${TAKE}, record one with node scripts/record-take.mjs --site nh108 --out ${TAKE}`)
     if (flag('--retake') || !existsSync(TAKE)) {
       log('recording a live take')
       const r = spawnSync(process.execPath, [join(root, 'scripts', 'record-take.mjs'), '--out', TAKE], { stdio: 'inherit' })
       if (r.status !== 0) throw new Error('record-take failed')
     }
     if (!hasFfmpeg) throw new Error('ffmpeg not found')
-    for (const [w, h] of SIZES) await renderFilm(browser, w, h)
+    for (const [w, h] of SIZES) await renderFilm(browser, w, h, REAL ? { name: 'groundwork-real-story' } : {})
   } else for (const [w, h] of SIZES) {
     const tag = `${w}x${h}`
     const page = await open(browser, w, h)

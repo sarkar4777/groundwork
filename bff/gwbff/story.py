@@ -39,8 +39,9 @@ CACHED_TIMES = {
 
 
 class Story:
-    def __init__(self, mode: str, ticks: int = 5):
+    def __init__(self, mode: str, ticks: int = 5, site: str = "northgate"):
         self.mode = mode          # live, cached or record
+        self.site = site
         self.cache = json.loads(CACHE.read_text()) if mode == "cached" else None
         # ticks of 10 ms per step, a recording replays with the ticks it was made with
         self.ticks = int((self.cache or {}).get("ticks") or ticks)
@@ -69,7 +70,7 @@ class Story:
     async def start(self, eng) -> None:
         eng.paused = True
         try:
-            await eng.init_twin(SEED)
+            await eng.init_twin(SEED, self.site)
             eng.frame = None
             eng.plan = None
             eng.story = self
@@ -81,7 +82,7 @@ class Story:
         elif self.mode == "record":
             note = "live Abenix calls, recorded for identical takes"
         await eng.emit({"type": "event", "t": 0.0, "kind": "story", "title": "Story started", "detail": f"Seed {SEED}, {note}",
-                        "mode": self.mode, "recorded": self.mode == "cached"})
+                        "mode": self.mode, "recorded": self.mode == "cached", "site": self.site})
 
     async def before_step(self, eng, inp: dict) -> None:
         # the twin's own clock, it only moves when a step really ran in Abenix

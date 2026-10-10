@@ -142,6 +142,8 @@ export interface SiteLayout {
   designDepth: number
   piles: Vec2[]
   swingRadius: number
+  // set when the twin runs the layout laid on real drone imagery
+  imagery?: { site: string; kind: string } | null
 }
 
 export interface Terrain {

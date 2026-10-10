@@ -1,3 +1,4 @@
+import { RealCredit } from '../story/StoryCards'
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import { setCam, useUi, type CamMode, type Overlays } from '../live/store'
 import { hot } from '../live/hot'
@@ -271,6 +272,7 @@ export function Feed() {
       {!story && <MachineCard />}
       {!story && <ModeBar />}
       {!story && <LayerMenu />}
+      <RealCredit />
       <Captions />
       <StoryLayer />
       <OfflineCard />

@@ -56,6 +56,7 @@ export interface UiState {
   abenix: { url: string; reachable: boolean } | null
   siteError: string | null
   siteVersion: number
+  realGround: { site: string; attribution: string; captured: string | null } | null
   terrainShown: number
   heroFx: boolean
   storyBeat: string
@@ -92,6 +93,7 @@ export const useUi = create<UiState>(() => ({
   abenix: null,
   siteError: null,
   siteVersion: 0,
+  realGround: null,
   terrainShown: 0,
   heroFx: false,
   storyBeat: '',

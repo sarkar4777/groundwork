@@ -26,14 +26,14 @@ SHIFT_S = 8 * 3600
 
 RULE_KEYS = ("gw.safety.exclusion", "gw.crane.limits", "gw.truck.speed", "gw.simplex.switch")
 
-_initial_delta = None
+_initial_delta: dict = {}
 
 
 def initial_delta():
-    global _initial_delta
-    if _initial_delta is None:
-        _initial_delta = T.initial_delta()
-    return _initial_delta
+    d = _initial_delta.get(L.LAYOUT)
+    if d is None:
+        d = _initial_delta[L.LAYOUT] = T.initial_delta()
+    return d
 
 
 # deterministic randomness carried in the state, splitmix64
@@ -121,27 +121,11 @@ def _crane(mid, kind, base, jib, tower_h, slew, luff, cap_max, cap_moment, vmax)
     return m
 
 
-WORKER_SPECS = [
-    ("W01", "banksman", [(5.0, -33.0), (2.0, -35.0)], 0.0),
-    ("W02", "banksman", [(-22.0, 27.0), (-20.0, 24.0)], 0.0),
-    ("W03", "slinger", [(-62.0, 54.0), (-58.0, 61.0), (-66.0, 50.0)], 0.0),
-    ("W04", "slinger", [(-27.0, 3.0), (-24.0, 8.0)], 0.0),
-    ("W05", "surveyor", [(-50.0, 34.0), (-20.0, 34.0), (8.0, 34.0), (14.0, 12.0), (-54.0, -34.0)], 0.0),
-    ("W06", "labourer", [(-60.0, 66.0), (-52.0, 60.0)], 0.0),
-    ("W07", "labourer", [(-2.0, -36.0), (-16.0, -38.0), (4.0, -40.0)], 0.0),
-    ("W08", "labourer", [(-44.0, -6.0), (-36.0, -20.0)], 0.0),
-    ("W09", "labourer", [(-80.0, -84.0), (-40.0, -40.0)], 0.0),
-    ("W10", "labourer", [(30.0, 8.0), (34.0, 16.0)], 0.0),
-    ("W11", "piling helper", [(30.0, -10.0), (29.0, 0.0)], 0.0),
-    ("W12", "site engineer", [(-78.0, -80.0), (-30.0, -36.0), (20.0, -40.0), (-55.0, 36.0)], 0.0),
-    ("W13", "visitor", [(-76.0, -82.0)], 0.5),
-    ("W14", "labourer", [(24.0, -40.0), (-4.0, -42.0)], 0.35),
-]
 
 
 def _workers(st):
     ws = {}
-    for i, (wid, role, wps, wander) in enumerate(WORKER_SPECS):
+    for i, (wid, role, wps, wander) in enumerate(L.WORKER_SPECS):
         x, y = wps[0]
         ws[wid] = {"id": wid, "role": role, "x": x, "y": y, "heading": 0.0, "tx": x, "ty": y, "tag_x": x, "tag_y": y,
                    "tag_phase": round((i * 0.0137 + 0.0031) % 0.1, 4), "tag_next": 0.0, "wps": [list(p) for p in wps], "wp": 0,
@@ -204,13 +188,13 @@ def default_plan() -> dict:
 
 
 def init_state(seed: int = 42) -> dict:
-    st = {"v": 1, "seed": int(seed), "rng": int(seed) * 2654435761 % (1 << 64), "t": 0.0, "tick": 0, "seq": 0,
+    st = {"v": 1, "layout": L.LAYOUT, "seed": int(seed), "rng": int(seed) * 2654435761 % (1 << 64), "t": 0.0, "tick": 0, "seq": 0,
           "terrain": {"rev": 1, "delta": T.encode(initial_delta())}, "m3_moved": 0.0, "cycles": 0, "trucks_out": 0}
     ms = {}
     ex1_heading = math.atan2(L.NODES["bay1"][1] - L.EX1_BASE[1], L.NODES["bay1"][0] - L.EX1_BASE[0])
     ex2_heading = math.atan2(L.NODES["bay2"][1] - L.EX2_BASE[1], L.NODES["bay2"][0] - L.EX2_BASE[0])
-    ms["EX1"] = _excavator("EX1", L.EX1_BASE, ex1_heading, "bay1", math.atan2(-1.0, -1.0))
-    ms["EX2"] = _excavator("EX2", L.EX2_BASE, ex2_heading, "bay2", math.atan2(0.6, -1.0))
+    ms["EX1"] = _excavator("EX1", L.EX1_BASE, ex1_heading, "bay1", L.EX1_DIG)
+    ms["EX2"] = _excavator("EX2", L.EX2_BASE, ex2_heading, "bay2", L.EX2_DIG)
     ms["EX2"]["joints"]["swing"] = 0.8
     starts = [("HT1", "EX1", "loading", L.path("q1", "bay1"), 1.0), ("HT2", "EX1", "to_queue", L.route_to_bay("EX1"), 0.0),
               ("HT3", "EX2", "loading", L.path("q2", "bay2"), 1.0), ("HT4", "EX1", "haul", L.route_haul("EX1", "spoil", 3), 60.0),
@@ -223,14 +207,14 @@ def init_state(seed: int = 42) -> dict:
         if tid == "HT4":
             tr["load_t"] = 21.6
         ms[tid] = tr
-    ms["DZ1"] = _machine("DZ1", "dozer", 52.0, -70.0, 0.0, lane=0, dir=1, blade_m=0.0)
-    ms["RL1"] = _machine("RL1", "roller", 60.0, -84.0, 0.0, lane=0, dir=1, cmv=18.0)
+    ms["DZ1"] = _machine("DZ1", "dozer", L.DZ1_START[0], L.DZ1_START[1], 0.0, lane=0, dir=1, blade_m=0.0)
+    ms["RL1"] = _machine("RL1", "roller", L.RL1_START[0], L.RL1_START[1], 0.0, lane=0, dir=1, cmv=18.0)
     ms["TC1"] = _crane("TC1", "tower_crane", L.TC1_BASE, L.TC1_JIB, L.TC1_TOWER_H, 2.6, 0.75, 12.0, 300.0, 0.12)
     ms["MC1"] = _crane("MC1", "mobile_crane", L.MC1_BASE, L.MC1_BOOM, L.MC1_PIVOT_H, 3.6, 0.9, 20.0, 260.0, 0.15)
     ms["PR1"] = _machine("PR1", "piling_rig", L.PILES[2][0], L.PILES[2][1], math.pi / 2, pile=2, phase="drive", pile_depth=3.0, bpm=0, vib=0.0,
                          radius=L.PILE_RADIUS)
-    ms["D1"] = _machine("D1", "drone", -50.0, -30.0, 0.0, z=60.0, leg=0)
-    ms["D2"] = _machine("D2", "drone", 70.0, 0.0, math.pi / 2, z=80.0, ang=0.0)
+    ms["D1"] = _machine("D1", "drone", L.D1_START[0], L.D1_START[1], 0.0, z=60.0, leg=0)
+    ms["D2"] = _machine("D2", "drone", L.D2_START[0], L.D2_START[1], math.pi / 2, z=80.0, ang=0.0)
     for m in ms.values():
         m["fuel_pct"] = round(100 * m["sig"]["fuel_l"] / m["sig"]["tank_l"], 1)
     st["machines"] = ms
@@ -645,16 +629,17 @@ def tick_dozer(st, m, d, ev):
         m["speed"] = max(0.0, m["speed"] - 3 * DT) if m["speed"] > 0 else min(0.0, m["speed"] + 3 * DT)
         m["task"] = "held"
         return
-    lanes = [-48.0, -56.0, -64.0, -72.0, -80.0] if m["kind"] == "dozer" else [-52.0, -60.0, -68.0, -76.0, -86.0]
+    lanes = L.DOZER_LANES if m["kind"] == "dozer" else L.ROLLER_LANES
     y = lanes[m["lane"] % len(lanes)]
     v = (1.4 if m["kind"] == "dozer" else 1.1) * m.get("speed_scale", 1.0)
     m["speed"] = v * m["dir"]
     m["x"] += m["speed"] * DT
     m["y"] += (y - m["y"]) * min(1.0, 0.8 * DT)
     m["heading"] = 0.0 if m["dir"] > 0 else math.pi
-    if m["x"] > 86 or m["x"] < 44:
+    lo, hi = L.SPOIL_RUN
+    if m["x"] > hi or m["x"] < lo:
         m["dir"] *= -1
-        m["x"] = max(44.0, min(86.0, m["x"]))
+        m["x"] = max(lo, min(hi, m["x"]))
         m["lane"] += 1
     if m["kind"] == "dozer":
         m["task"] = "spread spoil"
@@ -794,7 +779,7 @@ def tick_piling(st, m, d, ev):
 
 def tick_drone(st, m, d, ev):
     if m["id"] == "D1":
-        pts = [(-50.0, -30.0), (10.0, -30.0), (10.0, -15.0), (-50.0, -15.0), (-50.0, 0.0), (10.0, 0.0), (10.0, 15.0), (-50.0, 15.0), (-50.0, 30.0), (10.0, 30.0)]
+        pts = L.D1_GRID
         tx, ty = pts[m["leg"] % len(pts)]
         dd = dist(m["x"], m["y"], tx, ty)
         if dd < 0.5:
@@ -806,8 +791,9 @@ def tick_drone(st, m, d, ev):
         m["speed"] = 5.0
         m["task"] = "survey grid, 60 m"
     else:
-        m["ang"] = (m["ang"] + 4.0 / 70.0 * DT) % TWO_PI
-        m["x"], m["y"] = -10 + 70 * math.cos(m["ang"]), 70 * math.sin(m["ang"])
+        m["ang"] = (m["ang"] + 4.0 / L.D2_ORBIT[2] * DT) % TWO_PI
+        cx, cy, r = L.D2_ORBIT
+        m["x"], m["y"] = cx + r * math.cos(m["ang"]), cy + r * math.sin(m["ang"])
         m["heading"] = m["ang"] + math.pi / 2
         m["speed"] = 4.0
         m["task"] = "overhead orbit, 80 m"
@@ -883,8 +869,8 @@ def tick_workers(st, ev):
                         w["tx"], w["ty"] = w["wps"][w["wp"]]
                         w["tx"] += (rnd(st) - 0.5) * 3
                         w["ty"] += (rnd(st) - 0.5) * 3
-                    w["tx"] = max(-96.0, min(96.0, w["tx"]))
-                    w["ty"] = max(-96.0, min(96.0, w["ty"]))
+                    w["tx"] = max(-L.WORKER_BOUND, min(L.WORKER_BOUND, w["tx"]))
+                    w["ty"] = max(-L.WORKER_BOUND, min(L.WORKER_BOUND, w["ty"]))
                     w["dwell"] = 10.0 + 30.0 * rnd(st)
             else:
                 v = min(w["speed"], dd / DT)
@@ -1006,7 +992,7 @@ def safety_tick(st, tabs, ev, stats):
                 dd = dist(w["tag_x"], w["tag_y"], m["x"], m["y"])
                 if dd < near:
                     near = dd
-            zone = "gate" if m["y"] < -85 else ("pit" if L.in_rect(L.PIT, m["x"], m["y"], 2.0) or m["x"] < 26 and m["y"] > -44 and m["x"] > -2 and m["y"] < -20 else "haul_road")
+            zone = L.zone_of(m["x"], m["y"])
             sf["nearest_m"] = near
             if truck_t is None:
                 sf["cap_kmh"] = 0
@@ -1497,7 +1483,7 @@ def _compile_ai(st):
 def add_telehandler(st, code, ev):
     st["telehandler_code"] = code
     if "TH1" not in st["machines"]:
-        route = L.path("gate", "gate_in", (-20.0, -70.0), (-80.0, -40.0), (-84.0, 26.0))
+        route = L.path(*L.TH_ROUTE)
         st["machines"]["TH1"] = _machine("TH1", "telehandler", route[0][0], route[0][1], math.pi / 2, route=route, s=0.0, phase="drive",
                                           phase_t=0.0, boom_angle=0.1, ext=0.0, boom_target=0.1, ext_target=0.0, loaded=True, load_t=2.2)
         ev.append({"kind": "plan_change", "machine": "TH1", "title": "TH1 telehandler on site", "detail": "Boom controller written and tested by AI, published at Asks first"})

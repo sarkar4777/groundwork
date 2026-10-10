@@ -40,6 +40,8 @@ def config() -> dict:
         "abenix_web": os.environ.get("ABENIX_WEB_URL", "http://localhost:3000").rstrip("/"),
         "api_key": os.environ.get("ABENIX_API_KEY", ""),
         "seed": int(os.environ.get("GW_SEED", "42")),
+        # northgate is the rendered site, nh108 the same work on a real orthophoto
+        "site": os.environ.get("GW_SITE", "northgate"),
         "rate_hz": float(os.environ.get("GW_RATE_HZ", "20")),
         "dispatch_s": float(os.environ.get("GW_DISPATCH_S", "10")),
         "shift_minutes": float(os.environ.get("GW_SHIFT_MINUTES", "60")),
@@ -143,6 +145,9 @@ async def fault(req: Request):
     return await engine.fault(body.get("kind", ""), body.get("target"), extra)
 
 
+
+SITES = ("northgate", "nh108")
+
 @app.post("/story/start")
 async def story_start(req: Request):
     if not engine or not engine.ready:
@@ -154,12 +159,15 @@ async def story_start(req: Request):
     mode = body.get("mode") or ("cached" if Story.available() and body.get("cached", True) else "live")
     if mode == "cached" and not Story.available():
         return _err("no recorded story, run python scripts/record_story.py or start with mode live", 409)
-    s = Story(mode, int(body.get("ticks") or os.environ.get("GW_STORY_TICKS", "5")))
+    site = body.get("site") or engine.cfg.get("site") or "northgate"
+    if site not in SITES:
+        return _err(f"unknown site {site}, one of {', '.join(SITES)}", 400)
+    s = Story(mode, int(body.get("ticks") or os.environ.get("GW_STORY_TICKS", "5")), site)
     try:
         await s.start(engine)
     except Exception as e:  # noqa: BLE001
         return _err(f"could not start the story in Abenix: {e}"[:300], 502)
-    return {"ok": True, "mode": mode, "seed": 2026}
+    return {"ok": True, "mode": mode, "seed": 2026, "site": site}
 
 
 @app.post("/story/stop")

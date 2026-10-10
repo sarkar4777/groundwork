@@ -13,7 +13,8 @@ MAT.accent.color.set('#3a3f46')
 MAT.accent.emissiveIntensity = 0
 
 if (new URLSearchParams(location.search).get('capture') === '1') document.body.classList.add('capture')
-startClient()
+// the machine gallery poses its own machines, the rest of the page reads the twin
+if (!new URLSearchParams(location.search).get('gallery')) startClient()
 installAutomation()
 
 createRoot(document.getElementById('root')!).render(
