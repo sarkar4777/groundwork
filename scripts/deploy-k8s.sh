@@ -41,6 +41,9 @@ deploy() {
   # links from the ground station into Abenix, 3000 unless .env moves it
   local web="${ABENIX_WEB_URL:-$(grep -s '^ABENIX_WEB_URL=' .env | cut -d= -f2- || true)}"
   $K -n groundwork set env deploy/groundwork-bff ABENIX_WEB_URL="${web:-http://localhost:3000}" >/dev/null
+  # northgate is the painted site, nh108 the real drone orthophoto (fetch it first, see docs/real-imagery.md)
+  local site="${GW_SITE:-$(grep -s '^GW_SITE=' .env | cut -d= -f2- || true)}"
+  $K -n groundwork set env deploy/groundwork-bff GW_SITE="${site:-northgate}" >/dev/null
   $K -n groundwork rollout restart deploy/groundwork-bff
   $K -n groundwork rollout status deploy/groundwork-bff --timeout=180s
   say "bff running in the cluster with a fixed 20 Hz step"
