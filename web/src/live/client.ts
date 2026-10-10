@@ -245,7 +245,7 @@ function trackStory(t: number) {
   const s = useUi.getState().story
   if (!s.running) return
   if (t < s.t0 - 1) useUi.setState({ story: { ...s, t0: t } })
-  if (t - s.t0 > 64) useUi.setState({ story: { ...s, running: false } })
+  if (t - s.t0 > 64 && performance.now() - s.startedAt > 62000) useUi.setState({ story: { ...s, running: false } })
 }
 
 async function getJson(path: string): Promise<unknown> {

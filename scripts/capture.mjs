@@ -96,7 +96,12 @@ async function recordStory(page, tag, withShots) {
   }
   const ok = await page.evaluate(() => window.__gw.startStory())
   if (!ok) throw new Error('POST /story/start failed')
-  for (let i = 0; i < 100 && (await storyT(page)) === null; i++) await page.waitForTimeout(100)
+  // wait for the bff's own story clock to restart, so the take starts at its first frame
+  for (let i = 0; i < 100; i++) {
+    const st = await page.evaluate(() => window.__gw.status())
+    if (st.story && st.storyT !== null && st.storyT < 2) break
+    await page.waitForTimeout(100)
+  }
   recording = true
   // captions as they were on screen, in wall time, so the SRT lines up with the video
   const t0 = Date.now() / 1000
@@ -131,9 +136,14 @@ async function recordStory(page, tag, withShots) {
     await shot(page, '08-earned-autonomy.png', '.story-float.right')
   }
 
+  const started = Date.now()
   for (;;) {
     const st = await page.evaluate(() => window.__gw.status())
-    if (!st.story || (st.storyT ?? 0) > 61.5) break
+    if ((st.storyT ?? 0) > 61.5) break
+    if (!st.story) {
+      if ((Date.now() - started) / 1000 < 55) log('story ended early', JSON.stringify(st))
+      break
+    }
     await page.waitForTimeout(250)
   }
   recording = false
