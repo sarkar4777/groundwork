@@ -59,6 +59,7 @@ function WorkerFig({ id, role }: { id: string; role: string }) {
     ring.current.material = ringMats[zone]
     const pulse = zone === 'danger' ? 1 + Math.sin(performance.now() / 90) * 0.25 : 1
     ring.current.scale.setScalar(pulse * (useUi.getState().cam === 'drone' ? 2.2 : 1))
+    ring.current.visible = !useUi.getState().heroFx
   })
   return (
     <group ref={g} visible={false}>

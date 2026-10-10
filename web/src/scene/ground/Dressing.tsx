@@ -106,7 +106,7 @@ const mats = {
   ply: new THREE.MeshStandardMaterial({ map: tex('plywood_diff_1k.jpg', 1, 1), roughness: 0.8 }),
   rebar: new THREE.MeshStandardMaterial({ color: '#5b3a28', roughness: 0.6, metalness: 0.7 }),
   bags: new THREE.MeshStandardMaterial({ color: '#b9b6ae', roughness: 0.95 }),
-  sand: new THREE.MeshStandardMaterial({ map: tex('sandy_gravel_diff_1k.jpg', 4, 2), roughness: 1 }),
+  sand: new THREE.MeshStandardMaterial({ map: tex('sandy_gravel_diff_1k.jpg', 4, 2), roughness: 1, color: '#a99c86' }),
   stone: new THREE.MeshStandardMaterial({ map: tex('gravel_diff_1k.jpg', 5, 2), roughness: 1, color: '#c8c4bc' }),
   topsoil: new THREE.MeshStandardMaterial({ map: tex('aerial_ground_rock_diff_2k.jpg', 2, 1), roughness: 1, color: '#9a8d80' }),
   cone: new THREE.MeshStandardMaterial({ color: '#ff5a14', roughness: 0.55 }),

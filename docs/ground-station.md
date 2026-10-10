@@ -16,7 +16,8 @@ npm run build        # asset licence check, typecheck, production bundle
 - **Sim offline** shows a card in the feed with the command to start it. The client reconnects on its own with backoff and freezes the last frame if the link drops mid-shift.
 - **REPLAY** appears when the page is opened with `?replay=1`. Frames are then synthesised in the browser by `web/src/dev/replay.ts` for design work without the bff. The top bar, the feed and every capture carry the mark, and the Abenix mark is replaced by "not computed in Abenix".
 - **recorded run** on the story chip means the bff is replaying agent and model answers from a recorded Abenix run, so every take is identical.
-- The latency strip is labelled **measured**. Each bar is the value the bff measured for that layer.
+- The latency strip is labelled **measured**. Each cell shows the p50 for that layer, from the bff when it sends `l1_p50_ms` to `l5_p50_ms`, otherwise from the readings the page received, with a sparkline of those readings.
+- The AI cost KPI reads **subscription** when `kpi.ai_billing` says a Claude subscription serves the agent runs. Load cycles read **starting** until the first haul cycle completes.
 
 ## Views
 
@@ -40,8 +41,10 @@ Toggle them from the Overlays menu or press O to switch them all.
 - Tower and mobile crane slew envelopes, red when the two jibs come within 8 m or a crane rule stops them
 - Haul road centrelines with an ETA for each loaded truck, distance left on the road over its speed
 - Cut and fill: blue where the pit is still above the design surface, mint at design, amber where fill was placed since shift start
-- Worker tags with role, and the Abenix ML path prediction 1 to 3 s ahead
+- Worker tags, small until hovered unless the worker is in a warning or danger zone, and the Abenix ML path prediction 1 to 3 s ahead
 - Machine labels with mode and task. Click a machine or its label for its panel
+
+Tags never overlap. Safety stops, people in danger and the selected machine are placed first, the rest stack upward on a leader line, and anything that still does not fit folds into a `+n` chip on its nearest neighbour.
 
 ## Panels
 
@@ -67,7 +70,9 @@ Videos go to `docs/media/` with the SRT, screenshots to `docs/screenshots/`. Fra
 
 Deep ocean blue, Inter and JetBrains Mono, sky, ice, amber, red and mint accents. Machines and workers are built in code from parametric parts in `web/src/scene/machines`, so every joint the twin reports is a real joint. Ground is painted from CC0 aerial textures, see `ASSETS.md`.
 
-The renderer is WebGL2. The WebGPU renderer was left out because the postprocessing stack the drone look depends on does not run on it yet. The 3D view holds 60 fps on integrated graphics by lowering its own render scale when frames run long, and raising it again when there is headroom. Capture runs at full resolution.
+Ground, roads and the neighbourhood are painted from CC0 aerial, facade and roof scans, with a 4k detail layer, standing water on the pit floor, contact shadows under every machine and person, and a slightly desaturated survey grade. The hero shot gets golden-hour light and a tilt-shift edge blur.
+
+The renderer is WebGL2. The WebGPU renderer was left out because the postprocessing stack the drone look depends on does not run on it yet. The 3D view holds 60 fps on integrated graphics by lowering its own render scale when frames run long, and raising it again when there is headroom. Capture and `?quality=high` run at full resolution with soft 4k shadows.
 
 ## Keyboard
 
