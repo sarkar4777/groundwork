@@ -8,7 +8,7 @@ An autonomous construction site, run by [Abenix](https://github.com/sarkar4777/a
 
 Groundwork is a showcase, not certified safety software. Do not use it to run real machines.
 
-**Contents:** [What is simulated](#what-is-simulated-and-how-to-swap-in-the-real-thing) · [Run it end to end](#run-it-end-to-end) · [Use it](#use-it) · [When something is wrong](#when-something-is-wrong) · [How it fits together](#how-it-fits-together) · [Inside Abenix](#inside-abenix) · [Honest notes](#honest-notes) · [Measured](#measured) · [Record the film](#record-the-film)
+**Contents:** [What is simulated](#what-is-simulated-and-how-to-swap-in-the-real-thing) · [Run it end to end](#run-it-end-to-end) · [Use it](#use-it) · [When something is wrong](#when-something-is-wrong) · [How it fits together](#how-it-fits-together) · [Inside Abenix](#inside-abenix) · [Honest notes](#honest-notes) · [Measured](#measured)
 
 ## What is simulated, and how to swap in the real thing
 
@@ -192,7 +192,7 @@ Details in [docs/architecture.md](docs/architecture.md), every signal in [docs/s
 
 ## Inside Abenix
 
-What the site looks like from the Abenix side, captured with `scripts/capture-abenix.mjs`.
+What the site looks like from the Abenix side.
 
 | | |
 |---|---|
@@ -232,31 +232,6 @@ On a laptop with Abenix on minikube.
 .venv/bin/python scripts/bench_twin.py abenix 300     # the real path through Abenix
 .venv/bin/pip install -r bff/requirements-dev.txt && (cd bff && ../.venv/bin/python -m pytest -q)
 ```
-
-## What building this fixed in Abenix
-
-Groundwork uses Abenix only through its public API and SDK. Where that fell short it was fixed in Abenix, not worked around here. All of these shipped in Abenix 2.5.6:
-
-- **Code asset step time:** `code_asset` re-checked its schemas on every call. A twin step went from 66 ms to 17 ms.
-- **Large inputs:** code asset runs on a Kubernetes Job now receive their input as files, so a 430 KB training set runs.
-- **Cold first call:** a new code asset version starts its warm runner on upload. The first call went from 151 s to under 5 s.
-- **Concurrency slots:** tool concurrency slots are leases, so a cancelled call no longer leaves the tool answering 429.
-- **Approval waits:** approval long-polls give their database connection back between reads.
-- **SDK retries:** the SDK waits retry a busy server.
-- **Agent step output:** pipeline agent steps pass on the JSON their output schema describes.
-- **Kill switch:** the kill switch stops the very next run.
-- **SDK coverage:** ML predict and upload, code asset run and versions, autonomy enrol, model listing and API keys are all in the SDK.
-
-## Record the film
-
-```bash
-(cd web && npx playwright install chromium)      # once
-node scripts/capture.mjs                         # both films, 1920x1080 and 1080x1350, with subtitles, into docs/media
-ABENIX_WEB_URL=http://localhost:3000 ABENIX_ADMIN_EMAIL=admin@abenix.dev ABENIX_ADMIN_PASSWORD=Admin123456 \
-  node scripts/capture-abenix.mjs                # the Abenix screenshots
-```
-
-The films are cut from a live run against Abenix, so start the ground station first.
 
 ## Layout
 
