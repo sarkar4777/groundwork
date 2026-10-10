@@ -2,8 +2,8 @@ import * as THREE from 'three'
 import { Suspense, useEffect, useMemo, useRef } from 'react'
 import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber'
 import { Environment } from '@react-three/drei'
-import { EffectComposer, Bloom, Vignette, Noise, ChromaticAberration, ToneMapping, FXAA, HueSaturation, BrightnessContrast, TiltShift } from '@react-three/postprocessing'
-import { BlendFunction, KernelSize, ToneMappingMode, type BloomEffect, type ChromaticAberrationEffect, type NoiseEffect, type VignetteEffect, type HueSaturationEffect } from 'postprocessing'
+import { EffectComposer, Bloom, Vignette, Noise, ChromaticAberration, ToneMapping, FXAA, HueSaturation, BrightnessContrast } from '@react-three/postprocessing'
+import { BlendFunction, ToneMappingMode, type BloomEffect, type ChromaticAberrationEffect, type NoiseEffect, type VignetteEffect, type HueSaturationEffect } from 'postprocessing'
 import { Ground } from './ground/Ground'
 import { Machines } from './Machines'
 import { Workers } from './Workers'
@@ -17,12 +17,22 @@ import { useUi } from '../live/store'
 import { CAPTURE } from '../live/config'
 import { HIGH } from '../live/quality'
 import { ContactShadows } from './ContactShadows'
+import { LensEffect, lens } from './LensEffect'
 
 const DEBUG = new URLSearchParams(location.search).get('debug') ?? ''
-const SUN = new THREE.Vector3(-165, 78, 92)
+// Late afternoon from the west-south-west. The survey feed holds the sun at 17 degrees, the hero drops it to 11.
+const SUN_AZ = THREE.MathUtils.degToRad(208)
+const sunDir = (elevDeg: number, out: THREE.Vector3) => {
+  const e = THREE.MathUtils.degToRad(elevDeg)
+  return out.set(Math.cos(SUN_AZ) * Math.cos(e), Math.sin(e), -Math.sin(SUN_AZ) * Math.cos(e)).multiplyScalar(400)
+}
+const SUN = sunDir(17, new THREE.Vector3())
 const HAZE = new THREE.Color('#b8c0c4')
-const SUN_DAY = new THREE.Color('#ffe4c8')
-const SUN_GOLD = new THREE.Color('#ffdab2')
+const HAZE_GOLD = new THREE.Color('#d9bfa0')
+const SUN_DAY = new THREE.Color('#ffe2c2')
+const SUN_GOLD = new THREE.Color('#ffc88e')
+const SKY_DAY = new THREE.Color('#cfe0f2')
+const SKY_GOLD = new THREE.Color('#8fb0e0')
 const NAVY = new THREE.Color('#041230')
 
 function Lights() {
@@ -43,17 +53,22 @@ function Lights() {
     // the hero shot gets the golden hour, the survey feed a neutral late-afternoon sun
     const hero = useUi.getState().heroFx ? 1 : 0
     heroK.current += (hero - heroK.current) * 0.05
-    sun.current.color.copy(SUN_DAY).lerp(SUN_GOLD, heroK.current)
-    sun.current.intensity = (3.4 + heroK.current * 0.6) * (1 - k * 0.9)
-    hemi.current.intensity = 0.55 * (1 - k * 0.8)
-    scene.environmentIntensity = 0.5 * (1 - k * 0.85)
+    const g = heroK.current
+    const elev = 17 - g * 6
+    sunDir(elev, sun.current.position)
+    sun.current.color.copy(SUN_DAY).lerp(SUN_GOLD, g)
+    // a low sun lights flat ground weakly, so it gets brighter as it drops, with cool sky fill in the shadows
+    sun.current.intensity = Math.min(7, 1.2 / Math.sin(THREE.MathUtils.degToRad(elev))) * (1 - k * 0.9)
+    hemi.current.color.copy(SKY_DAY).lerp(SKY_GOLD, g)
+    hemi.current.intensity = (0.55 + g * 0.1) * (1 - k * 0.8)
+    scene.environmentIntensity = (0.5 - g * 0.15) * (1 - k * 0.85)
     if (!env.current && scene.background instanceof THREE.Texture) env.current = scene.background
     if (k > 0.5) {
       if (!(scene.background instanceof THREE.Color)) scene.background = NAVY.clone()
     } else if (env.current && scene.background !== env.current) scene.background = env.current
-    fog.color.copy(HAZE).lerp(NAVY, k)
-    fog.near = 520 - k * 300
-    fog.far = 2200 - k * 1500
+    fog.color.copy(HAZE).lerp(HAZE_GOLD, g).lerp(NAVY, k)
+    fog.near = 520 - g * 260 - k * 300
+    fog.far = 2200 - g * 900 - k * 1500
   })
   return (
     <>
@@ -67,13 +82,13 @@ function Lights() {
         shadow-mapSize={HIGH ? [4096, 4096] : [2048, 2048]}
         shadow-radius={HIGH ? 3 : 1}
         shadow-bias={-0.0006}
-        shadow-normalBias={0.09}
-        shadow-camera-left={-125}
-        shadow-camera-right={125}
-        shadow-camera-top={125}
-        shadow-camera-bottom={-125}
-        shadow-camera-near={10}
-        shadow-camera-far={520}
+        shadow-normalBias={0.12}
+        shadow-camera-left={-175}
+        shadow-camera-right={175}
+        shadow-camera-top={175}
+        shadow-camera-bottom={-175}
+        shadow-camera-near={50}
+        shadow-camera-far={900}
       />
     </>
   )
@@ -97,8 +112,8 @@ function Post() {
   const noise = useRef<NoiseEffect>(null!)
   const vig = useRef<VignetteEffect>(null!)
   const hue = useRef<HueSaturationEffect>(null!)
-  const hero = useUi((s) => s.heroFx)
-  useFrame(() => {
+  const lensFx = useMemo(() => new LensEffect(), [])
+  useFrame((state) => {
     const k = nervous.k
     const ui = useUi.getState()
     const cam = ui.cam
@@ -106,21 +121,25 @@ function Post() {
     // survey footage reads slightly desaturated with neutral whites, the hero shot keeps its warmth
     if (hue.current) hue.current.saturation = ui.heroFx ? -0.06 : -0.16 + k * 0.16
     if (bloom.current) {
-      bloom.current.intensity = 0.35 + k * 1.6
-      bloom.current.luminanceMaterial.threshold = 0.92 - k * 0.55
+      // in daylight only beacons and glints bloom, the ground never does
+      bloom.current.intensity = 0.25 + k * 1.7
+      bloom.current.luminanceMaterial.threshold = 1.6 - k * 1.23
     }
     if (ca.current) ca.current.offset.set(0.0009 * feed, 0.0006 * feed)
-    if (noise.current) noise.current.blendMode.opacity.value = 0.05 + feed * 0.06
+    if (noise.current) noise.current.blendMode.opacity.value = 0.03 + feed * 0.03
+    const droneCam = cam === 'drone' && k < 0.5
+    lens.barrel = droneCam ? 0.035 : 0
+    lensFx.set(lens.barrel, droneCam ? 0.3 : k > 0.5 ? 0 : 0.2, droneCam ? 0.022 : 0.012, state.clock.elapsedTime)
     if (vig.current) vig.current.darkness = 0.45 + feed * 0.25 + k * 0.1
   })
   return (
     <EffectComposer ref={(c) => (composerRef.current = c as unknown as Resizable | null)} multisampling={0} enableNormalPass={false}>
+      <primitive object={lensFx} />
       <Bloom ref={bloom as never} mipmapBlur levels={5} resolutionScale={0.5} intensity={0.4} luminanceThreshold={0.92} luminanceSmoothing={0.2} radius={0.72} />
       <ChromaticAberration ref={ca as never} offset={new THREE.Vector2(0.0009, 0.0006)} radialModulation modulationOffset={0.3} />
       <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
       <HueSaturation ref={hue as never} saturation={-0.16} />
       <BrightnessContrast contrast={0.12} brightness={-0.02} />
-      {hero ? <TiltShift offset={0.08} rotation={0} focusArea={0.5} feather={0.35} kernelSize={KernelSize.LARGE} /> : <></>}
       <Noise ref={noise as never} premultiply blendFunction={BlendFunction.OVERLAY} opacity={0.1} />
       <Vignette ref={vig as never} offset={0.22} darkness={0.7} />
       <FXAA />

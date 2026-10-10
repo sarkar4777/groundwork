@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import type { CamMode } from '../live/store'
 import { hot } from '../live/hot'
-import { cranePose, dronePose, machinePose, orbitPose } from '../scene/CameraRig'
+import { cranePose, dronePose, orbitPose } from '../scene/CameraRig'
 
 interface Pose { pos: THREE.Vector3; look: THREE.Vector3; fov: number }
 
@@ -15,7 +15,7 @@ export const BEATS: Beat[] = [
   { from: 14, to: 21, name: 'nervous', mode: 'nervous', focus: 'latency' },
   { from: 21, to: 28, name: 'cab', mode: 'cab' },
   { from: 28, to: 35, name: 'aioff', mode: 'drone', focus: 'faults' },
-  { from: 35, to: 44, name: 'newmachine', mode: 'follow' },
+  { from: 35, to: 44, name: 'newmachine', mode: 'drone' },
   { from: 44, to: 52, name: 'autonomy', mode: 'drone', focus: 'autonomy' },
   { from: 52, to: 61, name: 'end', mode: 'orbit', focus: 'endcard' },
 ]
@@ -34,7 +34,8 @@ export function storyShot(s: number, pose: Pose, t: number): { name: string; mod
   const u = ease((s - b.from) / (b.to - b.from))
   switch (b.name) {
     case 'hero':
-      dronePose(pose, -10 + u * 8, -30 + u * 10, 95 - u * 10, t, -38)
+      // long lens, steep gimbal: survey footage, horizon cropped out
+      dronePose(pose, -2 + u * 6, -6 + u * 5, 235 - u * 10, t, -72, 46)
       break
     case 'stop': {
       const e = at('EX1')
@@ -57,14 +58,20 @@ export function storyShot(s: number, pose: Pose, t: number): { name: string; mod
       dronePose(pose, 6, 0, 150 - u * 15, t)
       break
     case 'newmachine':
-      if (!machinePose(hot.curr?.machines.find((m) => /tele/i.test(m.kind))?.id ?? 'TH1', 'follow', t, pose)) dronePose(pose, 10, -60, 80, t)
+    {
+      // track the new telehandler from altitude with the zoom lens
+      const th = hot.curr?.machines.find((m) => /tele/i.test(m.kind))
+      if (th) dronePose(pose, th.x, th.y, 125, t, -82, 20 - u * 4)
+      else dronePose(pose, 10, -60, 125, t, -82, 30)
+    }
       break
     case 'autonomy':
       dronePose(pose, 30, 20, 120 + u * 15, t)
       break
     default:
-      orbitPose(pose, 140 + u * 150, 50 + u * 130, 2.2 + u * 0.35, new THREE.Vector3(0, 6, 0))
-      pose.fov = 40
+      // the one establishing shot: pull back and up over the neighbourhood, the far blocks soft in the haze
+      orbitPose(pose, 150 + u * 140, 90 + u * 120, 2.2 + u * 0.3, new THREE.Vector3(0, 0, 0))
+      pose.fov = 36
   }
   return { name: b.name, mode: b.mode }
 }

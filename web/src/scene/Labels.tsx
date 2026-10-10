@@ -7,6 +7,7 @@ import { heightAt } from './ground/heights'
 import { CORE, SAFETY_Y } from './Nervous'
 import { craneRig, TOWER } from './machines/Cranes'
 import { useUi } from '../live/store'
+import { distortNdc } from './LensEffect'
 
 export const labelEls = new Map<string, HTMLElement>()
 
@@ -89,6 +90,7 @@ export function LabelProjector() {
       }
       if (ok) {
         v.project(camera)
+        distortNdc(v)
         ok = v.z < 1 && v.x > -1.1 && v.x < 1.1 && v.y > -1.1 && v.y < 1.15
       }
       if (!ok) {

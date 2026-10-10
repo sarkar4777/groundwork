@@ -153,7 +153,7 @@ export async function paintSite(imgs: Imgs, site: SiteLayout | null, N = 2048): 
     if (pit) {
       // the excavation: dark wet clay, scraped in bands by the bucket
       await tick()
-      layer(g, N, pat(g, imgs.rock, 13, ppm, 20), softPoly(pit, toPx, 8), 1, 'saturate(0.85) brightness(0.58) contrast(1.1)')
+      layer(g, N, pat(g, imgs.dirt, 18, ppm, 20), softPoly(pit, toPx, 8), 1, 'saturate(0.8) brightness(0.6) blur(1px)')
       await tick()
       layer(g, N, pat(g, imgs.tracks, 9, ppm, 200), (m, k) => {
         softPoly(pit, toPx, 8)(m, k)

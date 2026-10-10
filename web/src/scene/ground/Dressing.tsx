@@ -108,7 +108,7 @@ const mats = {
   bags: new THREE.MeshStandardMaterial({ color: '#b9b6ae', roughness: 0.95 }),
   sand: new THREE.MeshStandardMaterial({ map: tex('sandy_gravel_diff_1k.jpg', 4, 2), roughness: 1, color: '#a99c86' }),
   stone: new THREE.MeshStandardMaterial({ map: tex('gravel_diff_1k.jpg', 5, 2), roughness: 1, color: '#c8c4bc' }),
-  topsoil: new THREE.MeshStandardMaterial({ map: tex('aerial_ground_rock_diff_2k.jpg', 2, 1), roughness: 1, color: '#9a8d80' }),
+  topsoil: new THREE.MeshStandardMaterial({ map: tex('aerial_ground_rock_diff_2k.jpg', 2, 1), roughness: 1, color: '#b0a290' }),
   cone: new THREE.MeshStandardMaterial({ color: '#ff5a14', roughness: 0.55 }),
   pile: new THREE.MeshStandardMaterial({ color: '#b9b5ac', roughness: 0.9 }),
   tube: new THREE.MeshStandardMaterial({ color: '#9ea4aa', roughness: 0.4, metalness: 0.8 }),
@@ -223,7 +223,7 @@ function layout() {
 const q = new THREE.Quaternion()
 const yAxis = new THREE.Vector3(0, 1, 0)
 
-function Inst({ items, geo, mat, color, base = 'bottom', shadow = true }: { items: Item[]; geo: THREE.BufferGeometry; mat: THREE.Material; color?: boolean; base?: 'bottom' | 'centre'; shadow?: boolean }) {
+function Inst({ items, geo, mat, color, base = 'bottom', shadow = true, receive = true }: { items: Item[]; geo: THREE.BufferGeometry; mat: THREE.Material; color?: boolean; base?: 'bottom' | 'centre'; shadow?: boolean; receive?: boolean }) {
   const ref = useRef<THREE.InstancedMesh>(null!)
   const shown = useUi((st) => st.terrainShown)
   useLayoutEffect(() => {
@@ -240,7 +240,7 @@ function Inst({ items, geo, mat, color, base = 'bottom', shadow = true }: { item
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true
     mesh.computeBoundingSphere()
   }, [items, shown, base, color])
-  return <instancedMesh ref={ref} args={[geo, mat, Math.max(1, items.length)]} castShadow={shadow} receiveShadow />
+  return <instancedMesh ref={ref} args={[geo, mat, Math.max(1, items.length)]} castShadow={shadow} receiveShadow={receive} />
 }
 
 export function Dressing() {
@@ -266,9 +266,9 @@ export function Dressing() {
       <Inst items={L.rebar} geo={g.sharp} mat={mats.rebar} />
       <Inst items={L.board} geo={g.sharp} mat={mats.board} />
       <Inst items={L.tube} geo={g.sharp} mat={mats.tube} />
-      <Inst items={L.stone} geo={g.heap} mat={mats.stone} shadow={false} />
-      <Inst items={L.sand} geo={g.heap} mat={mats.sand} shadow={false} />
-      <Inst items={L.topsoil} geo={g.heap} mat={mats.topsoil} shadow={false} />
+      <Inst items={L.stone} geo={g.heap} mat={mats.stone} receive={false} />
+      <Inst items={L.sand} geo={g.heap} mat={mats.sand} receive={false} />
+      <Inst items={L.topsoil} geo={g.heap} mat={mats.topsoil} receive={false} />
       <Inst items={L.cone} geo={g.cone} mat={mats.cone} />
       <Inst items={L.pile} geo={g.cyl} mat={mats.pile} shadow={false} />
       <Inst items={L.fence} geo={g.fence} mat={mats.fence} />
