@@ -3,7 +3,7 @@
 # The browser channel is server to client, so it does not pay the port-forward request-body stall.
 #
 #   bash scripts/deploy-k8s.sh            build, apply, roll out (same as deploy)
-#   bash scripts/deploy-k8s.sh forward    start the 8710 forward in the background, wait until /health answers
+#   bash scripts/deploy-k8s.sh forward    start the 8710 forward in the background, restarted if it drops, wait until /health answers
 #   bash scripts/deploy-k8s.sh stop       end the forward this script started
 #   bash scripts/deploy-k8s.sh status     the deployment, the forward and the bff health
 set -euo pipefail
@@ -15,6 +15,7 @@ K="kubectl --context $PROFILE"
 PORT="${GW_BFF_PORT:-8710}"
 RUN="$ROOT/.run"
 PIDFILE="$RUN/bff-forward.pid"
+CHILDFILE="$RUN/bff-forward-child.pid"
 LOG="$RUN/bff-forward.log"
 
 say() { printf '[groundwork] %s\n' "$*"; }
@@ -52,7 +53,9 @@ forward() {
       exit 1
     fi
     mkdir -p "$RUN"
-    nohup $K -n groundwork port-forward svc/groundwork-bff "$PORT:8710" >"$LOG" 2>&1 &
+    : >"$LOG"
+    # supervised, a bare port-forward exits on a pod restart or a dropped connection and stays down
+    nohup bash "$0" supervise >/dev/null 2>&1 &
     echo $! >"$PIDFILE"
     say "forward started, pid $(cat "$PIDFILE"), log $LOG"
   fi
@@ -67,6 +70,17 @@ forward() {
   exit 1
 }
 
+supervise() {
+  trap '[ -f "$CHILDFILE" ] && kill "$(cat "$CHILDFILE")" 2>/dev/null; exit 0' TERM INT
+  while true; do
+    $K -n groundwork port-forward svc/groundwork-bff "$PORT:8710" >>"$LOG" 2>&1 &
+    echo $! >"$CHILDFILE"
+    wait $! || true
+    say "forward exited at $(date +%T), restarting" >>"$LOG"
+    sleep 1
+  done
+}
+
 stop() {
   if pid="$(forward_pid)"; then
     kill "$pid" 2>/dev/null || true
@@ -74,7 +88,8 @@ stop() {
   else
     say "no forward started by this script is running"
   fi
-  rm -f "$PIDFILE"
+  [ -f "$CHILDFILE" ] && kill "$(cat "$CHILDFILE")" 2>/dev/null || true
+  rm -f "$PIDFILE" "$CHILDFILE"
 }
 
 status() {
@@ -87,6 +102,7 @@ status() {
 case "${1:-deploy}" in
   deploy) deploy ;;
   forward) forward ;;
+  supervise) supervise ;;
   stop) stop ;;
   status) status ;;
   *) echo "usage: $0 [deploy|forward|stop|status]"; exit 2 ;;
