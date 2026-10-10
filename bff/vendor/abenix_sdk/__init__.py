@@ -436,27 +436,18 @@ class ApprovalsClient:
     ) -> dict[str, Any]:
         """Block until the approval leaves pending status or the timeout fires.
 
-        Uses the server's /wait long-poll under the hood so a single client
-        call covers up to 120s of real waiting per round-trip.
+        Uses the server's /wait long-poll, up to 120s per round trip. A busy
+        server (429, 503) or a dropped connection is retried until the timeout.
         """
-        import asyncio as _asyncio
-        deadline = max(1, int(timeout_seconds))
-        elapsed = 0
-        last: dict[str, Any] = {}
-        while elapsed < deadline:
-            chunk = min(120, deadline - elapsed)
-            res = await self._client._http.get(
-                f"/api/approvals/{approval_id}/wait",
-                params={"timeout_seconds": chunk},
-            )
-            res.raise_for_status()
-            last = (res.json() or {}).get("data") or {}
-            if last.get("status") and last["status"] != "pending":
-                return last
-            elapsed += chunk
-            if poll_seconds and elapsed < deadline:
-                await _asyncio.sleep(poll_seconds)
-        return last
+        return await _long_poll(
+            self._client,
+            f"/api/approvals/{approval_id}/wait",
+            "timeout_seconds",
+            timeout_seconds,
+            lambda d: bool(d.get("status")) and d["status"] != "pending",
+            poll_seconds,
+            http_errors=True,
+        )
 
     async def subscribe(self) -> AsyncIterator[dict[str, Any]]:
         """Stream approval lifecycle events for the tenant via the notification WS.
@@ -577,6 +568,54 @@ async def _call(client: "Abenix", exc: type[AbenixError], method: str, path: str
             res.status_code, err.get("message") or f"HTTP {res.status_code}", err.get("error_code"), err.get("details")
         )
     return body.get("data")
+
+
+_BUSY = (429, 502, 503, 504)
+
+
+async def _long_poll(
+    client: "Abenix",
+    path: str,
+    param: str,
+    timeout_seconds: int,
+    done: Any,
+    poll_seconds: float = 0.0,
+    http_errors: bool = False,
+) -> dict[str, Any]:
+    """Repeat a server long-poll until done(data) or the timeout. Busy answers and dropped connections are retried."""
+    import asyncio as _asyncio
+    import time as _time
+
+    deadline = _time.monotonic() + max(1, int(timeout_seconds))
+    last: dict[str, Any] = {}
+    while True:
+        left = deadline - _time.monotonic()
+        if left <= 0:
+            return last
+        chunk = max(1, min(120, int(left)))
+        pause = poll_seconds
+        try:
+            if http_errors:
+                # the older sub-clients raise httpx.HTTPStatusError, keep that
+                res = await client._http.get(path, params={param: chunk}, timeout=chunk + 30)
+                if res.status_code in _BUSY:
+                    raise AbenixError(res.status_code, "busy")
+                res.raise_for_status()
+                last = (res.json() or {}).get("data") or {}
+            else:
+                last = await _call(
+                    client, AbenixError, "GET", path, params={param: chunk}, timeout=chunk + 30
+                ) or {}
+            if done(last):
+                return last
+        except AbenixError as e:
+            if e.status not in _BUSY:
+                raise
+            pause = 2.0
+        except httpx.TransportError:
+            pause = 2.0
+        if pause:
+            await _asyncio.sleep(min(pause, max(0.0, deadline - _time.monotonic())))
 
 
 def _file_part(file: str | os.PathLike[str] | bytes, filename: str | None) -> tuple[str, bytes]:
@@ -1552,18 +1591,13 @@ class ActionsClient:
 
     async def wait(self, action_id: str, *, timeout_seconds: int = 60) -> dict[str, Any]:
         """Block until a person decides or the timeout fires. Use the returned arguments, a reviewer may have edited them."""
-        deadline = max(1, int(timeout_seconds))
-        elapsed = 0
-        last: dict[str, Any] = {}
-        while elapsed < deadline:
-            chunk = min(120, deadline - elapsed)
-            last = await self._call(
-                "GET", f"/api/autonomy/actions/{action_id}/wait", params={"timeout_s": chunk}
-            ) or {}
-            if last.get("decision") != "wait":
-                return last
-            elapsed += chunk
-        return last
+        return await _long_poll(
+            self._client,
+            f"/api/autonomy/actions/{action_id}/wait",
+            "timeout_s",
+            timeout_seconds,
+            lambda d: d.get("decision") != "wait",
+        )
 
     async def executed(
         self, action_id: str, ok: bool = True, *, result_preview: str | None = None

@@ -89,6 +89,8 @@ class Engine:
         self.l3 = Rolling(20)
         self.l4: float | None = None
         self.l5: float | None = None
+        self.l4w = Rolling(20)
+        self.l5w = Rolling(20)
         self.state_z: str | None = None
         self.frame: dict | None = None
         self.plan: dict | None = None
@@ -326,6 +328,8 @@ class Engine:
             "l4_ms": self.l4, "l5_ms": self.l5,
             "l1_twin_run_ms": st.get("run_ms"), "l2_tick_ms": self.l2_tick.pct(0.99, 100),
             "step_hz": round(len(self.l1.values()), 1), "ticks_per_step": st.get("ticks"),
+            "l1_p50_ms": self.l1.pct(0.5), "l2_p50_ms": self.l2.pct(0.5, 20), "l3_p50_ms": self.l3.pct(0.5, 20),
+            "l4_p50_ms": self.l4w.pct(0.5), "l5_p50_ms": self.l5w.pct(0.5),
         }
         frame["kpi"]["ai_cost_usd"] = round(self.cost, 4)
         frame["kpi"]["ai_billing"] = self.billing
@@ -425,8 +429,10 @@ class Engine:
         dur = (time.perf_counter() - t0) * 1000
         if lane == "pipelines":
             self.l4 = round(dur, 1)
+            self.l4w.add(self.l4)
         else:
             self.l5 = round(dur, 1)
+            self.l5w.add(self.l5)
         self.cost += float(res.cost or 0)
         self.agent_runs.append({"agent": slug, "execution_id": res.execution_id, "status": res.status, "ms": round(dur), "cost": res.cost})
         for tc in (res.tool_calls or [])[:6]:
@@ -480,6 +486,11 @@ class Engine:
             return None
 
     async def propose_plan(self, out: dict, execution_id: str | None, agent: str) -> None:
+        waiting = next((r for r in self.approvals.values() if r.get("kind") == "plan" and r.get("status") == "pending"), None)
+        if waiting:
+            # one plan change waits for a person at a time, a newer one is held, not stacked
+            await self.event("plan_change", "Plan change held", f"Waiting on: {waiting['plan']['summary']}", agent=agent)
+            return
         tree = out.get("tree")
         chk = await self.twin({"op": "check_plan", "state_z": self.state_z, "tree": tree})
         if not chk.get("ok"):
@@ -491,6 +502,7 @@ class Engine:
             try:
                 r = await self.lanes["decisions"].call(lambda: self.forge.decisions.evaluate_batch("gw.crane.limits", [{"facts": f["facts"]} for f in facts]))
                 self.l4 = round((time.perf_counter() - t0) * 1000, 1)
+                self.l4w.add(self.l4)
                 bad = [f["id"] for f, x in zip(facts, r.get("results") or []) if (x.get("result") or {}).get("action") in ("stop_slew", "stop_hoist")]
                 if bad:
                     await self.event("plan_change", "Plan refused by gw.crane.limits", f"Lifts over the limits: {', '.join(bad)}", agent=agent)
@@ -543,9 +555,13 @@ class Engine:
                 status = "approved" if ok else r.get("decision")
         except Exception as e:  # noqa: BLE001
             log.warning("approval wait: %s", e)
+            if rec.get("status") == "pending":
+                rec["status"] = "lost"
             return
         if rec.get("status") != "pending":
             return
+        if status in (None, "pending", "wait"):
+            status = "expired"
         if ok:
             await self.apply_plan(rec, rec.get("approved_by") or "Approved by a person in Abenix")
         else:
@@ -682,6 +698,7 @@ class Engine:
             log.debug("dispatch: %s", e)
             return
         self.l4 = round((time.perf_counter() - t0) * 1000, 1)
+        self.l4w.add(self.l4)
         out = unwrap(res.output)
         if res.status == "failed" or (isinstance(out, dict) and out.get("error")):
             msg = str((out or {}).get("error") if isinstance(out, dict) else res.errors)[:200]
