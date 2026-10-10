@@ -1,6 +1,6 @@
 # Assets
 
-Every third-party file shipped with Groundwork. All are CC0. The web build fails if a file under `web/public/assets` is not listed here.
+Every third-party file shipped with Groundwork, and the real imagery it can fetch. Everything shipped is CC0. The web build fails if a file under `web/public/assets` is not listed here.
 
 Machines, workers, cranes, cabins, stockpiles, fences, cars, trees, the city blocks and the Abenix core glyph are built in code from parametric parts in `web/src/scene`. They use no downloaded models. Facades, roofs, timber, steel and gravel on them come from the textures below.
 
@@ -47,3 +47,20 @@ Licence: CC0 1.0, https://polyhaven.com/license
 ## Fonts
 
 Inter and JetBrains Mono load from Google Fonts at runtime under the SIL Open Font Licence 1.1. They are not bundled.
+
+## Real imagery, fetched not shipped
+
+`scripts/fetch-real-imagery.py` downloads these into `data/real/` (gitignored) and checks their SHA-256. None is in the repo. See `docs/real-imagery.md`.
+
+| Use | Source | Licence | Attribution |
+|---|---|---|---|
+| Proof site orthophoto, `data/real/src/nh108.tif` and the tiles made from it | https://map.openaerialmap.org/#/-70.9315,43.0419,18/square/0320010023/65088140f17ffb0001796e73 (file https://oin-hotosm-temp.s3.us-east-1.amazonaws.com/65088140f17ffb0001796e72/0/65088140f17ffb0001796e73.tif, SHA-256 cc0167b362f338695cd401f4be4a0948e531274ebe18956cac6bb2d4c87c1776) | CC BY 4.0, https://creativecommons.org/licenses/by/4.0/ | Orthophoto © Craig Goodspeed, via OpenAerialMap (Open Imagery Network), CC BY 4.0. Changes: cropped, reprojected to a local grid, three parked machines retouched out |
+
+Shortlisted for phase 2, not fetched yet:
+
+| Use | Source | Licence | Attribution |
+|---|---|---|---|
+| Opening drone video | https://commons.wikimedia.org/wiki/File:Cerro_Armazones_drone_footage.webm | CC BY 4.0 | G. Hüdepohl (atacamaphoto.com)/ESO |
+| Photo set for reconstruction, fallback site | https://github.com/OpenDroneMap/odm_data_caliterra | CC0 1.0 | Aerial photos of Caliterra, Dennis Baldwin (credit not required) |
+| Context orthophoto, surface and buildings | https://www.swisstopo.admin.ch/en/orthoimage-swissimage-10 | swisstopo free geodata terms | © swisstopo |
+| Context orthophoto | https://www.pdok.nl/introductie/-/article/pdok-luchtfoto-rgb-open- | CC BY 4.0 | Luchtfoto © Beeldmateriaal Nederland, via PDOK, CC BY 4.0 |

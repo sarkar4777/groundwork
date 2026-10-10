@@ -1,0 +1,10 @@
+.proof { position: fixed; inset: 0; background: #0b1d3d; overflow: hidden; }
+.proof canvas { display: block; }
+.proof .hud .bl { bottom: 76px; }
+.proof-credit { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 3; width: min(96vw, 1180px); display: flex; flex-direction: column; gap: 3px; padding: 7px 12px; border-radius: 9px; background: rgba(4, 18, 43, 0.72); border: 1px solid rgba(201, 236, 255, 0.18); font: 500 12px/1.35 var(--sans); color: #e8f4ff; text-align: center; }
+.proof-credit b { font: 700 10.5px var(--mono); letter-spacing: 0.1em; padding: 1px 5px; border-radius: 4px; margin-right: 4px; background: rgba(62, 230, 168, 0.18); color: var(--mint); }
+.proof-credit b.sim { background: rgba(255, 176, 32, 0.2); color: var(--amber); }
+.proof-empty { position: fixed; inset: 0; display: grid; place-items: center; background: #04122b; color: #c9ecff; font: 500 15px var(--sans); padding: 16px; text-align: center; }
+.proof .hud { text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9), 0 0 6px rgba(0, 0, 0, 0.6); }
+.proof::after { content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 1; background: linear-gradient(180deg, rgba(4, 12, 28, 0.38), rgba(4, 12, 28, 0) 12%, rgba(4, 12, 28, 0) 84%, rgba(4, 12, 28, 0.42)), linear-gradient(90deg, rgba(4, 12, 28, 0.3), rgba(4, 12, 28, 0) 9%, rgba(4, 12, 28, 0) 91%, rgba(4, 12, 28, 0.3)); }
+.proof .hud, .proof .labels { z-index: 2; }

@@ -3,6 +3,7 @@
 // terrain revision and the agents, so capture.mjs can render it frame by frame, offline.
 //
 //   node scripts/record-take.mjs [--out .run/take.json] [--pre 8] [--post 8]
+//   node scripts/record-take.mjs --free 45 --out .run/take-free.json
 //
 // The pre-roll is the running site before the story starts, used for the opening title.
 
@@ -20,6 +21,8 @@ const BFF = opt('--bff', process.env.GW_BFF_URL || 'http://localhost:8710').repl
 const OUT = opt('--out', join(root, '.run', 'take.json'))
 const PRE = Number(opt('--pre', '8'))
 const POST = Number(opt('--post', '8'))
+// --free 45 records the running site for 45 s and starts no story
+const FREE = Number(opt('--free', '0'))
 const log = (...a) => console.log('[take]', ...a)
 
 const get = async (path, tries = 5) => {
@@ -93,6 +96,16 @@ await new Promise((res, rej) => {
   ws.onopen = res
   ws.onerror = () => rej(new Error(`no websocket at ${BFF}/ws`))
 })
+if (FREE > 0) {
+  log('recording the running site for', FREE, 's')
+  await new Promise((r) => setTimeout(r, FREE * 1000))
+  ws.close()
+  await agents()
+  mkdirSync(dirname(OUT), { recursive: true })
+  writeFileSync(OUT, JSON.stringify(take))
+  log(`saved ${OUT}: ${take.frames.length} frames, ${take.frames.filter((x) => x.f.type === 'state').length} states`)
+  process.exit(0)
+}
 log('recording pre-roll', PRE, 's')
 await new Promise((r) => setTimeout(r, PRE * 1000))
 const r = await fetch(BFF + '/story/start', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' })

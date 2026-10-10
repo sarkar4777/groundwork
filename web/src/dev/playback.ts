@@ -36,8 +36,9 @@ export class Playback {
     if (!r.ok) throw new Error(`no recorded take at ${url}`)
     this.take = (await r.json()) as Take
     const fr = this.take.frames
-    const sAt = this.take.storyAt
     const tOf = (f: Frame) => (typeof (f as { t?: unknown }).t === 'number' ? (f as { t: number }).t : NaN)
+    if (this.take.storyAt < 0) return this.loadFree(fr, tOf)
+    const sAt = this.take.storyAt
     // segment A: the running site just before the story, the last PRE_S seconds of sim time
     const preStates = fr.slice(0, sAt).filter((x) => x.f.type === 'state')
     const tAEnd = preStates.length ? tOf(preStates[preStates.length - 1].f) : 0
@@ -61,6 +62,22 @@ export class Playback {
     this.sched.sort((a, b) => a.v - b.v || a.i - b.i)
     this.endV = this.sched[this.sched.length - 1]?.v ?? 0
     // the first state so the scene builds while the page warms up
+    const first = this.sched.find((x) => x.f.type === 'state')
+    if (first) this.emit(first.f, performance.now())
+    this.ready = true
+  }
+
+  // a take of the running site with no story, on its own sim clock
+  private loadFree(fr: Take['frames'], tOf: (f: Frame) => number) {
+    const states = fr.filter((x) => x.f.type === 'state')
+    const t0 = states.length ? tOf(states[0].f) : 0
+    fr.forEach((x, i) => {
+      const t = tOf(x.f)
+      this.sched.push({ v: isFinite(t) ? Math.max(0, t - t0) : 0, f: x.f, i })
+    })
+    this.sched.sort((a, b) => a.v - b.v || a.i - b.i)
+    this.storyV = Infinity
+    this.endV = this.sched[this.sched.length - 1]?.v ?? 0
     const first = this.sched.find((x) => x.f.type === 'state')
     if (first) this.emit(first.f, performance.now())
     this.ready = true

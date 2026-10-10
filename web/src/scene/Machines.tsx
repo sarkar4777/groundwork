@@ -12,7 +12,7 @@ function pick(id: string) {
   }
 }
 
-export function Machines() {
+export function Machines({ only }: { only?: (id: string) => boolean } = {}) {
   const list = useUi((s) => {
     const ms = s.state?.machines.map((m) => `${m.id}:${m.kind}`) ?? []
     const cranes = s.state?.cranes?.map((c) => c.id).filter((id) => !s.state!.machines.some((m) => m.id === id)) ?? []
@@ -23,13 +23,14 @@ export function Machines() {
       {list
         .split('|')
         .filter(Boolean)
+        .filter((k) => !only || only(k.split(':')[0]))
         .map((k) => {
           const [id, kind] = k.split(':')
           const t = isKind(kind)
           const C =
             t === 'excavator' ? Excavator : t === 'truck' ? HaulTruck : t === 'dozer' ? Dozer : t === 'roller' ? Roller : t === 'telehandler' ? Telehandler : t === 'piling' ? PilingRig : t === 'drone' ? Drone : t === 'tower' ? TowerCrane : t === 'mobile' ? MobileCrane : HaulTruck
           return (
-            <group key={id} onClick={pick(id)} onPointerOver={() => (document.body.style.cursor = 'pointer')} onPointerOut={() => (document.body.style.cursor = '')}>
+            <group key={id} name={'m:' + id} onClick={pick(id)} onPointerOver={() => (document.body.style.cursor = 'pointer')} onPointerOut={() => (document.body.style.cursor = '')}>
               <C id={id} />
             </group>
           )

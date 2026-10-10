@@ -6,6 +6,7 @@
 //   node scripts/capture.mjs --sizes 1920x1080    one size only
 //   node scripts/capture.mjs --shots-only         live story screenshots, no film
 //   node scripts/capture.mjs --replay             synthesised frames, everything is marked REPLAY
+//   node scripts/capture.mjs --proof --sizes 1920x1080   the real-imagery proof clip, see docs/real-imagery.md
 //
 // The film is one live take (scripts/record-take.mjs) played back on a virtual clock. Each frame
 // is stepped exactly 1/60 s, drawn, then screenshotted, so the video has no dropped or doubled frames.
@@ -111,15 +112,17 @@ const FILM = [
 ]
 const TAKE = opt('--take', join(root, '.run', 'take.json'))
 
-async function renderFilm(browser, w, h) {
+async function renderFilm(browser, w, h, film = {}) {
+  const take = film.take ?? TAKE
+  const name = film.name ?? 'groundwork-story'
   const tag = `${w}x${h}`
   const context = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 1 })
   const page = await context.newPage()
   page.on('pageerror', (e) => log('page error:', e.message))
   page.on('console', (m) => m.type() === 'error' && log('console:', m.text().slice(0, 200)))
-  await page.route('**/__take.json', (r) => r.fulfill({ path: TAKE, contentType: 'application/json' }))
+  await page.route('**/__take.json', (r) => r.fulfill({ path: take, contentType: 'application/json' }))
   await page.clock.install({ time: Date.now() })
-  await page.goto(`${WEB}/?capture=1&playback=1&render=1`)
+  await page.goto(`${WEB}/${film.page ?? ''}?capture=1&playback=1&render=1`)
   await page.waitForFunction(() => window.__gw?.timeline()?.ready && window.__gwStep, null, { timeout: 60000 })
   for (let i = 1; ; i++) {
     try {
@@ -155,10 +158,10 @@ async function renderFilm(browser, w, h) {
     return performance.now()
   })
 
-  const spans = [OPENING, ...FILM.map(([a, b]) => [tl.storyV + a, tl.storyV + b])]
+  const spans = film.spans ?? [OPENING, ...FILM.map(([a, b]) => [tl.storyV + a, tl.storyV + b])]
   const endV = spans[spans.length - 1][1]
   if (endV > tl.endV + 0.5) throw new Error(`the take ends at ${tl.endV.toFixed(1)} s, the film needs ${endV.toFixed(1)} s`)
-  const mp4 = join(MEDIA, `groundwork-story-${tag}.mp4`)
+  const mp4 = join(MEDIA, `${name}-${tag}.mp4`)
   const ff = spawn('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'image2pipe', '-framerate', String(FPS), '-c:v', 'mjpeg', '-i', '-', '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2', '-c:v', 'libx264', '-preset', 'slow', '-crf', '20', '-pix_fmt', 'yuv420p', '-r', String(FPS), '-movflags', '+faststart', mp4], { stdio: ['pipe', 'inherit', 'inherit'] })
   const done = new Promise((res) => ff.on('close', res))
   const cdp = await context.newCDPSession(page)
@@ -197,8 +200,8 @@ async function renderFilm(browser, w, h) {
     if (last && last.text === text && last.end === i) last.end = i + 1
     else if (text) cues.push({ text, start: i, end: i + 1 })
   })
-  const srtPath = join(MEDIA, `groundwork-story-${tag}.srt`)
-  writeFileSync(srtPath, cues.map((c, i) => `${i + 1}\n${srtTime(c.start / FPS)} --> ${srtTime(c.end / FPS)}\n${c.text}\n`).join('\n'))
+  const srtPath = join(MEDIA, `${name}-${tag}.srt`)
+  if (!film.spans) writeFileSync(srtPath, cues.map((c, i) => `${i + 1}\n${srtTime(c.start / FPS)} --> ${srtTime(c.end / FPS)}\n${c.text}\n`).join('\n'))
   log(tag, `video ${mp4}: ${shot} frames, ${(shot / FPS).toFixed(2)} s at ${FPS} fps, ${(statSync(mp4).size / 1e6).toFixed(1)} MB, ${cues.length} cues, rendered in ${((Date.now() - t0) / 60000).toFixed(1)} min`)
   await context.close()
 }
@@ -383,7 +386,15 @@ async function abenixAgents(browser) {
 
 const browser = await chromium.launch({ args: ['--use-angle=d3d11', '--enable-gpu', '--ignore-gpu-blocklist', '--autoplay-policy=no-user-gesture-required'] })
 try {
-  if (VIDEO && !REPLAY) {
+  if (flag('--proof')) {
+    // phase 1 of the real imagery: the twin's machines on a real drone orthophoto, docs/real-imagery.md
+    const take = opt('--take', join(root, '.run', 'take-free.json'))
+    if (!existsSync(take)) {
+      const r = spawnSync(process.execPath, [join(root, 'scripts', 'record-take.mjs'), '--free', '40', '--out', take], { stdio: 'inherit' })
+      if (r.status !== 0) throw new Error('record-take failed')
+    }
+    for (const [w, h] of SIZES) await renderFilm(browser, w, h, { take, page: 'proof.html', name: 'groundwork-real-proof', spans: [[0, 30]] })
+  } else if (VIDEO && !REPLAY) {
     if (flag('--retake') || !existsSync(TAKE)) {
       log('recording a live take')
       const r = spawnSync(process.execPath, [join(root, 'scripts', 'record-take.mjs'), '--out', TAKE], { stdio: 'inherit' })
