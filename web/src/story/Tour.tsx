@@ -14,7 +14,7 @@ export const TOUR: { from: number; to: number; focus: Focus; text: string }[] = 
 ]
 
 const MOVE_S = 1.0
-const LAND = MOVE_S * 0.85
+const LAND = MOVE_S * 0.9
 
 const SELECTORS: Record<Exclude<Focus, 'all'>, { land: string[]; port: string[] }> = {
   right: { land: ['.col.right', '.bottom > :nth-child(3)'], port: ['.bottom > :nth-child(3)'] },
@@ -45,15 +45,29 @@ function layoutRect(app: HTMLElement, sels: string[]) {
 
 const clamp = (v: number, lo: number, hi: number) => (lo > hi ? (lo + hi) / 2 : Math.min(hi, Math.max(lo, v)))
 
+// One clock drives both the camera and the subtitle, so they can never drift apart.
+export const tourState = { text: TOUR[0].text, visible: true }
+type Listener = () => void
+const listeners = new Set<Listener>()
+
 export function useTour(active: boolean) {
   const [focus, setFocus] = useState<Focus>('all')
   useEffect(() => {
     if (!active) return
     const id = setInterval(() => {
       const t = storyT()
-      const step = TOUR.find((c) => t >= c.from && t < c.to) ?? (t < TOUR[0].from ? TOUR[0] : TOUR[TOUR.length - 1])
-      setFocus(step.focus)
-    }, 50)
+      let i = TOUR.findIndex((c) => t >= c.from && t < c.to)
+      if (i < 0) i = t < TOUR[0].from ? 0 : TOUR.length - 1
+      setFocus(TOUR[i].focus)
+      // the old line fades as the camera leaves, none while it moves, the new one once it lands
+      const moving = i > 0 && t < TOUR[i].from + MOVE_S
+      const leaving = i < TOUR.length - 1 && t > TOUR[i].to - 0.2
+      const next = { text: moving ? TOUR[i - 1].text : TOUR[i].text, visible: !moving && !leaving }
+      if (next.text !== tourState.text || next.visible !== tourState.visible) {
+        Object.assign(tourState, next)
+        listeners.forEach((l) => l())
+      }
+    }, 33)
     return () => clearInterval(id)
   }, [active])
   useEffect(() => {
@@ -109,20 +123,17 @@ export function useTour(active: boolean) {
 }
 
 export function TourCaption() {
-  const [text, setText] = useState(TOUR[0].text)
+  const [, bump] = useState(0)
   useEffect(() => {
-    const id = setInterval(() => {
-      const t = storyT()
-      // the line changes once the camera has landed on its panel
-      let step = TOUR[0]
-      for (const c of TOUR) if (t >= (c === TOUR[0] ? c.from : c.from + LAND)) step = c
-      setText(step.text)
-    }, 50)
-    return () => clearInterval(id)
+    const l = () => bump((x) => x + 1)
+    listeners.add(l)
+    return () => {
+      listeners.delete(l)
+    }
   }, [])
   return (
     <div className="tour-captions" aria-live="polite">
-      <div className="caption" key={text}>{text}</div>
+      <div className={`caption ${tourState.visible ? '' : 'off'}`}>{tourState.text}</div>
     </div>
   )
 }

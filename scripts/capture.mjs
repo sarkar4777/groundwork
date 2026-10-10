@@ -131,7 +131,7 @@ async function recordStory(page, tag, withShots) {
   let polling = true
   const pollLoop = (async () => {
     while (polling) {
-      const r = await page.evaluate(() => ({ s: window.__gw.status().storyT, c: document.querySelector('.caption')?.innerText ?? '' })).catch(() => null)
+      const r = await page.evaluate(() => ({ s: window.__gw.status().storyT, c: document.querySelector('.caption:not(.off)')?.innerText ?? '' })).catch(() => null)
       if (r && r.s !== null) clock.push({ wall: Date.now() / 1000, s: r.s, c: r.c })
       await new Promise((res) => setTimeout(res, 80))
     }

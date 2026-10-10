@@ -561,3 +561,6 @@ body.capture .topbar .btn, body.capture .topbar .num.faint { display: none; }
 
 body[data-tourcap='side-left'] .tour-captions { left: 3%; right: auto; transform: none; bottom: 30%; width: 50vw; justify-content: flex-start; }
 body[data-tourcap='side-right'] .tour-captions { right: 3%; left: auto; transform: none; bottom: 30%; width: 50vw; justify-content: flex-end; }
+
+.tour-captions .caption { background: rgba(2, 10, 26, 0.95); border: 1px solid rgba(201, 236, 255, 0.32); box-shadow: 0 1vmin 6vmin rgba(0, 4, 16, 0.85); transition: opacity 0.2s ease; animation: none; }
+.tour-captions .caption.off { opacity: 0; }
