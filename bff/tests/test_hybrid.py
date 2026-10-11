@@ -210,3 +210,24 @@ def test_haul_corridor_holds_every_route_point():
     pts = L.route_to_bay("EX1") + L.route_haul("EX1", "spoil", 0) + L.route_return("spoil", 0) + [list(p) for p in L.DUMP_POINTS]
     assert all(H.inside(poly, x, y) for x, y in pts)
     assert len(poly) <= 200
+
+
+def test_an_outside_auto_stands_until_the_site_has_a_new_reason(rules):
+    z = _init(rules)
+    _, z = _step(z, devices=_ex1(1000))
+    st = run({"op": "step", "state_z": z, "ticks": 1, "raw_state": True})["state"]
+    # the site is on its fallback for EX1 and has said safe
+    st["machines"]["EX1"]["simplex"]["latched"] = True
+    o = run({"op": "step", "state": st, "ticks": 5})
+    z = o["state_z"]
+    assert [c for c in o["commands"] if c["signal"] == "Mode/Set" and c["value"] == "safe"]
+    assert any(e["title"] == "EX1 Mode/Set safe, from the site" for e in o["events"])
+    # a person sets auto through Abenix: the site leaves it while its reason is the same
+    o, z = _step(z, devices={"ipc-ex1": {"online": True, "m": {"safety/Mode/Set": ["safe", 1100]}}})
+    for _ in range(8):
+        o, z = _step(z, ticks=50)
+    o, z = _step(z, devices={"ipc-ex1": {"online": True, "m": {"safety/Mode/Set": ["auto", 1200]}}})
+    assert any("set outside the site" in e["title"] for e in o["events"])
+    for _ in range(10):
+        o, z = _step(z)
+        assert not [c for c in o.get("commands") or [] if c["signal"] == "Mode/Set"]
