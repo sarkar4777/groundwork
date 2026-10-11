@@ -241,7 +241,7 @@ function onEvent(e: EventFrame) {
     else if (/start/i.test(e.title)) {
       // a story may run on another layout, so the site is read again
       loadSite()
-      useUi.setState((s) => ({ opening: false, story: { ...s.story, running: true, t0: e.t, startedAt: performance.now(), recorded: e.recorded === true }, captionLog: [] }))
+      useUi.setState((s) => ({ opening: false, story: { ...s.story, running: true, t0: e.t, startedAt: performance.now(), recorded: e.recorded === true, ipc: e.ipc === true }, captionLog: [] }))
     }
   }
 }
@@ -339,11 +339,15 @@ export async function refreshAgents() {
 export async function sendFault(kind: FaultKind, target?: string): Promise<boolean> {
   try {
     if (replay) replay.fault(kind, target)
-    else await postJson('/fault', target ? { kind, target } : { kind })
+    else {
+      const r = (await postJson('/fault', target ? { kind, target } : { kind })) as { ok?: boolean; error?: string }
+      if (r && r.ok === false) throw new Error(r.error || 'refused')
+    }
     if (kind === 'ai_offline') useUi.setState({ aiOffline: true })
     if (kind === 'kill_switch') useUi.setState({ killed: true })
     if (kind === 'clear') useUi.setState({ aiOffline: false, killed: false })
-    toast(kind === 'clear' ? 'Faults cleared' : `Sent ${kind.replace(/_/g, ' ')}${target ? ' to ' + target : ''}`, kind === 'clear' ? 'ok' : 'warn')
+    const said: Record<string, string> = { unplug_pc: `Unplugging ${target}'s PC through Abenix`, noisy_harness: `Noise on ${target}'s bus through Abenix` }
+    toast(kind === 'clear' ? 'Faults cleared' : said[kind] ?? `Sent ${kind.replace(/_/g, ' ')}${target ? ' to ' + target : ''}`, kind === 'clear' ? 'ok' : 'warn')
     return true
   } catch (e) {
     toast(`Fault not sent: ${e instanceof Error ? e.message : e}`, 'err')
@@ -354,7 +358,7 @@ export async function sendFault(kind: FaultKind, target?: string): Promise<boole
 export async function startStory(): Promise<boolean> {
   if (pb) return true
   const s = useUi.getState()
-  useUi.setState({ story: { running: true, t0: s.state?.t ?? 0, startedAt: performance.now(), error: null, recorded: false }, captionLog: [], caption: null })
+  useUi.setState({ story: { running: true, t0: s.state?.t ?? 0, startedAt: performance.now(), error: null, recorded: false, ipc: false }, captionLog: [], caption: null })
   try {
     if (replay) replay.startStory()
     else await postJson('/story/start', {})

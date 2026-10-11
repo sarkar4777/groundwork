@@ -1951,6 +1951,357 @@ class TeamClient:
         )
 
 
+class TelemetryClient:
+    """Machine telemetry: devices and their live readings, history, raw CAN frames, live updates and commands."""
+
+    def __init__(self, client: "Abenix"):
+        self._client = client
+
+    async def _call(self, method: str, path: str, **kw: Any) -> Any:
+        return await _call(self._client, AbenixError, method, path, **kw)
+
+    async def devices(
+        self,
+        *,
+        q: str = "",
+        group: str = "",
+        node: str = "",
+        status: str = "",
+        team: str = "",
+        limit: int = 500,
+        offset: int = 0,
+    ) -> list[dict[str, Any]]:
+        """Every machine (device "") and device in view: online, last_seen, birth_at, msgs_per_sec, seq_gaps, metric_count, connection_id."""
+        params: dict[str, Any] = {
+            k: v for k, v in {"q": q, "group": group, "node": node, "status": status, "team": team}.items() if v
+        }
+        params.update({"limit": limit, "offset": offset})
+        return await self._call("GET", "/api/telemetry/devices", params=params) or []
+
+    async def node(self, group: str, node: str, device: str | None = None) -> dict[str, Any]:
+        """A machine with its devices and their latest metrics [{name, value, type, ts, quality}]. device narrows it to one."""
+        params = {"device": device} if device is not None else None
+        return await self._call("GET", f"/api/telemetry/devices/{group}/{node}", params=params)
+
+    async def history(
+        self,
+        group: str,
+        node: str,
+        device: str = "",
+        metric: str | list[str] | None = None,
+        *,
+        from_: str | int | None = None,
+        to: str | int | None = None,
+        step: str | None = None,
+    ) -> dict[str, Any]:
+        """Time-bucketed numbers: {source, step_seconds, series: [{metric, points: [{t, avg, min, max, n}]}]}. from_ takes ISO, epoch ms or -1h."""
+        params: dict[str, Any] = {"group": group, "node": node, "device": device}
+        if metric:
+            params["metric"] = metric if isinstance(metric, str) else ",".join(metric)
+        if from_ is not None:
+            params["from"] = from_
+        if to is not None:
+            params["to"] = to
+        if step:
+            params["step"] = step
+        return await self._call("GET", "/api/telemetry/history", params=params)
+
+    async def frames(self, group: str, node: str, limit: int = 200, since: int | None = None) -> list[dict[str, Any]]:
+        """Newest raw CAN frames first: [{t (epoch ms), id, data (hex), dlc}]. since keeps only frames after that time."""
+        params: dict[str, Any] = {"limit": limit}
+        if since is not None:
+            params["since"] = since
+        return await self._call("GET", f"/api/telemetry/frames/{group}/{node}", params=params) or []
+
+    async def command(
+        self,
+        group: str,
+        node: str,
+        device: str,
+        signal: str,
+        value: Any,
+        reason: str,
+        *,
+        dry_run: bool = False,
+        confirm_timeout_ms: int = 0,
+        confirm_signal: str | None = None,
+        confirm_value: Any = None,
+    ) -> dict[str, Any]:
+        """Write one signal back: a Sparkplug DCMD (NCMD when device is ""), or the target the source's mapping declares.
+
+        Returns {published, at, topic, payload, confirmed}. With confirm_timeout_ms the call waits
+        for the device to report the value (or confirm_signal = confirm_value) and sets confirmed
+        true or false. Needs telemetry.command. Raises AbenixError with code NODE_OFFLINE,
+        NOT_WRITABLE, RATE_LIMITED (over 20 a second per node) or FORBIDDEN.
+        """
+        body: dict[str, Any] = {
+            "group": group,
+            "node": node,
+            "device": device or "",
+            "signal": signal,
+            "value": value,
+            "reason": reason,
+            "dry_run": dry_run,
+            "confirm_timeout_ms": confirm_timeout_ms,
+        }
+        if confirm_signal:
+            body["confirm_signal"] = confirm_signal
+        if confirm_value is not None:
+            body["confirm_value"] = confirm_value
+        return await self._call("POST", "/api/telemetry/command", json=body)
+
+    async def health(self) -> dict[str, Any]:
+        """Ingest health for the workspace: messages_per_second, latency p50/p99, seq_gaps, dropped, throttling, quota, connections."""
+        return await self._call("GET", "/api/telemetry/health")
+
+    async def connections(self) -> list[dict[str, Any]]:
+        """Broker connections in view, each with live status, last_error, messages_per_second and last_message_at."""
+        return await self._call("GET", "/api/telemetry/connections") or []
+
+    async def create_connection(
+        self,
+        name: str,
+        broker_url: str,
+        *,
+        topics: list[str] | None = None,
+        raw_topics: list[str] | None = None,
+        username: str | None = None,
+        password: str | None = None,
+        enabled: bool = True,
+        shared_subscription: bool = False,
+        team_id: str | None = None,
+        **streams: Any,
+    ) -> dict[str, Any]:
+        """Add a source. Needs telemetry.manage. topics defaults to spBv1.0/#.
+
+        Any transport: pass transport=, config=, secrets=, subjects=, decoder=, decoder_config=,
+        mapping= and strict= as keyword arguments, see GET /api/telemetry/transports.
+        """
+        body: dict[str, Any] = {
+            "name": name,
+            "broker_url": broker_url,
+            "enabled": enabled,
+            "shared_subscription": shared_subscription,
+        }
+        optional = {
+            "topics": topics,
+            "raw_topics": raw_topics,
+            "username": username,
+            "password": password,
+            "team_id": team_id,
+        }
+        body.update({k: v for k, v in optional.items() if v is not None})
+        body.update(streams)
+        return await self._call("POST", "/api/telemetry/connections", json=body)
+
+    async def update_connection(self, connection_id: str, **fields: Any) -> dict[str, Any]:
+        return await self._call("PATCH", f"/api/telemetry/connections/{connection_id}", json=fields)
+
+    async def delete_connection(self, connection_id: str) -> dict[str, Any]:
+        return await self._call("DELETE", f"/api/telemetry/connections/{connection_id}")
+
+    async def test_connection(self, connection_id: str) -> dict[str, Any]:
+        """Connect for up to 5 s: {ok, connected, messages, topics_seen, error}."""
+        return await self._call("POST", f"/api/telemetry/connections/{connection_id}/test")
+
+    async def transports(self) -> list[dict[str, Any]]:
+        """Every transport with the fields its form needs."""
+        return await self._call("GET", "/api/telemetry/transports") or []
+
+    async def decoders(self) -> list[dict[str, Any]]:
+        """Every payload format with the fields its form needs."""
+        return await self._call("GET", "/api/telemetry/decoders") or []
+
+    async def ingest(
+        self,
+        connection_id: str,
+        data: Any,
+        *,
+        token: str,
+        subject: str | None = None,
+        content_type: str | None = None,
+        idempotency_key: str | None = None,
+        gzip: bool = False,
+    ) -> dict[str, Any]:
+        """Push readings into an HTTP push source with its token or a device key. Returns {accepted, id, bytes}.
+
+        data is bytes, text, a dict or a list (sent as JSON). The API key is not used here, the
+        source's tpk_ token or a device's tdk_ key is.
+        """
+        import gzip as _gzip
+        import json as _json
+
+        if isinstance(data, (dict, list)):
+            raw = _json.dumps(data).encode()
+            content_type = content_type or "application/json"
+        elif isinstance(data, str):
+            raw = data.encode()
+        else:
+            raw = bytes(data)
+        headers = {"Authorization": f"Bearer {token}", "Content-Type": content_type or "application/json"}
+        if idempotency_key:
+            headers["Idempotency-Key"] = idempotency_key
+        if gzip:
+            raw = _gzip.compress(raw)
+            headers["Content-Encoding"] = "gzip"
+        async with httpx.AsyncClient(base_url=self._client.base_url, timeout=self._client.timeout) as http:
+            res = await http.post(
+                f"/api/telemetry/ingest/{connection_id}",
+                content=raw,
+                headers=headers,
+                params={"subject": subject} if subject else None,
+            )
+        body = res.json() if res.content else {}
+        if res.status_code >= 400:
+            err = (body.get("error") if isinstance(body, dict) else None) or {}
+            raise AbenixError(res.status_code, err.get("message") or f"HTTP {res.status_code}", err.get("error_code"), err.get("details"))
+        return body.get("data")
+
+    async def preview(
+        self,
+        connection_id: str,
+        payload: Any = None,
+        *,
+        subject: str | None = None,
+        mapping: dict[str, Any] | None = None,
+        decoder: str | None = None,
+        decoder_config: dict[str, Any] | None = None,
+        capture: bool = False,
+    ) -> dict[str, Any]:
+        """Run a sample, or with capture the next live message, through a mapping: {records, errors, sample}. Nothing is stored."""
+        body: dict[str, Any] = {"capture": capture}
+        if isinstance(payload, (bytes, bytearray)):
+            import base64 as _b64
+
+            body["payload_base64"] = _b64.b64encode(bytes(payload)).decode()
+        elif payload is not None:
+            body["payload"] = payload
+        for k, v in (("subject", subject), ("mapping", mapping), ("decoder", decoder), ("decoder_config", decoder_config)):
+            if v is not None:
+                body[k] = v
+        return await self._call("POST", f"/api/telemetry/connections/{connection_id}/preview", json=body)
+
+    async def suggest_mapping(self, payload: Any, *, subject: str = "", decoder: str = "json") -> dict[str, Any]:
+        """A first mapping from one sample: {mapping, records, errors}."""
+        return await self._call("POST", "/api/telemetry/mapping/suggest", json={"payload": payload, "subject": subject, "decoder": decoder})
+
+    async def inspector(self, connection_id: str, limit: int = 100, errors_only: bool = False) -> list[dict[str, Any]]:
+        """The newest raw messages of a source with what each decoded to, or why it failed."""
+        return await self._call(
+            "GET", f"/api/telemetry/connections/{connection_id}/inspector", params={"limit": limit, "errors_only": errors_only}
+        ) or []
+
+    async def dead_letters(self, connection_id: str, limit: int = 100) -> list[dict[str, Any]]:
+        return await self._call("GET", f"/api/telemetry/connections/{connection_id}/dlq", params={"limit": limit}) or []
+
+    async def replay(self, connection_id: str, ids: list[str] | None = None) -> dict[str, Any]:
+        """Run dead letters through the current decoder and mapping: {replayed, still_failing, remaining}."""
+        return await self._call("POST", f"/api/telemetry/connections/{connection_id}/dlq/replay", json={"ids": ids or []})
+
+    async def signals(self, connection_id: str) -> list[dict[str, Any]]:
+        """Every signal a source has sent, with first and last seen."""
+        return await self._call("GET", f"/api/telemetry/connections/{connection_id}/signals") or []
+
+    async def diagnose(self, connection_id: str | None = None, *, group: str | None = None, node: str | None = None) -> dict[str, Any]:
+        """Why data is or is not showing: {state, message, fix, counters}. Give a connection, or a group and node."""
+        if connection_id:
+            return await self._call("GET", f"/api/telemetry/connections/{connection_id}/diagnose")
+        return await self._call("GET", "/api/telemetry/diagnose", params={"group": group, "node": node})
+
+    async def events(self, group: str, node: str, limit: int = 100) -> list[dict[str, Any]]:
+        """Messages kept whole as events, such as order.created, newest first."""
+        return await self._call("GET", f"/api/telemetry/events/{group}/{node}", params={"limit": limit}) or []
+
+    async def keys(self, connection_id: str) -> list[dict[str, Any]]:
+        return await self._call("GET", f"/api/telemetry/connections/{connection_id}/keys") or []
+
+    async def create_key(
+        self,
+        connection_id: str,
+        device_id: str,
+        *,
+        kind: str = "device",
+        group: str | None = None,
+        allowed_nodes: list[str] | None = None,
+        label: str = "",
+    ) -> dict[str, Any]:
+        """A key for one device (or a gateway). The raw key is in "key", shown only this once."""
+        body: dict[str, Any] = {"device_id": device_id, "kind": kind, "label": label}
+        if group:
+            body["group"] = group
+        if allowed_nodes:
+            body["allowed_nodes"] = allowed_nodes
+        return await self._call("POST", f"/api/telemetry/connections/{connection_id}/keys", json=body)
+
+    async def create_keys_csv(self, connection_id: str, csv_text: str) -> list[dict[str, Any]]:
+        """Keys for many devices from CSV with a device_id column. Each raw key is shown only this once."""
+        return await self._call("POST", f"/api/telemetry/connections/{connection_id}/keys/bulk", json={"csv": csv_text}) or []
+
+    async def revoke_key(self, connection_id: str, key_id: str) -> dict[str, Any]:
+        return await self._call("DELETE", f"/api/telemetry/connections/{connection_id}/keys/{key_id}")
+
+    async def rotate_token(self, connection_id: str) -> dict[str, Any]:
+        """A new push token for an HTTP push source, the old one stops at once."""
+        return await self._call("POST", f"/api/telemetry/connections/{connection_id}/token")
+
+    async def stream(
+        self,
+        *,
+        group: str | None = None,
+        node: str | None = None,
+        device: str | None = None,
+        nodes: list[str] | None = None,
+    ) -> Any:
+        """Live updates as (event, data): device, metrics (at most 10 a second per device) and health each second.
+
+        async for event, data in forge.telemetry.stream(nodes=["groundwork/ipc-ex1"]): ...
+        """
+        import json as _json
+
+        params: dict[str, Any] = {}
+        if group:
+            params["group"] = group
+        if node:
+            params["node"] = node
+        if device is not None:
+            params["device"] = device
+        if nodes:
+            params["nodes"] = ",".join(nodes)
+        async with self._client._http.stream(
+            "GET", "/api/telemetry/stream", params=params, timeout=httpx.Timeout(None, connect=10.0)
+        ) as res:
+            if res.status_code >= 400:
+                await res.aread()
+                body: Any = {}
+                try:
+                    body = res.json() or {}
+                except ValueError:
+                    pass
+                err = (body.get("error") if isinstance(body, dict) else None) or {}
+                raise AbenixError(
+                    res.status_code,
+                    err.get("message") or f"HTTP {res.status_code}",
+                    err.get("error_code"),
+                    err.get("details"),
+                )
+            event, data = "message", []
+            async for line in res.aiter_lines():
+                if line == "":
+                    if data:
+                        raw = "\n".join(data)
+                        try:
+                            yield event, _json.loads(raw)
+                        except ValueError:
+                            yield event, raw
+                    event, data = "message", []
+                elif line.startswith(":"):
+                    continue
+                elif line.startswith("event:"):
+                    event = line[6:].strip()
+                elif line.startswith("data:"):
+                    data.append(line[5:].lstrip())
+
+
 class ApiKeysClient:
     """API keys of the calling user, or of the whole tenant for an admin."""
 
@@ -2060,6 +2411,7 @@ class Abenix:
         self.kill_switches = KillSwitchesClient(self)
         self.api_keys = ApiKeysClient(self)
         self.team = TeamClient(self)
+        self.telemetry = TelemetryClient(self)
         # no default Content-Type, httpx sets it per request and a fixed
         # JSON one broke multipart uploads through forge.http
         self._http = httpx.AsyncClient(

@@ -69,9 +69,12 @@ function LabelLayer() {
   const events = useUi((s) => s.events)
   const stops = st?.safety.active_stops ?? []
   const stopMs = (id: string) => {
+    // a machine on a PC is still only when its PC says so, that time includes the trip over MQTT
+    for (let i = events.length - 1; i >= 0; i--) if (events[i].kind === 'ipc_stop' && events[i].machine === id) return events[i].ms
     for (let i = events.length - 1; i >= 0; i--) if (events[i].kind === 'safety_stop' && events[i].machine === id) return events[i].ms
     return undefined
   }
+  const hasIpc = !!st?.ipc && Object.keys(st.ipc).length > 0
   const nerv = cam === 'nervous'
   const hero = useUi((s) => s.heroFx)
   const showM = ov.labels && !nerv && !hero && cam !== 'seat' && cam !== 'cab'
@@ -87,6 +90,7 @@ function LabelLayer() {
                 <span className={`mlabel ${sel === m.id ? 'sel' : ''}`} onClick={() => useUi.setState({ selected: m.id })} style={{ pointerEvents: 'auto' }} title={`${m.id} ${m.task}`}>
                   {m.id}
                   <span className={`md ${m.health === 'fault' ? 'fault' : m.mode}`}>{m.health === 'fault' ? 'FAULT' : m.mode.toUpperCase()}</span>
+                  {hasIpc && (m.src === 'ipc' ? <span className={`src ipc ${m.online === false ? 'off' : ''}`} title={`${m.node}: a real J1939 bus behind an industrial PC, read through Abenix telemetry`}>IPC · REAL BUS</span> : <span className="src sim" title="Simulated in the twin">SIM</span>)}
                   {eta && <span style={{ color: '#c9ecff' }}>ETA {eta}</span>}
                   <span className="more" />
                 </span>

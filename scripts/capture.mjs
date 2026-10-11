@@ -8,6 +8,7 @@
 //   node scripts/capture.mjs --replay             synthesised frames, everything is marked REPLAY
 //   node scripts/capture.mjs --proof --sizes 1920x1080   the real-imagery proof clip, see docs/real-imagery.md
 //   node scripts/capture.mjs --real                       the story on real ground, from .run/take-real.json
+//   node scripts/capture.mjs --ipc --out .run/ipc         the industrial PC story cut, from .run/take-ipc.json
 //
 // The film is one live take (scripts/record-take.mjs) played back on a virtual clock. Each frame
 // is stepped exactly 1/60 s, drawn, then screenshotted, so the video has no dropped or doubled frames.
@@ -111,6 +112,11 @@ const FILM = [
   [51.15, 55.6],
   [55.6, 65.05],
 ]
+// the industrial PC story: everything up to the cut to Abenix at 50 s, then the end card
+const IPC_FILM = [
+  [0.3, 50],
+  [58.05, 64.8],
+]
 const REAL = flag('--real')
 // --real renders the same story on the real-site layout, from a take recorded with record-take.mjs --site nh108
 const TAKE = opt('--take', join(root, '.run', REAL ? 'take-real.json' : 'take.json'))
@@ -161,7 +167,8 @@ async function renderFilm(browser, w, h, film = {}) {
     return performance.now()
   })
 
-  const spans = film.spans ?? [OPENING, ...FILM.map(([a, b]) => [tl.storyV + a, tl.storyV + b])]
+  const story = film.story ?? FILM
+  const spans = film.spans ?? [OPENING, ...story.map(([a, b]) => [tl.storyV + a, tl.storyV + b])]
   const endV = spans[spans.length - 1][1]
   if (endV > tl.endV + 0.5) throw new Error(`the take ends at ${tl.endV.toFixed(1)} s, the film needs ${endV.toFixed(1)} s`)
   const mp4 = join(MEDIA, `${name}-${tag}.mp4`)
@@ -188,7 +195,7 @@ async function renderFilm(browser, w, h, film = {}) {
     if (!spans.some(([a, b]) => v >= a && v < b)) continue
     const { data } = await cdp.send('Page.captureScreenshot', { format: 'jpeg', quality: 92 })
     await write(Buffer.from(data, 'base64'))
-    caps.push(v >= tl.storyV + FILM[FILM.length - 1][0] ? '' : cap)
+    caps.push(v >= tl.storyV + story[story.length - 1][0] ? '' : cap)
     shot++
     if (shot % 600 === 0) log(tag, `${(shot / FPS).toFixed(0)} s rendered, ${((Date.now() - t0) / 1000).toFixed(0)} s so far`)
   }
@@ -397,6 +404,10 @@ try {
       if (r.status !== 0) throw new Error('record-take failed')
     }
     for (const [w, h] of SIZES) await renderFilm(browser, w, h, { take, page: 'proof.html', name: 'groundwork-real-proof', spans: [[0, 30]] })
+  } else if (flag('--ipc')) {
+    const take = opt('--take', join(root, '.run', 'take-ipc.json'))
+    if (!existsSync(take)) throw new Error(`no ${take}, record one with node scripts/record-take.mjs --ipc --out ${take}`)
+    for (const [w, h] of SIZES) await renderFilm(browser, w, h, { take, name: 'groundwork-ipc-story-cut', story: IPC_FILM })
   } else if (VIDEO && !REPLAY) {
     if (REAL && !existsSync(TAKE)) throw new Error(`no ${TAKE}, record one with node scripts/record-take.mjs --site nh108 --out ${TAKE}`)
     if (flag('--retake') || !existsSync(TAKE)) {

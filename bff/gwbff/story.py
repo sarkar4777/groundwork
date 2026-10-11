@@ -39,6 +39,8 @@ CACHED_TIMES = {
 
 
 class Story:
+    ipc = False
+
     def __init__(self, mode: str, ticks: int = 5, site: str = "northgate"):
         self.mode = mode          # live, cached or record
         self.site = site
@@ -82,7 +84,7 @@ class Story:
         elif self.mode == "record":
             note = "live Abenix calls, recorded for identical takes"
         await eng.emit({"type": "event", "t": 0.0, "kind": "story", "title": "Story started", "detail": f"Seed {SEED}, {note}",
-                        "mode": self.mode, "recorded": self.mode == "cached", "site": self.site})
+                        "mode": self.mode, "recorded": self.mode == "cached", "site": self.site, "ipc": self.ipc})
 
     async def before_step(self, eng, inp: dict) -> None:
         # the twin's own clock, it only moves when a step really ran in Abenix
@@ -149,6 +151,9 @@ class Story:
             if e.get("kind") == "gust" and e.get("forecast_ms") and self.gust_forecast is None:
                 self.gust_forecast = float(e["forecast_ms"])
         self.vecus = (out.get("stats") or {}).get("vecus", self.vecus) if self.k < 50 else self.vecus
+
+    async def on_ipc_stop(self, eng, stop: dict) -> None:
+        pass
 
     def track(self, eng, coro) -> None:
         t = asyncio.create_task(coro)
@@ -315,3 +320,75 @@ class Story:
                 await eng.agent_frame("gw-safety-officer", "answer", n["out"].get("lesson") or n["out"].get("title", ""), None, write_up=n["out"], **tag)
             if self.once("c_nm_lesson", t, T["near_miss"]["lesson"]):
                 await eng.event("autonomy", "Near miss turned into a lesson", n["out"].get("lesson", ""), **tag)
+
+
+IPC_CAPTIONS = [
+    (0.0, 6.0, "Four machines here run on industrial PCs: real J1939 buses, Sparkplug B over MQTT, into Abenix."),
+    (6.0, 13.0, "A worker walks into EX1's swing zone. The hold crosses MQTT to EX1's PC, and EX1 is still {stop_ms} ms after the twin saw the worker."),
+    (13.0, 20.0, "Every hop is measured, from the bus through the gateway and the broker into the Abenix store, and back."),
+    (20.0, 26.0, "The worker is clear. EX1 works on the fallback plan until a person signs the stop off."),
+    (26.0, 34.0, "We unplug EX1's PC. Abenix sees it die on the broker, and EX1's own safety PLC holds it."),
+    (34.0, 42.0, "Plugged back in, it is born again on the broker and goes back to work."),
+    (42.0, 50.0, "A noisy harness on EX1. Error frames and retransmits on the wire, and the bus keeps going."),
+    (50.0, 58.0, "In Abenix every PC is a device, with live graphs, history and the raw frames."),
+    (58.0, 64.0, "Groundwork. Built on Abenix, open source."),
+]
+
+
+class IpcStory(Story):
+    """The industrial PC story. Always live: the PCs and their buses cannot be replayed, so every number is measured."""
+
+    ipc = True
+
+    def __init__(self, ticks: int = 5, site: str = "northgate"):
+        super().__init__("live", ticks, site)
+        self.stop = None
+
+    async def start(self, eng) -> None:
+        if eng.ipc is None:
+            raise RuntimeError("no industrial PCs in Abenix, deploy them with scripts/deploy-k8s.sh edge")
+        await super().start(eng)
+        await eng.emit({"type": "event", "t": 0.0, "kind": "story", "title": "Industrial PC story",
+                        "detail": "EX1, TC1, HT1 and DZ1 on their PCs, the rest simulated. Live, every number measured", "ipc": True})
+
+    async def on_ipc_stop(self, eng, stop: dict) -> None:
+        if self.stop is None and stop.get("machine") == "EX1":
+            self.stop = stop
+            self.stop_ms = stop["stop_ms"]
+
+    async def before_step(self, eng, inp: dict) -> None:
+        t = round(eng.t(), 3)
+        self.k = int(round(t / (self.ticks * 0.01)))
+        for start, until, text in IPC_CAPTIONS:
+            if t >= start - 1e-6 and start not in self.done_caps:
+                if "{stop_ms}" in text and self.stop_ms is None and t < start + 3.0:
+                    continue
+                self.done_caps.add(start)
+                if "{stop_ms}" in text:
+                    if self.stop is not None and not self.stop.get("moving"):
+                        text = text.replace("EX1 is still {stop_ms} ms", "the hold is in force {stop_ms} ms")
+                    text = text.replace("{stop_ms} ms", f"{self.stop_ms:.0f} ms" if self.stop_ms is not None else "milliseconds")
+                await eng.emit({"type": "caption", "t": t, "text": text, "until": until, "recorded": False, "ipc": True})
+        if self.once("worker", t, 1.9):
+            eng.queue("faults", [{"kind": "worker_in_swing", "target": "EX1", "worker": "W07", "start_m": 17.5, "speed": 1.6}])
+        if self.once("hops", t, 13.0):
+            await eng.event("story", "Nervous system view", "Measured hops on EX1's PC: bus, gateway, MQTT, Abenix store, and the command back")
+        if self.once("release", t, 21.0):
+            eng.queue("clear_simplex", ["EX1"])
+            eng.queue("cleared_by", "The site supervisor, worker clear")
+        if self.once("unplug", t, 26.5):
+            await eng.fault("unplug_pc", "EX1", {"seconds": 8})
+        if self.once("noise", t, 42.5):
+            await eng.fault("noisy_harness", "EX1", {"seconds": 6})
+        if self.once("release2", t, 57.0):
+            eng.queue("clear_simplex", ["EX1"])
+            eng.queue("cleared_by", "The site supervisor, worker clear")
+        if self.once("end", t, 64.0):
+            self.finished = True
+            await eng.event("story", "Story finished", "Groundwork on Abenix, open source")
+            eng.story = None
+            eng.wall0 = time.monotonic()
+            eng.sim0 = eng.t()
+
+    async def after_step(self, eng, out: dict) -> None:
+        self.vecus = (out.get("stats") or {}).get("vecus", self.vecus)

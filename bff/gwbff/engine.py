@@ -14,6 +14,7 @@ from typing import Any
 
 from abenix_sdk import Abenix, AbenixDecisionError
 
+from .ipc import Ipc
 from .lanes import Lane, Open, Rolling
 
 log = logging.getLogger("gw.bff")
@@ -130,6 +131,8 @@ class Engine:
         self.shift_started = time.monotonic()
         self.shift_report_sent = False
         self.stats_last: dict = {}
+        self.ipc: Ipc | None = None
+        self.stops_sent = 0
 
     # plumbing
 
@@ -195,7 +198,10 @@ class Engine:
         async def go():
             r = await self.forge.code_assets.run(self.ids["gw-site-twin"], inp, timeout=timeout_s or 30)
             c = r.get("content")
-            c = json.loads(c) if isinstance(c, str) else c
+            try:
+                c = json.loads(c) if isinstance(c, str) else c
+            except ValueError:
+                raise RuntimeError(f"twin answered without JSON: {str(c)[:300]!r}") from None
             if r.get("is_error") or not isinstance(c, dict) or "result" not in c:
                 raise RuntimeError(f"twin step failed: {str(c)[:300]}")
             self.stats_last = {k: (r.get("metadata") or {}).get(k) for k in ("runner", "runner_mode", "duration_ms", "run_ms", "queue_ms", "cache")}
@@ -234,6 +240,11 @@ class Engine:
         self.terrain_cache = {}
         self.pending = {}
         await self.fetch_rules(force=True)
+        if self.ipc is not None:
+            # a new twin knows nothing of the PCs yet, the next step carries everything
+            for n in self.ipc.nodes:
+                self.ipc.dirty[n] = dict(self.ipc.values[n])
+                self.ipc.online_dirty.add(n)
         self.wall0 = time.monotonic()
         self.sim0 = 0.0
 
@@ -250,6 +261,11 @@ class Engine:
                 log.warning(self.status)
                 await self.emit({"type": "event", "t": 0.0, "kind": "fault", "title": "Abenix unreachable", "detail": str(e)[:300]})
                 await asyncio.sleep(5)
+        if str(self.cfg.get("ipc", "auto")) != "0":
+            self.ipc = Ipc(self.forge)
+            if not await self.ipc.start():
+                log.info("no industrial PCs, every machine simulated")
+                self.ipc = None
         self.ready = True
         self.status = "running"
         await self.event("story", "Site twin running in Abenix", f"gw-site-twin code asset, {len(self.ids)} Abenix resources resolved")
@@ -275,7 +291,7 @@ class Engine:
             await asyncio.sleep(max(0.0, target - spent))
 
     def ticks_due(self) -> int:
-        if self.story is not None:
+        if self.story is not None and not self.story.ipc:
             return self.story.ticks
         if self.cfg.get("fixed_ticks"):
             return int(self.cfg["fixed_ticks"])
@@ -294,6 +310,12 @@ class Engine:
         taken = self.pending
         inp.update(taken)
         self.pending = {}
+        real = self.ipc is not None and (self.story is None or getattr(self.story, "ipc", False))
+        devices, ipc_frames = self.ipc.take() if real else ({}, {})
+        if devices:
+            inp["devices"] = devices
+        if ipc_frames:
+            inp["ipc_frames"] = ipc_frames
         if time.monotonic() - self.last_rules_check > 30:
             self.spawn(self.fetch_rules())
         sim_t = self.t()
@@ -315,6 +337,8 @@ class Engine:
             # nothing reached the twin, so what this step carried goes with the next one
             for k, v in taken.items():
                 self.queue(k, v)
+            if real:
+                self.ipc.give_back(devices, ipc_frames)
             raise
         rtt = (time.perf_counter() - t0) * 1000
         if epoch != self.epoch:
@@ -336,6 +360,12 @@ class Engine:
             "l1_p50_ms": self.l1.pct(0.5), "l2_p50_ms": self.l2.pct(0.5, 20), "l3_p50_ms": self.l3.pct(0.5, 20),
             "l4_p50_ms": self.l4w.pct(0.5), "l5_p50_ms": self.l5w.pct(0.5),
         }
+        if real:
+            if out.get("commands"):
+                stops = {e.get("machine"): e for e in out.get("events") or [] if e.get("kind") == "safety_stop"}
+                self.spawn(self.ipc.send(out["commands"], stops))
+            self.ipc.expire()
+            frame["latency"]["ipc"] = self.ipc.view()
         frame["kpi"]["ai_cost_usd"] = round(self.cost, 4)
         frame["kpi"]["ai_billing"] = self.billing
         frame["ai_offline"] = self.ai_offline
@@ -366,6 +396,17 @@ class Engine:
             self.spawn(self.audit(out["audit_facts"]))
         if out.get("brief") is not None and self.story is None:
             self._brief = out["brief"]
+        if real and len(self.ipc.stops) and self.ipc.stops[-1] is not getattr(self, "_last_stop", None):
+            self._last_stop = s = self.ipc.stops[-1]
+            hops = ", ".join(f"{h['hop']} {h['ms']:.1f} ms" for h in s["hops"] if h["ms"] is not None)
+            e = {"type": "event", "t": round(self.t(), 3), "kind": "ipc_stop", "machine": s["machine"],
+                 "title": f"{s['machine']} {'still' if s['moving'] else 'held'} in {s['stop_ms']:.0f} ms over its real bus",
+                 "detail": f"{hops}. ACK on the bus at {s['hold_ack_ms']} ms, command API answered in {s['api_ms']:.0f} ms, seen back in Abenix after {s['confirm_ms']} ms",
+                 "ms": s["stop_ms"], **s}
+            e["type"] = "event"
+            await self.emit(e)
+            if self.story is not None:
+                await self.story.on_ipc_stop(self, s)
         if self.story is not None:
             await self.story.after_step(self, out)
         minutes = float(self.cfg.get("shift_minutes", 60))
@@ -793,6 +834,20 @@ class Engine:
                 await self.kill(False)
             await self.event("fault", "Faults cleared", "AI back online, CAN and GNSS restored", ai_offline=False)
             return {"ok": True}
+        if kind in ("unplug_pc", "noisy_harness"):
+            node = {"EX1": "ipc-ex1", "TC1": "ipc-tc1", "HT1": "ipc-ht1", "DZ1": "ipc-dz1"}.get(target or "EX1")
+            if self.ipc is None or node is None:
+                return {"ok": False, "error": f"{target or 'EX1'} has no industrial PC on this site"}
+            secs = float(extra.get("seconds") or (10 if kind == "unplug_pc" else 6))
+            try:
+                r = await self.ipc.fault(kind, node, secs)
+            except Exception as e:  # noqa: BLE001
+                return {"ok": False, "error": str(e)[:300]}
+            title = f"{target or 'EX1'}'s PC unplugged for {secs:.0f} s" if kind == "unplug_pc" else f"Noisy harness on {target or 'EX1'} for {secs:.0f} s"
+            detail = ("Node Control/Unplug_s through Abenix. The PC drops off MQTT without a goodbye, the broker publishes its NDEATH"
+                      if kind == "unplug_pc" else "Bus/InjectNoise_s through Abenix. The canbus emulator corrupts frames on the wire: error frames, retransmits, TEC climbing")
+            await self.event("fault", title, detail, machine=target or "EX1")
+            return r
         if kind in ("cut_can", "drop_gnss", "gust", "worker_in_swing", "hydraulic_wear"):
             self.queue("faults", [{"kind": kind, "target": target, **extra}])
             return {"ok": True}
@@ -873,7 +928,8 @@ class Engine:
         return {"ok": self.ready, "status": self.status, "abenix_url": self.cfg["abenix_url"], "steps": self.step_n,
                 "t": self.t(), "lanes": {k: v.info() for k, v in self.lanes.items()}, "last_step_runner": self.stats_last,
                 "ai_offline": self.ai_offline, "killed": self.killed, "story": self.story.info() if self.story else None,
-                "l1_p50_ms": self.l1_all.pct(0.5), "l1_p99_ms": self.l1_all.pct(0.99)}
+                "l1_p50_ms": self.l1_all.pct(0.5), "l1_p99_ms": self.l1_all.pct(0.99),
+                "ipc": self.ipc.view() if self.ipc else None}
 
 
 def _strip_status(node):

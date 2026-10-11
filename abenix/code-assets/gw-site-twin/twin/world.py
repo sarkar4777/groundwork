@@ -10,6 +10,7 @@ import math
 import time
 import zlib
 
+from . import hybrid as H
 from . import j1939 as J
 from . import layout as L
 from . import rules as R
@@ -1652,6 +1653,9 @@ def step(st: dict, inp: dict) -> dict:
     tabs = _tables(st)
     d = T.decode(st["terrain"]["delta"])
     st["terrain_dirty"] = False
+    if inp.get("devices"):
+        H.apply(st, inp["devices"], ev, d)
+    ipc = H.active(st)
     budget = int(inp.get("bus_budget", 12))
     frames: list = []
     counts = [0]
@@ -1675,15 +1679,21 @@ def step(st: dict, inp: dict) -> dict:
         tick_weather(st, ev)
         tick_workers(st, ev)
         for m in st["machines"].values():
-            tick_faults(st, m, ev)
+            if ipc and H.is_ipc(st, m["id"]):
+                H.tick(st, m, d, ev)
+            else:
+                tick_faults(st, m, ev)
         safety_tick(st, tabs, ev, safety_times)
         for m in st["machines"].values():
-            TICKERS[m["kind"]](st, m, d, ev)
+            on_pc = ipc and H.is_ipc(st, m["id"])
+            if not on_pc:
+                TICKERS[m["kind"]](st, m, d, ev)
             if m["kind"] == "haul_truck":
                 m["z"] = round(T.height(d, m["x"], m["y"]), 2) if st["tick"] % 10 == 0 else m["z"]
             if abs(m.get("speed", 0.0)) < 0.05 and m["kind"] not in ("drone",):
                 m["idle_s"] = m.get("idle_s", 0.0) + DT
-            tick_bus(st, m, frames, counts, want)
+            if not on_pc:
+                tick_bus(st, m, frames, counts, want)
         tick_sensors(st, frames, counts, want_sensor)
         _record(st)
         wx = st["weather"]
@@ -1699,12 +1709,18 @@ def step(st: dict, inp: dict) -> dict:
     # keep the bus sample inside the budget, DM1 with faults first
     frames.sort(key=lambda f: 0 if f.get("pgn") in (J.DM1.pgn, J.TP_CM.pgn, J.TP_DT.pgn) and f.get("decoded", {}).get("dtcs") else 1)
     out["bus"] = frames[:budget]
+    if ipc:
+        real, seen_n = H.bus_frames(st, inp.get("ipc_frames"), int(inp.get("ipc_budget", 8)))
+        out["bus"] = real + out["bus"]
+        out["commands"] = H.commands(st, ev)
     for e in ev:
         e.setdefault("t", round(st["t"], 3))
         e["type"] = "event"
         e.setdefault("machine", None)
     out["events"] = ev
     out["frame"] = frame(st, tabs)
+    if ipc:
+        H.frame_extra(st, out["frame"])
     if st["t"] - st["last_plan_emit"] >= 1.0 or any(e["kind"] in ("plan_change", "safety_stop") for e in ev):
         out["plan"] = plan_frame(st)
         st["last_plan_emit"] = st["t"]
@@ -1727,5 +1743,10 @@ def step(st: dict, inp: dict) -> dict:
         "safety_us_p99": round(1e6 * safety_times[min(len(safety_times) - 1, int(0.99 * len(safety_times)))], 1) if safety_times else 0,
         "run_ms": round((time.perf_counter() - t_start) * 1000, 2),
     }
+    if ipc:
+        on_pc = [m for m in st["machines"].values() if H.is_ipc(st, m["id"])]
+        out["stats"]["vecus"] -= sum(len(m["ecus"]) for m in on_pc)
+        out["stats"]["ipc_machines"] = len(on_pc)
+        out["stats"]["ipc_frames_in"] = seen_n
     out["state"] = st
     return out

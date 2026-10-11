@@ -153,8 +153,13 @@ class Controller:
 
     def _follow(self, route, speed, arrive=1.2):
         x, y, h = self.pose()
-        while len(route) > 1 and math.hypot(route[0][0] - x, route[0][1] - y) < 3.0:
-            route.pop(0)
+        # a waypoint counts once it is close or already behind on the way to the next one
+        while len(route) > 1:
+            (ax, ay), (bx, by) = route[0], route[1]
+            if math.hypot(ax - x, ay - y) < 3.0 or (x - ax) * (bx - ax) + (y - ay) * (by - ay) > 0:
+                route.pop(0)
+            else:
+                break
         if not route:
             return True
         tx, ty = route[0]
@@ -162,8 +167,12 @@ class Controller:
         if len(route) == 1 and d < arrive:
             route.pop(0)
             return True
+        want = math.atan2(ty - y, tx - x)
         v = speed if len(route) > 1 or d > 8 else max(0.8, speed * d / 8)
-        self.sp.update({"speed_target_mps": v, "heading_target_rad": math.atan2(ty - y, tx - x)})
+        # slow into a turn the machine cannot make at speed, as a driver would
+        err = abs(wrap(want - h))
+        v = max(min(v, 1.5), v * max(0.0, math.cos(err))) if err > 0.3 else v
+        self.sp.update({"speed_target_mps": v, "heading_target_rad": want})
         return False
 
     def _haul_truck(self, dt):

@@ -243,3 +243,71 @@ export function RealCredit() {
     </div>
   )
 }
+
+// The industrial PC's loop, every hop on the clock that measured it
+export function StoryHops() {
+  const pc = useUi((s) => s.state?.ipc?.EX1)
+  const v = useUi((s) => s.state?.latency?.ipc)
+  const tick = useUi((s) => (s.state?.latency as { l2_tick_ms?: number } | undefined)?.l2_tick_ms)
+  if (!pc || !v) return null
+  const L = pc.lat || {}
+  const stop = v.last_stop && v.last_stop.machine === 'EX1' ? v.last_stop : null
+  const hop = (name: string) => stop?.hops.find((h) => h.hop.startsWith(name))?.ms
+  const noisy = (pc.noise ?? 0) > 0 || pc.ecus_passive > 0 || (!!pc.bus_state && pc.bus_state !== 'error-active')
+  const up: [string, number | null | undefined, string][] = [
+    ['ECU to the wire', L.BusQueue_ms, 'J1939 queue, p50'],
+    ['Wire to gateway', L.BusToGateway_ms, 'on the PC, p50'],
+    ['Gateway to Abenix store', v.publish_to_store_p50_ms, 'Sparkplug over MQTT, p50'],
+  ]
+  const down: [string, number | null | undefined, string][] = [
+    ['Twin decides', hop('Twin') ?? tick, 'safety rules in Abenix'],
+    ['bff to Abenix', hop('bff') ?? v.bff_to_abenix_ms, 'half a round trip'],
+    ['Abenix to the PC', hop('Abenix') ?? L.SiteToGateway_ms, 'checks, MQTT'],
+    stop && !stop.moving ? ['Hold in force', hop('Hold') ?? null, 'ACK on the bus, EX1 was already still'] : ['Machine still', hop('PC') ?? L.HoldStop_ms, `ACK on the bus at ${fmtMs(stop?.hold_ack_ms ?? L.HoldAck_ms)}`],
+  ]
+  const row = (dir: string, items: typeof up) => (
+    <div className="sc-hops-row">
+      <span className="dir">{dir}</span>
+      {items.map(([l, ms, n]) => (
+        <div key={l} className="sc-hop">
+          <span className="v">{ms == null ? '--' : fmtMs(ms)}</span>
+          <span className="l">{l}</span>
+          <span className="n">{n}</span>
+        </div>
+      ))}
+    </div>
+  )
+  return (
+    <div className="sc-card sc-hops">
+      <div className="sc-kicker">EX1 · {pc.node} · IPC, real J1939 bus · every hop measured</div>
+      {row('UP', up)}
+      {row('DOWN', down)}
+      <div className="sc-hops-total">
+        {noisy ? <span className="noise">Noisy harness: {pc.error_frames ?? 0} error frames · TEC up to {pc.tec_max ?? 0} · {pc.ecus_passive} ECUs error-passive · bus {pc.bus_state}</span>
+          : stop ? <span>{stop.moving ? 'Hazard to standstill' : 'Hazard to hold in force'} <b>{fmtMs(stop.stop_ms)}</b> · seen back in Abenix after <b>{fmtMs(stop.confirm_ms ?? undefined)}</b></span>
+          : <span>Bus {pc.bus_load_pct?.toFixed(1) ?? '--'}% · {pc.fps ?? '--'} frames/s · {pc.uplink_mps ?? '--'} Sparkplug messages/s</span>}
+      </div>
+    </div>
+  )
+}
+
+// EX1's PC through the unplug: what Abenix sees and what the machine does
+export function StoryPc() {
+  const pc = useUi((s) => s.state?.ipc?.EX1)
+  const events = useUi((s) => s.events)
+  if (!pc) return null
+  const last = [...events].reverse().find((e) => e.machine === 'EX1' && /PC/.test(e.title))
+  return (
+    <div className={`sc-card sc-pc ${pc.online ? 'on' : 'off'}`}>
+      <div className="sc-kicker">EX1's industrial PC · {pc.node}</div>
+      <div className="sc-pc-state">{pc.online ? 'ONLINE' : 'OFFLINE'}</div>
+      <dl>
+        <dt>On the broker</dt><dd>{pc.online ? 'NBIRTH, live in Abenix' : 'NDEATH, its last will'}</dd>
+        <dt>Safety PLC</dt><dd>{pc.holding || !pc.online ? 'holding the machine' : pc.mode || 'auto'}</dd>
+        <dt>Bus</dt><dd>{pc.online ? `${pc.bus_load_pct?.toFixed(1) ?? '--'}% · ${pc.fps ?? '--'} frames/s` : 'still running on the machine'}</dd>
+        <dt>Uplink</dt><dd>{pc.online ? `${pc.uplink_mps ?? '--'} messages/s` : 'none'}</dd>
+      </dl>
+      {last && <div className="sc-pc-ev">{last.title}</div>}
+    </div>
+  )
+}

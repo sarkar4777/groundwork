@@ -4,6 +4,7 @@
 //
 //   node scripts/record-take.mjs [--out .run/take.json] [--pre 8] [--post 8]
 //   node scripts/record-take.mjs --free 45 --out .run/take-free.json
+//   node scripts/record-take.mjs --ipc --out .run/take-ipc.json      the industrial PC story, live
 //
 // The pre-roll is the running site before the story starts, used for the opening title.
 
@@ -25,6 +26,7 @@ const POST = Number(opt('--post', '8'))
 const FREE = Number(opt('--free', '0'))
 // --site nh108 runs the story on the real-site layout, the bff's own default otherwise
 const SITE = opt('--site', '')
+const IPC = args.includes('--ipc')
 const log = (...a) => console.log('[take]', ...a)
 
 const get = async (path, tries = 5) => {
@@ -110,7 +112,7 @@ if (FREE > 0) {
 }
 log('recording pre-roll', PRE, 's')
 await new Promise((r) => setTimeout(r, PRE * 1000))
-const r = await fetch(BFF + '/story/start', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(SITE ? { site: SITE } : {}) })
+const r = await fetch(BFF + '/story/start', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ...(SITE ? { site: SITE } : {}), ...(IPC ? { ipc: true } : {}) }) })
 log('story/start', r.status, await r.text())
 const deadline = Date.now() + 150000
 while (Date.now() < deadline) {

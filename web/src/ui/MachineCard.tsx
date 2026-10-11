@@ -7,6 +7,7 @@ export function MachineCard() {
   const sel = useUi((s) => s.selected)
   const m = useUi((s) => s.state?.machines.find((x) => x.id === s.selected))
   const crane = useUi((s) => s.state?.cranes?.find((x) => x.id === s.selected))
+  const pc = useUi((s) => (s.selected ? s.state?.ipc?.[s.selected] : undefined))
   if (!sel) return null
   const close = () => useUi.setState({ selected: null })
   if (!m)
@@ -22,6 +23,7 @@ export function MachineCard() {
     <aside className="mcard glass" aria-label={`Machine ${m.id}`}>
       <div className="panel-head" style={{ paddingBottom: 6 }}>
         <h2 style={{ fontSize: 14, letterSpacing: 0, textTransform: 'none' }}>{m.id} <span className="muted" style={{ fontWeight: 500, fontSize: 12 }}>{m.kind.replace(/_/g, ' ')}</span></h2>
+        {m.src && <span className={`chip ${m.src === 'ipc' ? (m.online === false ? 'stop' : 'ai') : ''}`} title={m.src === 'ipc' ? 'A real J1939 bus behind an industrial PC, read through Abenix telemetry' : 'Simulated in the twin'}>{m.src === 'ipc' ? 'IPC · real bus' : 'Sim'}</span>}
         <span className={`chip ${modeTone(m.mode)}`}>{m.mode}</span>
         <button className="btn sm" onClick={close} aria-label="Close machine panel"><Icon name="close" /></button>
       </div>
@@ -38,11 +40,27 @@ export function MachineCard() {
             <Fragment key={k}><dt>{k}</dt><dd>{/swing|boom|stick|bucket|slew|luff|heading|steer|body/.test(k) ? deg(v) : v.toFixed(2)}</dd></Fragment>
           ))}
           {crane && (<><dt>LMI</dt><dd>{crane.lmi_pct.toFixed(0)}%</dd><dt>Crane wind</dt><dd>{crane.wind_ms.toFixed(1)} m/s</dd></>)}
+          {pc && (
+            <>
+              <dt>Industrial PC</dt><dd>{pc.node} · {pc.online ? 'online' : 'offline'}</dd>
+              <dt>Bus</dt><dd>{pc.bus_load_pct != null ? `${pc.bus_load_pct.toFixed(1)}% load` : '--'}{pc.fps != null ? ` · ${pc.fps} frames/s` : ''}{pc.bus_state ? ` · ${pc.bus_state}` : ''}</dd>
+              <dt>Safety PLC</dt><dd>{pc.holding ? 'holding' : pc.mode || '--'}</dd>
+            </>
+          )}
         </dl>
-        <div style={{ marginTop: 8, fontSize: 11 }} className="muted">{ecus.length ? `${ecus.length} controllers on the bus: ${ecus.map((e) => ECU_NAMES[e.ecu] ?? e.ecu).join(', ')}` : 'No bus frames seen yet'}</div>
+        <div style={{ marginTop: 8, fontSize: 11 }} className="muted">{ecus.length ? `${ecus.length} ${pc ? 'ECUs heard on its real bus' : 'controllers on the bus'}: ${ecus.map((e) => ECU_NAMES[e.ecu] ?? e.ecu).join(', ')}` : 'No bus frames seen yet'}</div>
         <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
-          <button className="btn sm amber" onClick={() => sendFault('cut_can', m.id)}>Cut CAN</button>
-          <button className="btn sm amber" onClick={() => sendFault('drop_gnss', m.id)}>Drop GNSS</button>
+          {pc ? (
+            <>
+              <button className="btn sm amber" onClick={() => sendFault('unplug_pc', m.id)} disabled={!pc.online}>Unplug the PC</button>
+              <button className="btn sm amber" onClick={() => sendFault('noisy_harness', m.id)} disabled={!pc.online}>Noisy harness</button>
+            </>
+          ) : (
+            <>
+              <button className="btn sm amber" onClick={() => sendFault('cut_can', m.id)}>Cut CAN</button>
+              <button className="btn sm amber" onClick={() => sendFault('drop_gnss', m.id)}>Drop GNSS</button>
+            </>
+          )}
           <button className="btn sm" onClick={() => useUi.setState({ cam: 'follow' })}>Follow</button>
         </div>
       </div>

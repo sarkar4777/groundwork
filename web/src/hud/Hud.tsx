@@ -233,6 +233,55 @@ export function SeatHud() {
   )
 }
 
+function Hop({ label, ms, note }: { label: string; ms: number | null | undefined; note?: string }) {
+  return (
+    <div className="hop">
+      <span className="hop-ms">{ms == null ? '--' : fmtMs(ms)}</span>
+      <span className="hop-l">{label}{note && <small>{note}</small>}</span>
+    </div>
+  )
+}
+
+// every number here is measured on its own clock: the bus and the PC on the PC, the store in Abenix, the command at the bff
+function IpcHops() {
+  const pc = useUi((s) => s.state?.ipc?.EX1 ?? (s.state?.ipc ? Object.values(s.state.ipc)[0] : undefined))
+  const id = useUi((s) => (s.state?.ipc?.EX1 ? 'EX1' : s.state?.ipc ? Object.keys(s.state.ipc)[0] : ''))
+  const v = useUi((s) => s.state?.latency?.ipc)
+  const decide = useUi((s) => (s.state?.latency as { l2_tick_ms?: number } | undefined)?.l2_tick_ms)
+  const inStory = useUi((s) => s.story.running)
+  if (!pc || !v || inStory) return null
+  const L = pc.lat || {}
+  const stop = v.last_stop && v.last_stop.machine === id ? v.last_stop : null
+  const hop = (name: string) => stop?.hops.find((h) => h.hop.startsWith(name))?.ms
+  return (
+    <div className="hud-box hops" style={{ fontFamily: 'Inter' }}>
+      <div className="hops-h">
+        <span className="hud-k">{id} · {pc.node}</span>
+        <span className={`src ipc ${pc.online ? '' : 'off'}`}>{pc.online ? 'IPC · REAL BUS' : 'PC OFFLINE'}</span>
+      </div>
+      <div className="hops-row">
+        <span className="hops-dir">UP</span>
+        <Hop label="ECU to the wire" ms={L.BusQueue_ms} note="queue, p50" />
+        <Hop label="Wire to gateway" ms={L.BusToGateway_ms} note="p50" />
+        <Hop label="Gateway to Abenix store" ms={v.publish_to_store_p50_ms} note="MQTT, p50" />
+      </div>
+      <div className="hops-row">
+        <span className="hops-dir">DOWN</span>
+        <Hop label="Twin decides" ms={hop('Twin') ?? decide} note="safety rules" />
+        <Hop label="bff to Abenix" ms={hop('bff') ?? v.bff_to_abenix_ms} note="half a round trip" />
+        <Hop label="Abenix to the PC" ms={hop('Abenix') ?? L.SiteToGateway_ms} note="checks, MQTT" />
+        <Hop label="PC ACK on the bus" ms={stop?.hold_ack_ms ?? L.HoldAck_ms} note="J1939" />
+        <Hop label={stop && !stop.moving ? 'Hold in force' : 'Machine still'} ms={stop && !stop.moving ? hop('Hold') : hop('PC') ?? L.HoldStop_ms} note={stop && !stop.moving ? 'was already still' : 'from the hold'} />
+      </div>
+      <div className="hops-total">
+        {(pc.noise ?? 0) > 0 || pc.ecus_passive > 0 || (!!pc.bus_state && pc.bus_state !== 'error-active') ? <span className="hops-noise">Noise on the wire · {pc.error_frames ?? 0} error frames · TEC up to {pc.tec_max ?? 0} · {pc.ecus_passive} ECUs error-passive · bus {pc.bus_state}</span> : null}
+        {stop ? <>{stop.moving ? 'Still' : 'Hold in force'} <b>{fmtMs(stop.stop_ms)}</b> after the twin saw the worker · seen back in Abenix after <b>{fmtMs(stop.confirm_ms ?? undefined)}</b></> :
+          <>Bus {pc.bus_load_pct != null ? `${pc.bus_load_pct.toFixed(1)}%` : '--'} · {pc.fps ?? '--'} frames/s · uplink {pc.uplink_mps ?? '--'} msg/s</>}
+      </div>
+    </div>
+  )
+}
+
 export function NervousHud() {
   useTick(4)
   const lat = useUi((s) => s.state?.latency)
@@ -247,12 +296,14 @@ export function NervousHud() {
           <span><i className="swatch" style={{ background: '#ff4d5e' }} />Safety stops</span>
           <span><i className="swatch" style={{ background: '#e8f7ff', boxShadow: '0 0 6px #5cc8ff' }} />Agent calls to the Abenix core</span>
         </div>
+        <IpcHops />
       </div>
       <div className="tr" style={{ fontFamily: 'JetBrains Mono' }}>
         <span className="hud-box"><span className="hud-k">BUS</span><span className="hud-v">{busRate.perSec}/s</span></span>
         <span className="hud-box"><span className="hud-k">TWIN</span><span className="hud-v">{busRate.ticksPerSec} Hz</span></span>
         <span className="hud-box"><span className="hud-k">RULES</span><span className="hud-v">{fmtMs(lat?.l2_ms)}</span></span>
       </div>
+
     </div>
   )
 }

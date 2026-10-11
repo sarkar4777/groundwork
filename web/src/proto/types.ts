@@ -15,6 +15,46 @@ export interface Machine {
   fuel_pct: number
   health: Health | string
   task: string
+  // set when the site has industrial PCs: ipc machines follow their PC through Abenix telemetry
+  src?: 'ipc' | 'sim'
+  node?: string
+  online?: boolean
+}
+
+export interface IpcHop { hop: string; ms: number | null }
+
+export interface IpcStop { machine: string; node: string; stop_ms: number; confirm_ms: number | null; hops: IpcHop[]; hold_ack_ms?: number | null; api_ms?: number; moving?: boolean }
+
+export interface IpcNode {
+  node: string
+  online: boolean
+  since: number
+  holding: boolean
+  mode: string
+  bus_load_pct: number | null
+  fps: number | null
+  bus_state: string | null
+  error_frames: number | null
+  noise: number | null
+  uplink_mps: number | null
+  task: string
+  cycles: number | null
+  lat: Record<string, number>
+  tec_max: number | null
+  ecus_passive: number
+}
+
+export interface IpcView {
+  stream: boolean
+  status: string
+  publish_to_store_p50_ms: number | null
+  publish_to_store_p99_ms: number | null
+  ingest_mps: number | null
+  seq_gaps: number | null
+  command_p50_ms: number | null
+  bff_to_abenix_ms: number | null
+  confirm_p50_ms: number | null
+  last_stop: IpcStop | null
 }
 
 export interface Worker {
@@ -39,7 +79,7 @@ export interface Crane {
 
 export interface SafetyStop { machine: string; rule: string; since: number }
 
-export interface Latency { l1_ms: number; l2_ms: number; l3_ms: number; l4_ms: number; l5_ms: number }
+export interface Latency { l1_ms: number; l2_ms: number; l3_ms: number; l4_ms: number; l5_ms: number; ipc: IpcView }
 
 export interface Kpi { m3_moved: number; cycles: number; trucks_waiting: number; ai_cost_usd?: number; ai_billing?: 'subscription' | 'metered' | string }
 
@@ -60,6 +100,7 @@ export interface StateFrame {
   killed?: boolean
   vecus?: number
   plan?: { source: string; version: number }
+  ipc?: Record<string, IpcNode>
 }
 
 export interface BusFrame {
@@ -76,6 +117,10 @@ export interface BusFrame {
   topic?: string
   acronym?: string
   can_id?: string
+  source?: 'ipc'
+  node?: string
+  bus_ms?: number
+  da?: number
 }
 
 export type EventKind = 'safety_stop' | 'near_miss' | 'fault' | 'gust' | 'plan_change' | 'approval' | 'autonomy' | 'story'
@@ -116,7 +161,7 @@ export interface CaptionFrame { type: 'caption'; t: number; text: string; until:
 
 export type Frame = StateFrame | BusFrame | EventFrame | AgentFrame | PlanFrame | CaptionFrame
 
-export type FaultKind = 'cut_can' | 'drop_gnss' | 'gust' | 'worker_in_swing' | 'ai_offline' | 'kill_switch' | 'clear'
+export type FaultKind = 'cut_can' | 'drop_gnss' | 'gust' | 'worker_in_swing' | 'ai_offline' | 'kill_switch' | 'clear' | 'unplug_pc' | 'noisy_harness'
 
 export interface AgentInfo {
   name: string

@@ -6,7 +6,7 @@ import { useUi } from '../live/store'
 
 interface Pose { pos: THREE.Vector3; look: THREE.Vector3; fov: number }
 
-export type Focus = 'phone' | 'latency' | 'gust' | 'aioff' | 'code' | 'autonomy' | 'endcard'
+export type Focus = 'phone' | 'latency' | 'gust' | 'aioff' | 'code' | 'autonomy' | 'endcard' | 'hops' | 'pc'
 
 export interface Beat { from: number; to: number; name: string; mode: CamMode; focus?: Focus }
 
@@ -24,7 +24,24 @@ export const BEATS: Beat[] = [
   { from: 55.6, to: 70, name: 'end', mode: 'orbit', focus: 'endcard' },
 ]
 
-export const beatAt = (s: number): Beat => BEATS.find((b) => s >= b.from && s < b.to) ?? BEATS[BEATS.length - 1]
+// The industrial PC story, live on the bff's clock. 50 to 58 s is where the film cuts to Abenix.
+export const IPC_BEATS: Beat[] = [
+  { from: 0, to: 6, name: 'hero', mode: 'drone' },
+  { from: 6, to: 13, name: 'stop', mode: 'drone' },
+  { from: 13, to: 20, name: 'ipc_hops', mode: 'nervous', focus: 'hops' },
+  { from: 20, to: 26, name: 'ipc_release', mode: 'drone' },
+  { from: 26, to: 42, name: 'ipc_pc', mode: 'drone', focus: 'pc' },
+  { from: 42, to: 50, name: 'ipc_noise', mode: 'nervous', focus: 'hops' },
+  { from: 50, to: 58, name: 'ipc_abenix', mode: 'drone' },
+  { from: 58, to: 70, name: 'end', mode: 'orbit', focus: 'endcard' },
+]
+
+export const storyLength = () => (useUi.getState().story.ipc ? 64 : 60)
+
+export const beatAt = (s: number): Beat => {
+  const list = useUi.getState().story.ipc ? IPC_BEATS : BEATS
+  return list.find((b) => s >= b.from && s < b.to) ?? list[list.length - 1]
+}
 
 const ease = (x: number) => (x < 0 ? 0 : x > 1 ? 1 : x * x * (3 - 2 * x))
 
@@ -141,6 +158,28 @@ export function storyShot(s: number, pose: Pose, t: number): { name: string; mod
     case 'autonomy':
       dronePose(pose, -18, 10, 150, t, -86, 44)
       break
+    case 'ipc_release':
+    case 'ipc_abenix': {
+      // EX1 back at work, with the trucks it loads
+      const e = at('EX1')
+      dronePose(pose, e.x + 4, e.y - 3, 125, t, -88, 36 - u * 4)
+      break
+    }
+    case 'ipc_pc': {
+      // EX1 left of frame, its card on the right
+      const e = at('EX1')
+      dronePose(pose, e.x + 12, e.y - 2, 120, t, -89, 34)
+      break
+    }
+    case 'ipc_hops':
+    case 'ipc_noise': {
+      const e = at('EX1')
+      orbitPose(pose, 120 - u * 20, 80 - u * 8, 0.9 + u * 0.4, new THREE.Vector3(e.x, 20, -e.y))
+      pose.pos.x += e.x
+      pose.pos.z -= e.y
+      pose.fov = 46
+      break
+    }
     default:
       // the establishing shot: high oblique, slow orbit, the far blocks soft in the haze
       orbitPose(pose, 175 + u * 20, 118 + u * 10, 2.32 + (s - b.from) * 0.02, new THREE.Vector3(0, 0, 0))

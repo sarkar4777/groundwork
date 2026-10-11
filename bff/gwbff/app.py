@@ -18,7 +18,7 @@ from fastapi.responses import JSONResponse  # noqa: E402
 
 from .engine import Engine  # noqa: E402
 from .hub import Hub  # noqa: E402
-from .story import Story  # noqa: E402
+from .story import IpcStory, Story  # noqa: E402
 
 logging.basicConfig(level=os.environ.get("GW_LOG", "INFO"), format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -49,6 +49,8 @@ def config() -> dict:
         "bus_budget": int(os.environ.get("GW_BUS_PER_STEP", "12")),
         # in-cluster the step keeps up with 20 Hz, so every step is 5 ticks of 10 ms
         "fixed_ticks": int(os.environ.get("GW_FIXED_TICKS", "0")),
+        # the industrial PCs join the site when Abenix knows them, 0 keeps every machine simulated
+        "ipc": os.environ.get("GW_IPC", "auto"),
     }
 
 
@@ -156,6 +158,13 @@ async def story_start(req: Request):
         body = await req.json()
     except Exception:  # noqa: BLE001
         body = {}
+    if body.get("ipc"):
+        s = IpcStory(int(body.get("ticks") or os.environ.get("GW_STORY_TICKS", "5")), body.get("site") or engine.cfg.get("site") or "northgate")
+        try:
+            await s.start(engine)
+        except Exception as e:  # noqa: BLE001
+            return _err(f"could not start the industrial PC story: {e}"[:300], 502)
+        return {"ok": True, "mode": "live", "ipc": True, "seed": 2026, "site": s.site}
     mode = body.get("mode") or ("cached" if Story.available() and body.get("cached", True) else "live")
     if mode == "cached" and not Story.available():
         return _err("no recorded story, run python scripts/record_story.py or start with mode live", 409)

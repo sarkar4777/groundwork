@@ -37,6 +37,7 @@ export function VecuConsole({ focus }: { focus?: boolean }) {
             <select id="vecu-m" className="select" value={machineId} onChange={(e) => setPick(e.target.value)}>
               {ids.split('|').map((id) => <option key={id} value={id}>{id}</option>)}
             </select>
+            {m?.src === 'ipc' && <span className={`chip ${m.online === false ? 'stop' : 'ai'}`} title={`${m.node}: real ECUs on a J1939 bus, through Abenix telemetry`}>IPC · real bus</span>}
             {m && <span className={`chip ${modeTone(m.mode)}`}>{m.mode}</span>}
             {m && <span className={`chip ${m.health === 'ok' ? 'ok' : m.health === 'warn' ? 'warn' : 'stop'}`}>{m.health}</span>}
           </div>
@@ -65,8 +66,17 @@ export function VecuConsole({ focus }: { focus?: boolean }) {
           </div>
           {m && (
             <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
-              <button className="btn sm amber" onClick={() => sendFault('cut_can', machineId)}>Cut CAN on {machineId}</button>
-              <button className="btn sm amber" onClick={() => sendFault('drop_gnss', machineId)}>Drop GNSS</button>
+              {m.src === 'ipc' ? (
+                <>
+                  <button className="btn sm amber" onClick={() => sendFault('unplug_pc', machineId)} disabled={m.online === false}>Unplug {machineId}'s PC</button>
+                  <button className="btn sm amber" onClick={() => sendFault('noisy_harness', machineId)} disabled={m.online === false}>Noisy harness</button>
+                </>
+              ) : (
+                <>
+                  <button className="btn sm amber" onClick={() => sendFault('cut_can', machineId)}>Cut CAN on {machineId}</button>
+                  <button className="btn sm amber" onClick={() => sendFault('drop_gnss', machineId)}>Drop GNSS</button>
+                </>
+              )}
             </div>
           )}
         </>
@@ -97,12 +107,13 @@ export function SignalTrace({ focus }: { focus?: boolean }) {
   const [machine, setMachine] = useState('all')
   const [proto, setProto] = useState('all')
   const machines = useMemo(() => [...new Set(bus.map((b) => b.machine))].sort(), [bus])
+  const hasReal = useMemo(() => bus.some((b) => b.source === 'ipc'), [bus])
   const rows = useMemo(() => {
     const out: BusFrame[] = []
     for (let i = bus.length - 1; i >= 0 && out.length < 60; i--) {
       const b = bus[i]
       if (machine !== 'all' && b.machine !== machine) continue
-      if (proto !== 'all' && (proto === 'sparkplug' ? b.proto !== 'sparkplug' : b.proto === 'sparkplug')) continue
+      if (proto === 'ipc' ? b.source !== 'ipc' : proto === 'sim' ? b.source === 'ipc' : proto !== 'all' && (proto === 'sparkplug' ? b.proto !== 'sparkplug' : b.proto === 'sparkplug')) continue
       out.push(b)
     }
     return out
@@ -120,6 +131,8 @@ export function SignalTrace({ focus }: { focus?: boolean }) {
           <option value="all">J1939 + Sparkplug</option>
           <option value="j1939">J1939</option>
           <option value="sparkplug">Sparkplug B</option>
+          {hasReal && <option value="ipc">Real bus, IPC</option>}
+          {hasReal && <option value="sim">Simulated only</option>}
         </select>
         <button className="btn sm" onClick={() => useUi.setState({ tracePaused: !paused })} aria-pressed={paused} title="Pause (Space)">
           <Icon name={paused ? 'play' : 'pause'} className="icon" /> {paused ? 'Resume' : 'Pause'}
@@ -132,7 +145,7 @@ export function SignalTrace({ focus }: { focus?: boolean }) {
           return (
             <div className="trace-row" key={`${b.t}-${b.machine}-${b.ecu}-${i}`}>
               <span className="faint">{b.t.toFixed(3)}</span>
-              <span>{b.machine}</span>
+              <span>{b.machine}{b.source === 'ipc' && <em className="ipc-tag" title={`From ${b.node}'s real bus, kept by Abenix`}>IPC</em>}</span>
               <span className={sp ? 'sp' : b.pgn === 65226 ? 'dm1' : 'pgn'}>{sp ? 'SPB' : `${b.pgn}`}</span>
               <span className="name">{b.ecu} · {typeof b.acronym === 'string' ? `${b.acronym} ` : ''}{b.name}</span>
               <span className="dec">{decodedText(b.decoded)}</span>
@@ -295,7 +308,14 @@ const FAULTS: { kind: FaultKind; label: string; tone: string; needsTarget?: bool
   { kind: 'clear', label: 'Clear all faults', tone: 'mint' },
 ]
 
+const PC_FAULTS = [
+  { kind: 'unplug_pc' as FaultKind, label: (id: string) => `Unplug ${id}'s PC`, hint: 'The PC drops off MQTT without a goodbye. Abenix sees its NDEATH, its own safety PLC holds the machine' },
+  { kind: 'noisy_harness' as FaultKind, label: (id: string) => `Noisy harness on ${id}`, hint: 'Corrupts frames on the real bus for 6 s: error frames, retransmits, error counters climbing' },
+]
+
 export function FaultDeck({ focus }: { focus?: boolean }) {
+  const pcStr = useUi((s) => (s.state?.ipc ? Object.entries(s.state.ipc).map(([id, p]) => `${id}:${p.online ? 1 : 0}`).join('|') : ''))
+  const pcs = useMemo(() => pcStr.split('|').filter(Boolean).map((x) => ({ id: x.split(':')[0], online: x.endsWith(':1') })), [pcStr])
   const idStr = useUi((s) => s.state?.machines.map((m) => m.id).join('|') ?? '')
   const ids = useMemo(() => idStr.split('|').filter(Boolean), [idStr])
   const conn = useUi((s) => s.conn)
@@ -331,6 +351,21 @@ export function FaultDeck({ focus }: { focus?: boolean }) {
           </button>
         ))}
       </div>
+      {pcs.length > 0 && (
+        <>
+          <div className="faint" style={{ fontSize: 11, margin: '10px 0 6px' }}>Industrial PCs, through Abenix telemetry</div>
+          <div className="faults">
+            {pcs.filter((p) => p.id === 'EX1' || p.id === tgt).slice(0, 2).flatMap((p) =>
+              PC_FAULTS.map((f) => (
+                <button key={f.kind + p.id} className="btn amber" onClick={() => sendFault(f.kind, p.id)} disabled={disabled || !p.online} title={p.online ? f.hint : `${p.id}'s PC is offline`}>
+                  {f.label(p.id)}
+                  <span className="mono faint" style={{ marginLeft: 'auto', fontSize: 10 }}>IPC</span>
+                </button>
+              )),
+            )}
+          </div>
+        </>
+      )}
       {disabled && <div className="faint" style={{ fontSize: 11, marginTop: 6 }}>Faults need a running simulator.</div>}
     </Panel>
   )

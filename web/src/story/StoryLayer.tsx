@@ -2,8 +2,8 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useUi, type CaptionLog } from '../live/store'
 import { hot } from '../live/hot'
 import { stopStory } from '../live/client'
-import { beatAt } from './shots'
-import { StoryAiOff, StoryAutonomy, StoryCode, StoryEnd, StoryGust, StoryLatency, StoryPhone } from './StoryCards'
+import { beatAt, storyLength } from './shots'
+import { StoryAiOff, StoryAutonomy, StoryCode, StoryEnd, StoryGust, StoryHops, StoryLatency, StoryPc, StoryPhone } from './StoryCards'
 import { Icon } from '../ui/kit'
 
 // Numbers with their units read in amber, the rest stays white.
@@ -140,15 +140,16 @@ export function StoryLayer() {
     document.body.dataset.beat = running ? beat.name : ''
     const prev = useUi.getState().storyBeat
     const next = running ? beat.name : ''
-    if (prev !== next) useUi.setState({ storyBeat: next, ...(next === 'platform' ? { selected: 'EX1' } : prev === 'platform' ? { selected: null } : {}) })
+    const pick = (b: string) => b === 'platform' || b === 'ipc_pc'
+    if (prev !== next) useUi.setState({ storyBeat: next, ...(pick(next) ? { selected: 'EX1' } : pick(prev) ? { selected: null } : {}) })
   }, [running, beat.name])
   if (!running) return null
   return (
     <>
       <div className="story-chip glass">
-        STORY {Math.max(0, Math.min(60, s)).toFixed(0).padStart(2, '0')} / 60
+        STORY {Math.max(0, Math.min(storyLength(), s)).toFixed(0).padStart(2, '0')} / {storyLength()}
         {recorded && <span className="chip warn" title="Agent and model answers replayed from a recorded Abenix run, so every take is identical">recorded run</span>}
-        <span className="story-progress"><i style={{ width: `${Math.min(100, (s / 60) * 100)}%` }} /></span>
+        <span className="story-progress"><i style={{ width: `${Math.min(100, (s / storyLength()) * 100)}%` }} /></span>
         <button className="btn sm" onClick={stopStory} aria-label="Stop the story"><Icon name="stop" /></button>
       </div>
       {f === 'phone' && <StoryPhone tap={tap} />}
@@ -157,6 +158,8 @@ export function StoryLayer() {
       {f === 'aioff' && <StoryAiOff />}
       {f === 'code' && <StoryCode />}
       {f === 'autonomy' && <StoryAutonomy />}
+      {f === 'hops' && <StoryHops />}
+      {f === 'pc' && <StoryPc />}
       <StoryEnd show={end} />
     </>
   )

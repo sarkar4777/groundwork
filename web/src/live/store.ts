@@ -48,7 +48,7 @@ export interface UiState {
   overlays: Overlays
   panelsHidden: boolean
   help: boolean
-  story: { running: boolean; t0: number; startedAt: number; error: string | null; recorded: boolean }
+  story: { running: boolean; t0: number; startedAt: number; error: string | null; recorded: boolean; ipc?: boolean }
   hover: { x: number; y: number; z: number } | null
   tracePaused: boolean
   fps: number

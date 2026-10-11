@@ -121,6 +121,34 @@ Hop by hop, EX1: a frame's last bit to the gateway 1.9 ms, gateway to an MQTT su
 
 Sample logs to open in SavvyCAN or replay with `canplayer`: [edge/samples/ipc-ex1-candump.log](edge/samples/ipc-ex1-candump.log) (power-on address claims, BAM and RTS/CTS sessions, a hold, a DM1 fault) and [edge/samples/ipc-tc1-noisy-harness.log](edge/samples/ipc-tc1-noisy-harness.log) (error frames, error passive and recovery).
 
+### The site runs on the PCs
+
+With the PCs in Abenix (2.5.8 telemetry), the ground station runs a hybrid site. EX1, TC1, HT1 and DZ1 go where their own controllers drive them on their real buses. Every other machine stays in the twin. Each label says which: **IPC · REAL BUS** or **SIM**.
+
+- **The bff only carries data.** It follows the PCs with `forge.telemetry.stream`, polls `forge.telemetry.frames` for the raw CAN frames Abenix keeps, and hands what changed to the twin on each step. It holds no machine logic.
+- **The twin decides.** `twin/hybrid.py` in `gw-site-twin` puts the PCs' machines into the site and runs the same safety rules over the whole of it. A Simplex hold goes back as `Safety/Hold` to the PC's safety PLC, fallback as `Mode/Set safe`, a hold in the plan as `Task/Assign`, all through `forge.telemetry.command`. EX1's cycles cut the face and load the simulated trucks, HT1's count on the KPI and TC1's land the queued lifts.
+- **The signal trace shows the real bus.** The frames Abenix keeps for each PC decode with the twin's own J1939 dictionary and carry an IPC tag. Filter on *Real bus, IPC* to see only them.
+- **Two more faults on the deck.** *Unplug EX1's PC* sends `Node Control/Unplug_s`: the PC drops off MQTT without a goodbye, the broker publishes its NDEATH, Abenix marks it offline and the twin routes around it while EX1's own safety PLC holds it. *Noisy harness on EX1* sends `Bus/InjectNoise_s`: error frames, retransmits and error counters climbing on the wire.
+- `GW_IPC=0` keeps every machine simulated. A PC set up for another layout is refused with a message, its machine stays simulated.
+
+<p align="center"><img src="docs/screenshots/ipc/06-nervous-system-hops.png" alt="The nervous system view with EX1's measured hops, up from the bus into Abenix and down from the twin to the PC" width="100%"></p>
+
+A stop on a PC crosses the network both ways, so its time is the whole chain, each hop on the clock that measured it. From one live take of the industrial PC story:
+
+| Hop | Measured by | ms |
+|---|---|---|
+| The twin decides, worker inside the swing radius | the twin's safety tick | 4.7 |
+| bff to Abenix | half the quickest round trip to the same API | 4.7 |
+| Abenix to the PC | Abenix stamps the command on arrival, the gateway on receipt, one cluster clock. Covers Abenix's checks, the publish and the broker | 3.9 |
+| The PC to standstill | the gateway, from the hold to joints reading still. The safety PLC's ACK came at 9.2 ms | 148 |
+| **Hazard to standstill** | | **162** |
+
+The command API call itself answered in 33 ms, and Abenix showed the PC holding 105 ms after the bff sent the hold. If the machine is already still when the hold arrives there is no stop time, and the screen says *hold in force* with the PC's ACK instead. On the way up, a frame's last bit reaches the gateway in about 2 ms and Abenix stores the gateway's Sparkplug message within 3 to 8 ms at the median.
+
+```bash
+curl -X POST localhost:8710/story/start -H 'content-type: application/json' -d '{"ipc": true}'   # the industrial PC story, live
+```
+
 **Real hardware is a configuration change.** Every ECU and the gateway read `CAN_INTERFACE`, `CAN_CHANNEL`, `CAN_HOST` and `CAN_PORT`:
 
 | Where the bus is | Set |
@@ -322,6 +350,8 @@ More in [docs/screenshots/abenix](docs/screenshots/abenix), and the ground stati
 - **If Abenix is down, the site stops.** The twin runs in Abenix, so there is nothing to step. "AI offline" is different: no agent, model or pipeline is called, and the twin keeps running safely on its fallback plan.
 - **The safety stop time is site time.** The stop event's `ms` is the time from the worker's tag sample arriving to the hold command in the same tick, plus the rule evaluation time.
 - **Agents take seconds.** The Site Superintendent takes 15 to 20 s. Story mode replays a recorded real run so every take is identical, and says so on screen.
+- **A stop on a PC is slower than a stop in the twin, and should be.** The twin decides in the same 10 ms tick, then the hold crosses Abenix and MQTT to the PC and the machine has to brake. Real sites keep the last line of defence on the machine: the PCs' own safety PLCs hold on a lost uplink or a stale setpoint without waiting for anyone.
+- **The PCs run in real time, the twin follows.** In the industrial PC story the bff steps the twin by the wall clock rather than a fixed tick count, so site time and the PCs' time stay together.
 - **Promotion is never faked.** Every Earned Autonomy grant starts at Watching. An agent only climbs when a person reviews its record and approves.
 
 ## Measured
@@ -351,8 +381,9 @@ On a laptop with Abenix on minikube.
 abenix/        what goes into Abenix: code-assets, agents, pipelines, decisions, kb, autonomy, models
 bff/           the backend for the frontend, its tests and the vendored Abenix SDK
 web/           the ground station
-deploy/k8s/    the bff in minikube next to Abenix
-scripts/       provision.py, dev.sh, deploy-k8s.sh, capture.mjs, capture-abenix.mjs, bench_twin.py, record_story.py
+edge/          the industrial PCs: ECU containers, gateway, canbus sidecar, DBC and sample bus logs
+deploy/k8s/    the bff and the PCs in minikube next to Abenix
+scripts/       provision.py, dev.sh, deploy-k8s.sh, capture.mjs, capture-ipc.mjs, capture-abenix.mjs, bench_twin.py, record_story.py
 docs/          architecture, signals, story, real imagery, brand, screenshots
 data/          real imagery, tiles and reconstructions, fetched by script and never committed
 ```

@@ -1,7 +1,11 @@
 """python -m ipc, with GW_MACHINE (EX1, TC1, HT1, DZ1) and GW_ROLE (an ECU, controller or gateway)."""
 
+import logging
 import os
 import sys
+
+# a TCP read that splits a socketcand frame is normal, python-can warns on every one
+logging.getLogger("can.interfaces.socketcand.socketcand").setLevel(logging.ERROR)
 
 
 def main() -> None:

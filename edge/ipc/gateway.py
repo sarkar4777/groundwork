@@ -104,9 +104,11 @@ class Gateway:
         self.connected = False
         self.unplug_until = 0.0
         self.pending: dict = {}                                         # cmd id -> {t, value, acked}
+        self.moving = False
         self.cmd_id = 0
         self.lat = {"Latency/BusToGateway_ms": None, "Latency/BusQueue_ms": None, "Latency/BusQueueP99_ms": None, "Latency/HoldAck_ms": None, "Latency/HoldStop_ms": None,
-                    "Latency/DcmdToBus_ms": None, "Latency/TaskAck_ms": None}
+                    "Latency/DcmdToBus_ms": None, "Latency/TaskAck_ms": None, "Latency/SiteToGateway_ms": None,
+                    "Latency/Commands": 0.0, "Latency/Stops": 0.0}
         self.last_motion = {}
         self.hb = 0
         self.stats = {"pub": 0, "pub_window": deque(), "tp_sessions": 0, "claims": 0}
@@ -220,19 +222,21 @@ class Gateway:
             moving = abs(v.get("slew_rate_rads") or 0) > 0.002
         if moving is None:
             return
+        self.moving = moving
         now = time.time()
         for cid, c in list(self.pending.items()):
             if c["kind"] != "hold" or not c["value"] or "stop" in c:
                 continue
             # only a machine that was moving when the hold arrived gives a stop time
-            c.setdefault("was_moving", moving)
-            if not c["was_moving"]:
+            if not c.get("was_moving"):
                 c["stop"] = None
                 continue
             c["still"] = c.get("still", 0) + 1 if not moving else 0
             if c["still"] >= 2:
                 c["stop"] = now
                 self.lat["Latency/HoldStop_ms"] = round((now - c["t"]) * 1000, 1)
+                # NDATA repeats the latencies every second, the counters say which command they belong to
+                self.lat["Latency/Stops"] += 1
 
     def _on_ack(self, sa, data):
         if len(data) < 8:
@@ -297,7 +301,7 @@ class Gateway:
                 code, arg, kind = F.CMD_MODE, F.MODE_CODE.get(val, 1), "mode"
             else:
                 code, arg, kind, val = F.CMD_FAULT, int(value) & 0xFF, "fault", int(value)
-            self.pending[cid] = {"t": now, "code": code, "kind": kind, "value": val}
+            self.pending[cid] = {"t": now, "code": code, "kind": kind, "value": val, "was_moving": self.moving}
             self.node.send(F.PROP_A, bytes((code, arg, cid & 0xFF, cid >> 8, 0xFF, 0xFF, 0xFF, 0xFF)), 1, sa)
             self.lat["Latency/DcmdToBus_ms"] = round((time.time() - now) * 1000, 2)
         elif device == "telematics" and metric == "Task/Assign":
@@ -326,6 +330,10 @@ class Gateway:
                     self._drop()
         elif parts[2] == "DCMD" and len(parts) >= 5:
             dev = parts[4]
+            # the sender stamps the payload, Abenix and this PC share the cluster clock
+            if p.timestamp:
+                self.lat["Latency/SiteToGateway_ms"] = round(max(0.0, time.time() * 1000 - p.timestamp), 1)
+            self.lat["Latency/Commands"] += 1
             for m in p.metrics:
                 self._command(dev, m.name, SP.value_of(m))
 

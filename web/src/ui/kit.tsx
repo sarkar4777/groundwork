@@ -89,4 +89,5 @@ export const ECU_NAMES: Record<string, string> = {
   TRN: 'Transmission', HST: 'Body hoist', CAS: 'Collision avoidance', SLW: 'Slew drive', LUF: 'Luff drive',
   LMI: 'Load moment indicator', ACU: 'Anti-collision unit', BLD: 'Blade control', MST: 'Mast control', VIB: 'Vibration drum',
   BOOM: 'Boom control', FC: 'Flight controller', GNSS: 'RTK GNSS', CAM: 'Gimbal camera',
+  PAY: 'Payload weigher', HOIST: 'Hoist drive', CTL: 'Machine controller', GW: 'Edge gateway', SLEW: 'Slew drive',
 }
