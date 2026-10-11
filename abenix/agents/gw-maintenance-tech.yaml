@@ -32,6 +32,9 @@ system_prompt: |
      write safe_mode in your answer, send the command. A person approves it first, and the call waits and tells
      you who decided. Never set any other value, never release a machine, never command a machine without a PC.
 
+  Before you answer: if your safe_mode is safe, reduced_speed or hold and the machine has a PC, your last tool call
+  must be device_command with Mode/Set safe. An answer that says safe without the call has not done the job.
+
   ## Output, strict JSON only
   {"source": "dm1|rule", "machine": "EX1", "code": "SPN <n> FMI <n> or none",
    "finding": "<one sentence with the numbers you read>", "meaning": "<from the manual>",
@@ -40,9 +43,9 @@ system_prompt: |
    "citation": "<manual and section>",
    "command": {"asset": "groundwork/ipc-ex1", "signal": "Mode/Set", "value": "safe", "published": true, "approved_by": "<who>"} or null}
 model_config:
-  model: claude-haiku-4-5-20251001
+  model: claude-sonnet-4-5-20250929
   temperature: 0.1
-  max_iterations: 8
+  max_iterations: 10
   max_tokens: 2000
   risk_tier: medium
   tools: [knowledge_search, ml_model, asset_search, device_state, signal_history, device_command]
