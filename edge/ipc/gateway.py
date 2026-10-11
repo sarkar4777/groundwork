@@ -64,6 +64,13 @@ MAP = {
     "LMI1": {"lmi_pct": ("LMI/Moment_pct", T.Double), "wind_ms": ("LMI/Wind_ms", T.Double), "chart_t": ("LMI/Chart_t", T.Double),
              "load_t": ("LMI/Load_t", T.Double), "radius_m": ("LMI/Radius_m", T.Double)},
 }
+# who sends what on the bus, so a frame heard while addresses are still being claimed never lands on the wrong device
+OWNER = {
+    "EEC1": "engine", "LFE1": "engine", "ET1": "engine", "HOURS": "engine", "VP": "telematics", "VDS": "telematics",
+    "GNSS1": "telematics", "GNSS2": "telematics", "SPLC1": "safety", "HYD1": "hydraulics", "SWB1": "swing",
+    "ETC2": "transmission", "CCVS1": "transmission", "BODY1": "payload", "TRK1": "blade", "SLEW1": "slew", "LUFF1": "slew",
+    "HOIST1": "hoist", "LMI1": "lmi",
+}
 WRITABLE = {
     "safety": {"Safety/Hold": (False, T.Boolean), "Mode/Set": ("auto", T.String), "Diagnostics/InjectFault": (0, T.Int32)},
     "telematics": {"Task/Assign": ("", T.String)},
@@ -194,7 +201,7 @@ class Gateway:
                 return
             acr, v = dbc.decode_pgn(pgn, data)
             m = MAP.get(acr)
-            if not m:
+            if not m or OWNER.get(acr, dev) != dev:
                 return
             for spn, (metric, dt) in m.items():
                 x = v.get(spn)
