@@ -16,3 +16,5 @@ PLAN.md
 data/real/
 data/tools/
 dist/
+
+edge/ipc/proto/*_pb2.py

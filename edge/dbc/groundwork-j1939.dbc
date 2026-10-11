@@ -1,0 +1,253 @@
+VERSION "groundwork-j1939 2.5.8"
+
+NS_ :
+
+BS_:
+
+BU_: Vector__XXX
+
+BO_ 2348875774 TSC1: 8 Vector__XXX
+ SG_ override_mode : 0|2@1+ (1,0) [0|1] "" Vector__XXX
+ SG_ speed_condition : 2|2@1+ (1,0) [0|1] "" Vector__XXX
+ SG_ override_priority : 4|2@1+ (1,0) [0|1] "" Vector__XXX
+ SG_ requested_speed_rpm : 8|16@1+ (0.125,0) [0|8031.88] "rpm" Vector__XXX
+ SG_ requested_torque_pct : 24|8@1+ (1,-125) [-125|125] "%" Vector__XXX
+
+BO_ 2364540158 EEC1: 8 Vector__XXX
+ SG_ torque_mode : 0|4@1+ (1,0) [0|10] "" Vector__XXX
+ SG_ drivers_demand_torque_pct : 8|8@1+ (1,-125) [-125|125] "%" Vector__XXX
+ SG_ actual_torque_pct : 16|8@1+ (1,-125) [-125|125] "%" Vector__XXX
+ SG_ engine_speed_rpm : 24|16@1+ (0.125,0) [0|8031.88] "rpm" Vector__XXX
+ SG_ controlling_sa : 40|8@1+ (1,0) [0|250] "" Vector__XXX
+ SG_ starter_mode : 48|4@1+ (1,0) [0|10] "" Vector__XXX
+ SG_ engine_demand_torque_pct : 56|8@1+ (1,-125) [-125|125] "%" Vector__XXX
+
+BO_ 2565867006 ETC2: 8 Vector__XXX
+ SG_ selected_gear : 0|8@1+ (1,-125) [-125|125] "" Vector__XXX
+ SG_ actual_gear_ratio : 8|16@1+ (0.001,0) [0|64.255] "" Vector__XXX
+ SG_ current_gear : 24|8@1+ (1,-125) [-125|125] "" Vector__XXX
+
+BO_ 2566841854 HOURS: 8 Vector__XXX
+ SG_ engine_hours : 0|32@1+ (0.05,0) [0|2.10554e+08] "h" Vector__XXX
+ SG_ engine_revolutions : 32|32@1+ (1000,0) [0|4.21108e+12] "r" Vector__XXX
+
+BO_ 2566842622 VDS: 8 Vector__XXX
+ SG_ compass_bearing_deg : 0|16@1+ (0.0078125,0) [0|501.992] "deg" Vector__XXX
+ SG_ nav_speed_kmh : 16|16@1+ (0.00390625,0) [0|250.996] "km/h" Vector__XXX
+ SG_ pitch_deg : 32|16@1+ (0.0078125,-200) [-200|301.992] "deg" Vector__XXX
+ SG_ altitude_m : 48|16@1+ (0.125,-2500) [-2500|5531.88] "m" Vector__XXX
+
+BO_ 2566844158 ET1: 8 Vector__XXX
+ SG_ coolant_c : 0|8@1+ (1,-40) [-40|210] "C" Vector__XXX
+ SG_ fuel_temp_c : 8|8@1+ (1,-40) [-40|210] "C" Vector__XXX
+ SG_ oil_temp_c : 16|16@1+ (0.03125,-273) [-273|1734.97] "C" Vector__XXX
+ SG_ turbo_oil_temp_c : 32|16@1+ (0.03125,-273) [-273|1734.97] "C" Vector__XXX
+ SG_ intercooler_c : 48|8@1+ (1,-40) [-40|210] "C" Vector__XXX
+ SG_ intercooler_thermostat_pct : 56|8@1+ (0.4,0) [0|100] "%" Vector__XXX
+
+BO_ 2566844926 CCVS1: 8 Vector__XXX
+ SG_ parking_brake : 2|2@1+ (1,0) [0|1] "" Vector__XXX
+ SG_ wheel_speed_kmh : 8|16@1+ (0.00390625,0) [0|250.996] "km/h" Vector__XXX
+
+BO_ 2566845182 LFE1: 8 Vector__XXX
+ SG_ fuel_rate_lph : 0|16@1+ (0.05,0) [0|3212.75] "L/h" Vector__XXX
+ SG_ inst_fuel_economy_kmpl : 16|16@1+ (0.00195312,0) [0|125.498] "km/L" Vector__XXX
+ SG_ avg_fuel_economy_kmpl : 32|16@1+ (0.00195312,0) [0|125.498] "km/L" Vector__XXX
+ SG_ throttle_pct : 48|8@1+ (0.4,0) [0|100] "%" Vector__XXX
+ SG_ throttle2_pct : 56|8@1+ (0.4,0) [0|100] "%" Vector__XXX
+
+BO_ 2566845438 VP: 8 Vector__XXX
+ SG_ latitude_deg : 0|32@1+ (1e-07,-210) [-210|211.108] "deg" Vector__XXX
+ SG_ longitude_deg : 32|32@1+ (1e-07,-210) [-210|211.108] "deg" Vector__XXX
+
+BO_ 2432635134 HYD1: 8 Vector__XXX
+ SG_ pump1_bar : 0|16@1+ (0.1,0) [0|6425.5] "bar" Vector__XXX
+ SG_ pump2_bar : 16|16@1+ (0.1,0) [0|6425.5] "bar" Vector__XXX
+ SG_ boom_head_bar : 32|16@1+ (0.1,0) [0|6425.5] "bar" Vector__XXX
+ SG_ oil_temp_c : 48|8@1+ (1,-40) [-40|210] "C" Vector__XXX
+ SG_ flow_pct : 56|8@1+ (0.4,0) [0|100] "%" Vector__XXX
+
+BO_ 2365526526 SWB1: 8 Vector__XXX
+ SG_ swing_rad : 0|16@1+ (0.0001,-3.2) [-3.2|3.2255] "rad" Vector__XXX
+ SG_ boom_rad : 16|16@1+ (0.0001,-3.2) [-3.2|3.2255] "rad" Vector__XXX
+ SG_ stick_rad : 32|16@1+ (0.0001,-3.2) [-3.2|3.2255] "rad" Vector__XXX
+ SG_ bucket_rad : 48|16@1+ (0.0001,-3.2) [-3.2|3.2255] "rad" Vector__XXX
+
+BO_ 2298417918 SPLC1: 8 Vector__XXX
+ SG_ mode : 0|4@1+ (1,0) [0|10] "" Vector__XXX
+ SG_ rule : 4|4@1+ (1,0) [0|10] "" Vector__XXX
+ SG_ heartbeat : 8|8@1+ (1,0) [0|250] "" Vector__XXX
+ SG_ nearest_tag_m : 16|16@1+ (0.01,0) [0|642.55] "m" Vector__XXX
+ SG_ exclusion_m : 32|16@1+ (0.01,0) [0|642.55] "m" Vector__XXX
+ SG_ tip_speed_ms : 48|16@1+ (0.001,-32) [-32|32.255] "m/s" Vector__XXX
+
+BO_ 2365527038 CAS1: 8 Vector__XXX
+ SG_ nearest_tag_m : 0|16@1+ (0.01,0) [0|642.55] "m" Vector__XXX
+ SG_ speed_cap_kmh : 16|8@1+ (1,0) [0|250] "km/h" Vector__XXX
+ SG_ cap_active : 24|2@1+ (1,0) [0|1] "" Vector__XXX
+
+BO_ 2432636158 TRK1: 8 Vector__XXX
+ SG_ left_track_mps : 0|16@1+ (0.001,-32) [-32|32.255] "m/s" Vector__XXX
+ SG_ right_track_mps : 16|16@1+ (0.001,-32) [-32|32.255] "m/s" Vector__XXX
+ SG_ blade_height_m : 32|16@1+ (0.001,-32) [-32|32.255] "m" Vector__XXX
+ SG_ blade_load_pct : 48|8@1+ (0.4,0) [0|100] "%" Vector__XXX
+
+BO_ 2499745278 BODY1: 8 Vector__XXX
+ SG_ body_angle_deg : 0|8@1+ (0.5,0) [0|125] "deg" Vector__XXX
+ SG_ payload_t : 8|16@1+ (0.01,0) [0|642.55] "t" Vector__XXX
+
+BO_ 2365530366 SLEW1: 8 Vector__XXX
+ SG_ slew_rad : 0|16@1+ (0.0001,-3.2) [-3.2|3.2255] "rad" Vector__XXX
+ SG_ slew_rate_rads : 16|16@1+ (0.0001,-3.2) [-3.2|3.2255] "rad/s" Vector__XXX
+ SG_ brake : 32|2@1+ (1,0) [0|1] "" Vector__XXX
+
+BO_ 2365530622 LUFF1: 8 Vector__XXX
+ SG_ luff_rad : 0|16@1+ (0.0001,-3.2) [-3.2|3.2255] "rad" Vector__XXX
+ SG_ luff_rate_rads : 16|16@1+ (0.0001,-3.2) [-3.2|3.2255] "rad/s" Vector__XXX
+ SG_ radius_m : 32|16@1+ (0.01,0) [0|642.55] "m" Vector__XXX
+
+BO_ 2365530878 HOIST1: 8 Vector__XXX
+ SG_ hook_height_m : 0|16@1+ (0.01,-100) [-100|542.55] "m" Vector__XXX
+ SG_ rope_speed_mps : 16|16@1+ (0.001,-32) [-32|32.255] "m/s" Vector__XXX
+ SG_ load_t : 32|16@1+ (0.01,0) [0|642.55] "t" Vector__XXX
+
+BO_ 2298422270 LMI1: 8 Vector__XXX
+ SG_ radius_m : 0|16@1+ (0.01,0) [0|642.55] "m" Vector__XXX
+ SG_ load_t : 16|16@1+ (0.01,0) [0|642.55] "t" Vector__XXX
+ SG_ lmi_pct : 32|8@1+ (0.5,0) [0|125] "%" Vector__XXX
+ SG_ wind_ms : 40|8@1+ (0.25,0) [0|62.5] "m/s" Vector__XXX
+ SG_ chart_t : 48|16@1+ (0.01,0) [0|642.55] "t" Vector__XXX
+
+BO_ 2298422526 ACU1: 8 Vector__XXX
+ SG_ min_separation_m : 0|16@1+ (0.01,0) [0|642.55] "m" Vector__XXX
+ SG_ overlap : 16|2@1+ (1,0) [0|1] "" Vector__XXX
+ SG_ slow_active : 18|2@1+ (1,0) [0|1] "" Vector__XXX
+
+BO_ 2499749374 PILE1: 8 Vector__XXX
+ SG_ pile_depth_m : 0|16@1+ (0.01,0) [0|642.55] "m" Vector__XXX
+ SG_ hammer_bpm : 16|8@1+ (1,0) [0|250] "bpm" Vector__XXX
+ SG_ vibration_mms : 24|16@1+ (0.01,0) [0|642.55] "mm/s" Vector__XXX
+
+BO_ 2499749630 RLR1: 8 Vector__XXX
+ SG_ drum_freq_hz : 0|8@1+ (0.25,0) [0|62.5] "Hz" Vector__XXX
+ SG_ amplitude_mm : 8|8@1+ (0.01,0) [0|2.5] "mm" Vector__XXX
+ SG_ cmv : 16|16@1+ (0.1,0) [0|6425.5] "" Vector__XXX
+
+BO_ 2365532158 BOOM1: 8 Vector__XXX
+ SG_ boom_angle_rad : 0|16@1+ (0.0001,-3.2) [-3.2|3.2255] "rad" Vector__XXX
+ SG_ extension_m : 16|16@1+ (0.001,0) [0|64.255] "m" Vector__XXX
+ SG_ fork_load_t : 32|16@1+ (0.01,0) [0|642.55] "t" Vector__XXX
+ SG_ stability_pct : 48|8@1+ (0.5,0) [0|125] "%" Vector__XXX
+
+BO_ 2365534462 XCMD1: 8 Vector__XXX
+ SG_ swing_target_rad : 0|16@1+ (0.0001,-3.2) [-3.2|3.2255] "rad" Vector__XXX
+ SG_ boom_target_rad : 16|16@1+ (0.0001,-3.2) [-3.2|3.2255] "rad" Vector__XXX
+ SG_ stick_target_rad : 32|16@1+ (0.0001,-3.2) [-3.2|3.2255] "rad" Vector__XXX
+ SG_ bucket_target_rad : 48|16@1+ (0.0001,-3.2) [-3.2|3.2255] "rad" Vector__XXX
+
+BO_ 2365534718 DRV1: 8 Vector__XXX
+ SG_ speed_target_mps : 0|16@1+ (0.001,-32) [-32|32.255] "m/s" Vector__XXX
+ SG_ heading_target_rad : 16|16@1+ (0.0001,-3.2) [-3.2|3.2255] "rad" Vector__XXX
+ SG_ body_target_deg : 32|8@1+ (0.5,0) [0|125] "deg" Vector__XXX
+ SG_ blade_target_m : 40|16@1+ (0.001,-32) [-32|32.255] "m" Vector__XXX
+ SG_ payload_add_t : 56|8@1+ (0.25,0) [0|62.5] "t" Vector__XXX
+
+BO_ 2365534974 CRN1: 8 Vector__XXX
+ SG_ slew_target_rad : 0|16@1+ (0.0001,-3.2) [-3.2|3.2255] "rad" Vector__XXX
+ SG_ radius_target_m : 16|16@1+ (0.01,0) [0|642.55] "m" Vector__XXX
+ SG_ hook_target_m : 32|16@1+ (0.01,-100) [-100|542.55] "m" Vector__XXX
+ SG_ load_t : 48|16@1+ (0.01,0) [0|642.55] "t" Vector__XXX
+
+BO_ 2365535742 GNSS1: 8 Vector__XXX
+ SG_ x_m : 0|32@1+ (0.0001,-100000) [-100000|321108] "m" Vector__XXX
+ SG_ y_m : 32|32@1+ (0.0001,-100000) [-100000|321108] "m" Vector__XXX
+
+BO_ 2365535998 GNSS2: 8 Vector__XXX
+ SG_ heading_rad : 0|16@1+ (0.0001,-3.2) [-3.2|3.2255] "rad" Vector__XXX
+ SG_ speed_mps : 16|16@1+ (0.001,-32) [-32|32.255] "m/s" Vector__XXX
+ SG_ z_m : 32|16@1+ (0.01,-300) [-300|342.55] "m" Vector__XXX
+ SG_ fix : 48|4@1+ (1,0) [0|10] "" Vector__XXX
+ SG_ sats : 56|8@1+ (1,0) [0|250] "" Vector__XXX
+
+BO_ 2566863102 TSTAT1: 8 Vector__XXX
+ SG_ state : 0|8@1+ (1,0) [0|250] "" Vector__XXX
+ SG_ cycles : 8|16@1+ (1,0) [0|64255] "" Vector__XXX
+ SG_ task_seq : 24|16@1+ (1,0) [0|64255] "" Vector__XXX
+ SG_ progress_pct : 40|8@1+ (0.4,0) [0|100] "%" Vector__XXX
+
+BO_ 2566863358 GWHB1: 8 Vector__XXX
+ SG_ uplink : 0|2@1+ (1,0) [0|1] "" Vector__XXX
+ SG_ counter : 8|8@1+ (1,0) [0|250] "" Vector__XXX
+
+CM_ BO_ 2348875774 "Torque/Speed Control 1, PGN 0 (0x0000), every 10 ms";
+CM_ SG_ 2348875774 override_mode "SPN 695";
+CM_ SG_ 2348875774 speed_condition "SPN 696";
+CM_ SG_ 2348875774 override_priority "SPN 897";
+CM_ SG_ 2348875774 requested_speed_rpm "SPN 898";
+CM_ SG_ 2348875774 requested_torque_pct "SPN 518";
+CM_ BO_ 2364540158 "Electronic Engine Controller 1, PGN 61444 (0xF004), every 20 ms";
+CM_ SG_ 2364540158 torque_mode "SPN 899";
+CM_ SG_ 2364540158 drivers_demand_torque_pct "SPN 512";
+CM_ SG_ 2364540158 actual_torque_pct "SPN 513";
+CM_ SG_ 2364540158 engine_speed_rpm "SPN 190";
+CM_ SG_ 2364540158 controlling_sa "SPN 1483";
+CM_ SG_ 2364540158 starter_mode "SPN 1675";
+CM_ SG_ 2364540158 engine_demand_torque_pct "SPN 2432";
+CM_ BO_ 2565867006 "Electronic Transmission Controller 2, PGN 61445 (0xF005), every 100 ms";
+CM_ SG_ 2565867006 selected_gear "SPN 524";
+CM_ SG_ 2565867006 actual_gear_ratio "SPN 526";
+CM_ SG_ 2565867006 current_gear "SPN 523";
+CM_ BO_ 2566841854 "Engine Hours, Revolutions, PGN 65253 (0xFEE5), every 1000 ms";
+CM_ SG_ 2566841854 engine_hours "SPN 247";
+CM_ SG_ 2566841854 engine_revolutions "SPN 249";
+CM_ BO_ 2566842622 "Vehicle Direction/Speed, PGN 65256 (0xFEE8), every 100 ms";
+CM_ SG_ 2566842622 compass_bearing_deg "SPN 165";
+CM_ SG_ 2566842622 nav_speed_kmh "SPN 517";
+CM_ SG_ 2566842622 pitch_deg "SPN 583";
+CM_ SG_ 2566842622 altitude_m "SPN 580";
+CM_ BO_ 2566844158 "Engine Temperature 1, PGN 65262 (0xFEEE), every 1000 ms";
+CM_ SG_ 2566844158 coolant_c "SPN 110";
+CM_ SG_ 2566844158 fuel_temp_c "SPN 174";
+CM_ SG_ 2566844158 oil_temp_c "SPN 175";
+CM_ SG_ 2566844158 turbo_oil_temp_c "SPN 176";
+CM_ SG_ 2566844158 intercooler_c "SPN 52";
+CM_ SG_ 2566844158 intercooler_thermostat_pct "SPN 1134";
+CM_ BO_ 2566844926 "Cruise Control/Vehicle Speed 1, PGN 65265 (0xFEF1), every 100 ms";
+CM_ SG_ 2566844926 parking_brake "SPN 70";
+CM_ SG_ 2566844926 wheel_speed_kmh "SPN 84";
+CM_ BO_ 2566845182 "Fuel Economy (Liquid), PGN 65266 (0xFEF2), every 100 ms";
+CM_ SG_ 2566845182 fuel_rate_lph "SPN 183";
+CM_ SG_ 2566845182 inst_fuel_economy_kmpl "SPN 184";
+CM_ SG_ 2566845182 avg_fuel_economy_kmpl "SPN 185";
+CM_ SG_ 2566845182 throttle_pct "SPN 51";
+CM_ SG_ 2566845182 throttle2_pct "SPN 3673";
+CM_ BO_ 2566845438 "Vehicle Position, PGN 65267 (0xFEF3), every 5000 ms";
+CM_ SG_ 2566845438 latitude_deg "SPN 584";
+CM_ SG_ 2566845438 longitude_deg "SPN 585";
+CM_ BO_ 2432635134 "Hydraulic pressures (proprietary B), PGN 65296 (0xFF10), every 50 ms";
+CM_ BO_ 2365526526 "Swing and boom joints (proprietary B), PGN 65297 (0xFF11), every 20 ms";
+CM_ BO_ 2298417918 "Safety PLC status (proprietary B), PGN 65298 (0xFF12), every 20 ms";
+CM_ BO_ 2365527038 "Collision avoidance (proprietary B), PGN 65299 (0xFF13), every 50 ms";
+CM_ BO_ 2432636158 "Track and blade (proprietary B), PGN 65300 (0xFF14), every 50 ms";
+CM_ BO_ 2499745278 "Body hoist (proprietary B), PGN 65301 (0xFF15), every 100 ms";
+CM_ BO_ 2365530366 "Slew drive (proprietary B), PGN 65312 (0xFF20), every 20 ms";
+CM_ BO_ 2365530622 "Luff drive (proprietary B), PGN 65313 (0xFF21), every 20 ms";
+CM_ BO_ 2365530878 "Hoist drive (proprietary B), PGN 65314 (0xFF22), every 20 ms";
+CM_ BO_ 2298422270 "Load moment indicator (proprietary B), PGN 65315 (0xFF23), every 100 ms";
+CM_ BO_ 2298422526 "Crane anti-collision (proprietary B), PGN 65316 (0xFF24), every 50 ms";
+CM_ BO_ 2499749374 "Piling rig (proprietary B), PGN 65317 (0xFF25), every 100 ms";
+CM_ BO_ 2499749630 "Roller compaction (proprietary B), PGN 65318 (0xFF26), every 100 ms";
+CM_ BO_ 2365532158 "Telescopic boom (proprietary B), PGN 65319 (0xFF27), every 20 ms";
+CM_ BO_ 2365534462 "Excavator joint setpoints (proprietary B), PGN 65328 (0xFF30), every 20 ms";
+CM_ BO_ 2365534718 "Drive setpoints (proprietary B), PGN 65329 (0xFF31), every 20 ms";
+CM_ BO_ 2365534974 "Crane setpoints (proprietary B), PGN 65330 (0xFF32), every 20 ms";
+CM_ BO_ 2365535742 "Site position (proprietary B), PGN 65333 (0xFF35), every 50 ms";
+CM_ BO_ 2365535998 "Heading and speed (proprietary B), PGN 65334 (0xFF36), every 50 ms";
+CM_ BO_ 2566863102 "Task state (proprietary B), PGN 65336 (0xFF38), every 200 ms";
+CM_ BO_ 2566863358 "Gateway heartbeat and uplink (proprietary B), PGN 65337 (0xFF39), every 100 ms";
+
+BA_DEF_ BO_ "VFrameFormat" ENUM "StandardCAN","ExtendedCAN","reserved","J1939PG";
+BA_DEF_ "ProtocolType" STRING ;
+BA_DEF_DEF_ "VFrameFormat" "J1939PG";
+BA_DEF_DEF_ "ProtocolType" "J1939";
+BA_ "ProtocolType" "J1939";

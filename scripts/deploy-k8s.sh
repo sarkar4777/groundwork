@@ -6,6 +6,13 @@
 #   bash scripts/deploy-k8s.sh forward    start the 8710 forward in the background, restarted if it drops, wait until /health answers
 #   bash scripts/deploy-k8s.sh stop       end the forward this script started
 #   bash scripts/deploy-k8s.sh status     the deployment, the forward and the bff health
+#
+# The four simulated industrial PCs, namespace groundwork-edge:
+#   bash scripts/deploy-k8s.sh edge                build groundwork-ipc:local, apply, roll out
+#   bash scripts/deploy-k8s.sh edge-status         pods, containers and what each PC reports
+#   bash scripts/deploy-k8s.sh edge-forward        the in-cluster MQTT broker on localhost:18830, supervised
+#   bash scripts/deploy-k8s.sh edge-check [s] [n] [m]  a test pod listens s seconds, holds and faults node n, makes m's bus noisy
+#   bash scripts/deploy-k8s.sh edge-candump EX1 [lines]   the PC's candump -L log
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
@@ -105,11 +112,74 @@ status() {
   echo
 }
 
+EDGE_PORT="${GW_BROKER_PORT:-18830}"
+EPID="$RUN/broker-forward.pid"
+ELOG="$RUN/broker-forward.log"
+
+edge() {
+  say "building groundwork-ipc:local into minikube profile $PROFILE"
+  eval "$(minikube -p "$PROFILE" docker-env)"
+  docker build -f edge/Dockerfile -t groundwork-ipc:local .
+  say "applying deploy/k8s/groundwork-edge.yaml"
+  $K apply -f deploy/k8s/groundwork-edge.yaml
+  for m in ex1 tc1 ht1 dz1; do $K -n groundwork-edge rollout restart deploy/ipc-$m >/dev/null; done
+  for m in ex1 tc1 ht1 dz1; do $K -n groundwork-edge rollout status deploy/ipc-$m --timeout=180s; done
+  say "four industrial PCs publishing Sparkplug B to abenix-mosquitto, check with: bash scripts/deploy-k8s.sh edge-check"
+}
+
+edge_status() {
+  $K -n groundwork-edge get deploy,pods -o wide 2>/dev/null || say "no groundwork-edge namespace on $PROFILE"
+  for m in ex1 tc1 ht1 dz1; do
+    printf '%s: ' "ipc-$m"
+    $K -n groundwork-edge get pod -l machine="$(echo $m | tr a-z A-Z)" -o jsonpath='{range .items[*].status.containerStatuses[*]}{.name}={.ready} {end}' 2>/dev/null
+    echo
+  done
+}
+
+edge_forward() {
+  if [ -f "$EPID" ] && kill -0 "$(cat "$EPID")" 2>/dev/null; then
+    say "broker forward already running, pid $(cat "$EPID"), mqtt://localhost:$EDGE_PORT"
+    return 0
+  fi
+  mkdir -p "$RUN"
+  : >"$ELOG"
+  nohup bash "$0" edge-supervise >/dev/null 2>&1 &
+  echo $! >"$EPID"
+  say "broker forward started, pid $(cat "$EPID"), mqtt://localhost:$EDGE_PORT, log $ELOG"
+}
+
+edge_supervise() {
+  trap 'exit 0' TERM INT
+  while true; do
+    $K -n abenix port-forward svc/abenix-mosquitto "$EDGE_PORT:1883" >>"$ELOG" 2>&1 || true
+    sleep 1
+  done
+}
+
+edge_check() {
+  local secs="${1:-20}" node="${2:-ipc-ex1}" noisy="${3:-ipc-tc1}"
+  $K -n groundwork-edge delete pod gw-check --ignore-not-found >/dev/null
+  $K -n groundwork-edge run gw-check --rm -i --restart=Never --image groundwork-ipc:local --image-pull-policy Never     --overrides='{"spec":{"securityContext":{"runAsNonRoot":true,"runAsUser":10001}}}'     -- python -m tools.check --seconds "$secs" --hold "$node" --fault "$node" --noise "$noisy" --print-json
+}
+
+edge_candump() {
+  local m="${1:-EX1}" n="${2:-200}"
+  local pod
+  pod="$($K -n groundwork-edge get pod -l machine="$m" -o jsonpath='{.items[0].metadata.name}')"
+  $K -n groundwork-edge exec "$pod" -c canbus -- sh -c "tail -n $n /var/log/candump/ipc-$(echo "$m" | tr A-Z a-z).log"
+}
+
 case "${1:-deploy}" in
+  edge) edge ;;
+  edge-status) edge_status ;;
+  edge-forward) edge_forward ;;
+  edge-supervise) edge_supervise ;;
+  edge-check) shift; edge_check "$@" ;;
+  edge-candump) shift; edge_candump "$@" ;;
   deploy) deploy ;;
   forward) forward ;;
   supervise) supervise ;;
   stop) stop ;;
   status) status ;;
-  *) echo "usage: $0 [deploy|forward|stop|status]"; exit 2 ;;
+  *) echo "usage: $0 [deploy|forward|stop|status|edge|edge-status|edge-forward|edge-check|edge-candump]"; exit 2 ;;
 esac

@@ -74,3 +74,13 @@ Shortlisted, not fetched yet:
 | Opening drone video | https://commons.wikimedia.org/wiki/File:Cerro_Armazones_drone_footage.webm | CC BY 4.0 | G. Hüdepohl (atacamaphoto.com)/ESO |
 | Context orthophoto, surface and buildings | https://www.swisstopo.admin.ch/en/orthoimage-swissimage-10 | swisstopo free geodata terms | © swisstopo |
 | Context orthophoto | https://www.pdok.nl/introductie/-/article/pdok-luchtfoto-rgb-open- | CC BY 4.0 | Luchtfoto © Beeldmateriaal Nederland, via PDOK, CC BY 4.0 |
+
+## Industrial PCs
+
+| File | Source | Licence |
+|---|---|---|
+| edge/ipc/proto/sparkplug_b.proto | Eclipse Tahu, https://github.com/eclipse-tahu/tahu/blob/5736e404889d4b95910613040a99ba79589ffb13/sparkplug_b/sparkplug_b.proto, copyright (c) 2015, 2018 Cirrus Link Solutions and others | EPL-2.0, kept as published with its header. The Python module is generated from it when the image builds and is not in git |
+
+`edge/dbc/groundwork-j1939.dbc` is written by `edge/tools/make_dbc.py` from Groundwork's own J1939 dictionary. The sample logs in `edge/samples` were recorded from the simulated PCs.
+
+The PC image installs these at build time, none of them is vendored: python-can (LGPL-3.0), cantools (MIT), paho-mqtt (EPL-2.0 or EDL-1.0), protobuf (BSD-3-Clause), msgpack (Apache-2.0), grpcio-tools in the build stage only (Apache-2.0).

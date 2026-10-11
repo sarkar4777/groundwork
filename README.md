@@ -10,7 +10,7 @@ An autonomous construction site, run by [Abenix](https://github.com/sarkar4777/a
 
 Groundwork is a showcase, not certified safety software. Do not use it to run real machines.
 
-**Contents:** [What is simulated](#what-is-simulated-and-how-to-swap-in-the-real-thing) · [How the drone feed is made](#how-the-drone-feed-is-made) · [Run it end to end](#run-it-end-to-end) · [Use it](#use-it) · [When something is wrong](#when-something-is-wrong) · [How it fits together](#how-it-fits-together) · [Inside Abenix](#inside-abenix) · [Honest notes](#honest-notes) · [Measured](#measured)
+**Contents:** [What is simulated](#what-is-simulated-and-how-to-swap-in-the-real-thing) · [How the drone feed is made](#how-the-drone-feed-is-made) · [Industrial PCs and the CAN bus](#industrial-pcs-and-the-can-bus) · [Run it end to end](#run-it-end-to-end) · [Use it](#use-it) · [When something is wrong](#when-something-is-wrong) · [How it fits together](#how-it-fits-together) · [Inside Abenix](#inside-abenix) · [Honest notes](#honest-notes) · [Measured](#measured)
 
 ## What is simulated, and how to swap in the real thing
 
@@ -71,6 +71,65 @@ python scripts/reconstruct.py mysite --photos D:/flight     # your own flight
 ```
 
 It runs OpenDroneMap for the orthophoto, the surface and terrain heights, a textured mesh and the camera poses, levels the result, then trains a Gaussian splat. Open the ground station with `?ground=caliterra&layer=splat` to put the twin on the reconstructed heights. Sources, licences, the sun calculation and what is still open are in [docs/real-imagery.md](docs/real-imagery.md).
+
+## Industrial PCs and the CAN bus
+
+Four machines, EX1, TC1, HT1 and DZ1, also run as simulated industrial PCs in Kubernetes, namespace `groundwork-edge`. Each PC is one pod. Inside it, every ECU on the machine is its own container on one shared CAN bus, and an edge gateway maps the bus to Sparkplug B on the MQTT broker Abenix already runs.
+
+```
+ pod ipc-ex1
+ ┌──────────────────────────────────────────────────────────────────────────┐
+ │ engine  telematics  safety  hydraulics  swing  controller   gateway ─────┼──► MQTT, Sparkplug B
+ │    │        │         │         │         │        │           │         │    spBv1.0/groundwork/…
+ │    └────────┴─────────┴─────────┴─────────┴────────┴───────────┘         │    groundwork/ipc-ex1/can/raw
+ │                 canbus sidecar: vcan0, 250 kbit/s, socketcand            │
+ └──────────────────────────────────────────────────────────────────────────┘
+```
+
+| What | Real or simulated |
+|---|---|
+| J1939: 29-bit identifiers, address claim with conflict resolution, Request PGN, TP.BAM and TP.CM RTS/CTS, DM1 with SPN and FMI, TSC1, the repetition rates | Real protocol behaviour, in `edge/ipc/stack.py`. Signals encode with the twin's own J1939 module, so the PCs and the twin speak the same bytes |
+| The bus transport | socketcand, the Linux CAN-over-TCP protocol (linux-can/socketcand, rawmode), through python-can |
+| The copper and the transceivers | Simulated by the `canbus` sidecar: each frame takes its real bit time at 250 kbit/s, stuff bits and CRC-15 included. Frames serialise one at a time, the lowest identifier wins arbitration, an unacknowledged or corrupted frame becomes an error frame, and every controller's transmit and receive error counters move from error active to error passive to bus off and back |
+| The machine | Simulated. Sensors and actuators share the machine through an in-memory volume, the way ECUs share one chassis. Controllers and the gateway only see the bus |
+| The gateway, Sparkplug B and MQTT | Real. NBIRTH and DBIRTH per ECU, seq and bdSeq, NDEATH as the MQTT last will, rebirth on NCMD. Signals decode through `edge/dbc/groundwork-j1939.dbc` with cantools |
+| Commands from the site | Real J1939 on the bus. `Safety/Hold`, `Mode/Set` and `Diagnostics/InjectFault` arrive as DCMD and go to the safety PLC as proprietary A commands. The PLC acknowledges with ACKM, broadcasts its new state and takes the engine to idle with TSC1, so EEC1 follows. `Task/Assign` goes to the controller as JSON over TP.CM |
+
+No privileged containers, no NET_ADMIN, no kernel modules.
+
+```bash
+bash scripts/deploy-k8s.sh edge                 # build the image into minikube, roll out the four PCs
+bash scripts/deploy-k8s.sh edge-status
+bash scripts/deploy-k8s.sh edge-check 30        # a test pod: rates, births, a hold, a DM1 fault, a noisy harness
+bash scripts/deploy-k8s.sh edge-candump EX1     # the bus as candump -L
+kubectl -n groundwork-edge exec deploy/ipc-ex1 -c canbus -- candump --decode
+kubectl -n groundwork-edge exec deploy/ipc-ex1 -c canbus -- candump --stats
+```
+
+Measured on minikube over one 30 s check, about two minutes after the PCs powered on:
+
+| PC | CAN frames/s | Bus load | Arbitration losses | Error frames | MQTT messages/s | Bus queue p50 / p99 |
+|---|---|---|---|---|---|---|
+| EX1 | 303 | 16.8 % | 351 | 141 | 86 | 0.56 / 1.6 ms |
+| TC1 | 393 | 22.1 % | 633 | 912, a noisy harness for 6 s | 80 | 0.57 / 1.7 ms |
+| HT1 | 261 | 14.7 % | 359 | 465 | 65 | 0.57 / 1.9 ms |
+| DZ1 | 269 | 15.0 % | 169 | 389 | 58 | 0.56 / 1.4 ms |
+
+Error frames on a quiet bus come from power-on, when the first ECU up has nobody to acknowledge it. The noisy harness drove TC1's engine, telematics, slew and hoist controllers to error passive, and they came back to error active within 3 s of the noise stopping.
+
+Hop by hop, EX1: a frame's last bit to the gateway 1.9 ms, gateway to an MQTT subscriber 1.3 ms at the median and 15 ms at p99. A hold sent as DCMD reached the safety PLC's acknowledgement on the bus in 6.5 ms and the excavator's joints read still 206 ms later, braking from a full swing. The hop into Abenix comes with its 2.5.8 telemetry ingest.
+
+Sample logs to open in SavvyCAN or replay with `canplayer`: [edge/samples/ipc-ex1-candump.log](edge/samples/ipc-ex1-candump.log) (power-on address claims, BAM and RTS/CTS sessions, a hold, a DM1 fault) and [edge/samples/ipc-tc1-noisy-harness.log](edge/samples/ipc-tc1-noisy-harness.log) (error frames, error passive and recovery).
+
+**Real hardware is a configuration change.** Every ECU and the gateway read `CAN_INTERFACE`, `CAN_CHANNEL`, `CAN_HOST` and `CAN_PORT`:
+
+| Where the bus is | Set |
+|---|---|
+| The canbus sidecar (default) | `CAN_INTERFACE=socketcand CAN_HOST=localhost CAN_PORT=29536 CAN_CHANNEL=vcan0` |
+| A real socketcand daemon next to a real bus | `CAN_INTERFACE=socketcand CAN_HOST=<daemon host> CAN_PORT=29536 CAN_CHANNEL=can0` |
+| An industrial PC with a PEAK or Kvaser USB-CAN adapter | `CAN_INTERFACE=socketcan CAN_CHANNEL=can0`, and drop the sidecar |
+
+With real ECUs on the bus, run only the gateway container. Point `MQTT_URL` at the site broker and set `GW_MACHINE` to the machine it is fitted to.
 
 ## Run it end to end
 

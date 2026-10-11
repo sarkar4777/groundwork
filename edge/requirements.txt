@@ -1,0 +1,5 @@
+python-can==4.5.0
+msgpack==1.1.0
+paho-mqtt==2.1.0
+protobuf==5.29.5
+cantools==40.2.1
