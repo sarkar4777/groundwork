@@ -17,6 +17,8 @@ GROUP = "groundwork"
 NODES = ("ipc-ex1", "ipc-tc1", "ipc-ht1", "ipc-dz1")
 FRAME_POLL_S = 0.25
 FRAMES_KEPT = 80
+# the trace shows a handful per step, and since keeps each poll to what is new
+FRAME_LIMIT = 50
 # gateway numbers a stop is measured from, written by the PC after it acts on a hold
 STOP_KEYS = ("Latency/HoldStop_ms", "Latency/HoldAck_ms", "Latency/SiteToGateway_ms", "Latency/Commands", "Latency/Stops")
 
@@ -142,7 +144,7 @@ class Ipc:
                     continue
                 try:
                     t0 = time.perf_counter()
-                    got = await self.forge.telemetry.frames(self.group, n, 60, self.frame_t[n])
+                    got = await self.forge.telemetry.frames(self.group, n, limit=FRAME_LIMIT, since=self.frame_t[n])
                     self.rtt_ms.add((time.perf_counter() - t0) * 1000)
                 except asyncio.CancelledError:
                     raise

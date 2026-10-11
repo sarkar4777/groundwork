@@ -9,6 +9,7 @@ class FakeTelemetry:
     def __init__(self):
         self.commands = []
         self.timing = {}
+        self.frame_calls = []
 
     async def node(self, group, node, device=None):
         if node != "ipc-ex1":
@@ -19,7 +20,8 @@ class FakeTelemetry:
                             {"device": "", "metrics": []}]}
 
     async def frames(self, group, node, limit=200, since=None):
-        return []
+        self.frame_calls.append((node, limit, since))
+        return [{"t": (since or 1000) + 5, "id": 1, "data": "00", "dlc": 1}]
 
     async def health(self):
         return {"publish_to_store_ms": {"p50": 2.5, "p99": 50.0}}
@@ -130,4 +132,18 @@ def test_split_timings_give_abenix_checks_and_the_broker_hop_their_own_lines():
         assert [h["hop"] for h in s["hops"]] == ["Twin decides", "bff to Abenix", "Abenix checks", "Abenix publish to the PC", "PC to standstill"]
         assert s["stop_ms"] == 4.0 + 3.0 + 2.5 + 1.0 + 150.0
         ipc.stop()
+    asyncio.run(go())
+
+
+def test_frame_polls_ask_only_for_what_is_new():
+    async def go():
+        ipc = Ipc(FakeForge(), nodes=("ipc-ex1",))
+        await ipc.start()
+        for _ in range(40):
+            if len(ipc.forge.telemetry.frame_calls) >= 2:
+                break
+            await asyncio.sleep(0.05)
+        ipc.stop()
+        calls = ipc.forge.telemetry.frame_calls
+        assert calls[0] == ("ipc-ex1", 50, None) and calls[1] == ("ipc-ex1", 50, 1005)
     asyncio.run(go())
