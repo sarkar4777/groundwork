@@ -252,7 +252,8 @@ export function StoryHops() {
   if (!pc || !v) return null
   const L = pc.lat || {}
   const stop = v.last_stop && v.last_stop.machine === 'EX1' ? v.last_stop : null
-  const hop = (name: string) => stop?.hops.find((h) => h.hop.startsWith(name))?.ms
+  const hop = (name: string) => stop?.hops.find((h) => h.hop === name || h.hop.startsWith(name + ','))?.ms
+  const split = stop ? stop.hops.some((h) => h.hop === 'Abenix checks') : v.checks_p50_ms != null
   const noisy = (pc.noise ?? 0) > 0 || pc.ecus_passive > 0 || (!!pc.bus_state && pc.bus_state !== 'error-active')
   const up: [string, number | null | undefined, string][] = [
     ['ECU to the wire', L.BusQueue_ms, 'J1939 queue, p50'],
@@ -260,10 +261,15 @@ export function StoryHops() {
     ['Gateway to Abenix store', v.publish_to_store_p50_ms, 'Sparkplug over MQTT, p50'],
   ]
   const down: [string, number | null | undefined, string][] = [
-    ['Twin decides', hop('Twin') ?? tick, 'safety rules in Abenix'],
-    ['bff to Abenix', hop('bff') ?? v.bff_to_abenix_ms, 'half a round trip'],
-    ['Abenix to the PC', hop('Abenix') ?? L.SiteToGateway_ms, 'checks, MQTT'],
-    stop && !stop.moving ? ['Hold in force', hop('Hold') ?? null, 'ACK on the bus, EX1 was already still'] : ['Machine still', hop('PC') ?? L.HoldStop_ms, `ACK on the bus at ${fmtMs(stop?.hold_ack_ms ?? L.HoldAck_ms)}`],
+    ['Twin decides', hop('Twin decides') ?? tick, 'safety rules in Abenix'],
+    ['bff to Abenix', hop('bff to Abenix') ?? v.bff_to_abenix_ms, 'half a round trip'],
+    ...(split
+      ? ([
+          ['Abenix checks', hop('Abenix checks') ?? v.checks_p50_ms, 'access, limits, encode'],
+          ['Publish to the PC', hop('Abenix publish to the PC') ?? L.SiteToGateway_ms, 'MQTT broker to the gateway'],
+        ] as [string, number | null | undefined, string][])
+      : ([['Abenix to the PC', hop('Abenix to the PC') ?? L.SiteToGateway_ms, 'checks, MQTT']] as [string, number | null | undefined, string][])),
+    stop && !stop.moving ? ['Hold in force', hop('Hold in force') ?? null, 'ACK on the bus, EX1 was already still'] : ['Machine still', hop('PC to standstill') ?? L.HoldStop_ms, `ACK on the bus at ${fmtMs(stop?.hold_ack_ms ?? L.HoldAck_ms)}`],
   ]
   const row = (dir: string, items: typeof up) => (
     <div className="sc-hops-row">

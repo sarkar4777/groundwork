@@ -2029,7 +2029,8 @@ class TelemetryClient:
     ) -> dict[str, Any]:
         """Write one signal back: a Sparkplug DCMD (NCMD when device is ""), or the target the source's mapping declares.
 
-        Returns {published, at, topic, payload, confirmed}. With confirm_timeout_ms the call waits
+        Returns {published, at, topic, payload, confirmed, received_at, checks_ms, published_at},
+        the last three in epoch ms on the cluster clock. With confirm_timeout_ms the call waits
         for the device to report the value (or confirm_signal = confirm_value) and sets confirmed
         true or false. Needs telemetry.command. Raises AbenixError with code NODE_OFFLINE,
         NOT_WRITABLE, RATE_LIMITED (over 20 a second per node) or FORBIDDEN.

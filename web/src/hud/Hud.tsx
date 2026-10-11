@@ -252,7 +252,8 @@ function IpcHops() {
   if (!pc || !v || inStory) return null
   const L = pc.lat || {}
   const stop = v.last_stop && v.last_stop.machine === id ? v.last_stop : null
-  const hop = (name: string) => stop?.hops.find((h) => h.hop.startsWith(name))?.ms
+  const hop = (name: string) => stop?.hops.find((h) => h.hop === name || h.hop.startsWith(name + ','))?.ms
+  const split = stop ? stop.hops.some((h) => h.hop === 'Abenix checks') : v.checks_p50_ms != null
   return (
     <div className="hud-box hops" style={{ fontFamily: 'Inter' }}>
       <div className="hops-h">
@@ -267,11 +268,18 @@ function IpcHops() {
       </div>
       <div className="hops-row">
         <span className="hops-dir">DOWN</span>
-        <Hop label="Twin decides" ms={hop('Twin') ?? decide} note="safety rules" />
-        <Hop label="bff to Abenix" ms={hop('bff') ?? v.bff_to_abenix_ms} note="half a round trip" />
-        <Hop label="Abenix to the PC" ms={hop('Abenix') ?? L.SiteToGateway_ms} note="checks, MQTT" />
+        <Hop label="Twin decides" ms={hop('Twin decides') ?? decide} note="safety rules" />
+        <Hop label="bff to Abenix" ms={hop('bff to Abenix') ?? v.bff_to_abenix_ms} note="half a round trip" />
+        {split ? (
+          <>
+            <Hop label="Abenix checks" ms={hop('Abenix checks') ?? v.checks_p50_ms} note="access, limits" />
+            <Hop label="Publish to the PC" ms={hop('Abenix publish to the PC') ?? L.SiteToGateway_ms} note="MQTT broker" />
+          </>
+        ) : (
+          <Hop label="Abenix to the PC" ms={hop('Abenix to the PC') ?? L.SiteToGateway_ms} note="checks, MQTT" />
+        )}
         <Hop label="PC ACK on the bus" ms={stop?.hold_ack_ms ?? L.HoldAck_ms} note="J1939" />
-        <Hop label={stop && !stop.moving ? 'Hold in force' : 'Machine still'} ms={stop && !stop.moving ? hop('Hold') : hop('PC') ?? L.HoldStop_ms} note={stop && !stop.moving ? 'was already still' : 'from the hold'} />
+        <Hop label={stop && !stop.moving ? 'Hold in force' : 'Machine still'} ms={stop && !stop.moving ? hop('Hold in force') : hop('PC to standstill') ?? L.HoldStop_ms} note={stop && !stop.moving ? 'was already still' : 'from the hold'} />
       </div>
       <div className="hops-total">
         {(pc.noise ?? 0) > 0 || pc.ecus_passive > 0 || (!!pc.bus_state && pc.bus_state !== 'error-active') ? <span className="hops-noise">Noise on the wire · {pc.error_frames ?? 0} error frames · TEC up to {pc.tec_max ?? 0} · {pc.ecus_passive} ECUs error-passive · bus {pc.bus_state}</span> : null}

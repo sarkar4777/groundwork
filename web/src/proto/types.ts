@@ -53,6 +53,7 @@ export interface IpcView {
   seq_gaps: number | null
   command_p50_ms: number | null
   bff_to_abenix_ms: number | null
+  checks_p50_ms?: number | null
   confirm_p50_ms: number | null
   last_stop: IpcStop | null
 }

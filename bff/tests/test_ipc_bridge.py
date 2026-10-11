@@ -8,6 +8,7 @@ from gwbff.ipc import Ipc, flatten
 class FakeTelemetry:
     def __init__(self):
         self.commands = []
+        self.timing = {}
 
     async def node(self, group, node, device=None):
         if node != "ipc-ex1":
@@ -25,7 +26,7 @@ class FakeTelemetry:
 
     async def command(self, group, node, device, signal, value, reason, *, dry_run=False):
         self.commands.append((group, node, device, signal, value, reason))
-        return {"published": True}
+        return {"published": True, **self.timing}
 
     async def stream(self, **kw):
         await asyncio.sleep(3600)
@@ -109,5 +110,24 @@ def test_a_machine_already_still_reports_the_hold_in_force():
         ipc.expire()
         s = ipc.stops[0]
         assert not s["moving"] and s["stop_ms"] == 4.0 + 5.0 + 2.0 + 6.0 and s["hops"][-1]["hop"].startswith("Hold in force")
+        ipc.stop()
+    asyncio.run(go())
+
+
+def test_split_timings_give_abenix_checks_and_the_broker_hop_their_own_lines():
+    async def go():
+        ipc = Ipc(FakeForge(), nodes=("ipc-ex1",))
+        await ipc.start()
+        ipc.forge.telemetry.timing = {"received_at": 1000, "checks_ms": 2.5, "published_at": 1002.5}
+        cmd = {"machine": "EX1", "node": "ipc-ex1", "device": "safety", "signal": "Safety/Hold", "value": True, "kind": "hold", "reason": "test"}
+        await ipc.send([cmd], {"EX1": {"kind": "safety_stop", "ms": 4.0}})
+        ipc.rtt_ms.add(6.0)
+        ipc._metrics("ipc-ex1", "", [{"name": "Latency/SiteToGateway_ms", "value": 1.0, "ts": 50}, {"name": "Latency/HoldAck_ms", "value": 6.0, "ts": 50},
+                                     {"name": "Latency/Commands", "value": 1, "ts": 50}])
+        ipc._metrics("ipc-ex1", "safety", [{"name": "Safety/Holding", "value": True, "ts": 60}])
+        ipc._metrics("ipc-ex1", "", [{"name": "Latency/HoldStop_ms", "value": 150.0, "ts": 61}, {"name": "Latency/Stops", "value": 1, "ts": 61}])
+        s = ipc.stops[0]
+        assert [h["hop"] for h in s["hops"]] == ["Twin decides", "bff to Abenix", "Abenix checks", "Abenix publish to the PC", "PC to standstill"]
+        assert s["stop_ms"] == 4.0 + 3.0 + 2.5 + 1.0 + 150.0
         ipc.stop()
     asyncio.run(go())

@@ -50,6 +50,7 @@ class Ipc:
         self.cmd_ms = Rolling(50)
         self.confirm_ms = Rolling(20)
         self.rtt_ms = Rolling(60)
+        self.checks_ms = Rolling(50)
         self.sent: list = []
         self.stops: list = []
         self.watch: list = []
@@ -196,9 +197,11 @@ class Ipc:
             t0 = time.perf_counter()
             rec = {"machine": c.get("machine"), "node": c["node"], "signal": c["signal"], "value": c["value"], "at": t_wall}
             try:
-                # positional, so it reads the same whether the SDK calls the field metric or signal
-                await self.forge.telemetry.command(self.group, c["node"], c["device"], c["signal"], c["value"], c.get("reason") or "Groundwork site")
+                r = await self.forge.telemetry.command(self.group, c["node"], c["device"], c["signal"], c["value"], c.get("reason") or "Groundwork site")
                 rec["ms"] = round((time.perf_counter() - t0) * 1000, 2)
+                if isinstance(r, dict) and r.get("checks_ms") is not None:
+                    rec["checks_ms"] = float(r["checks_ms"])
+                    self.checks_ms.add(rec["checks_ms"])
                 rec["ok"] = True
                 self.cmd_ms.add(rec["ms"])
             except Exception as e:  # noqa: BLE001
@@ -210,6 +213,7 @@ class Ipc:
                 ev = stop_events.get(c.get("machine")) or {}
                 vals = self.values[c["node"]]
                 self.watch.append({"machine": c.get("machine"), "node": c["node"], "t0": t0, "api_ms": rec["ms"], "detect_ms": ev.get("ms"),
+                                   "checks_ms": rec.get("checks_ms"),
                                    "commands": self._count(vals, "Latency/Commands"), "stops": self._count(vals, "Latency/Stops"),
                                    "got": {}, "event": ev})
 
@@ -259,7 +263,12 @@ class Ipc:
         still = g.get("Latency/HoldStop_ms")
         # a machine already still when the hold came has no stop time, the hold is in force at the PC's ACK
         last = ("PC to standstill", still) if still is not None else ("Hold in force, ACK on the bus", g.get("Latency/HoldAck_ms"))
-        hops = [("Twin decides", detect), ("bff to Abenix", oneway), ("Abenix to the PC", g.get("Latency/SiteToGateway_ms")), last]
+        if w.get("checks_ms") is not None:
+            # Abenix reports its checks, and stamps the DCMD when it publishes, so the gateway's number is the broker hop alone
+            hops = [("Twin decides", detect), ("bff to Abenix", oneway), ("Abenix checks", w["checks_ms"]),
+                    ("Abenix publish to the PC", g.get("Latency/SiteToGateway_ms")), last]
+        else:
+            hops = [("Twin decides", detect), ("bff to Abenix", oneway), ("Abenix to the PC", g.get("Latency/SiteToGateway_ms")), last]
         total = round(sum(float(v or 0) for _, v in hops), 1)
         return {"type": "ipc_stop", "machine": w["machine"], "node": w["node"], "stop_ms": total, "confirm_ms": w.get("confirm_ms"), "moving": still is not None,
                 "hops": [{"hop": h, "ms": None if v is None else round(float(v), 2)} for h, v in hops], "hold_ack_ms": g.get("Latency/HoldAck_ms"),
@@ -280,6 +289,6 @@ class Ipc:
             p2s = self.p2s
         last = self.stops[-1] if self.stops else None
         return {"stream": self.stream_up, "status": self.status, "publish_to_store_p50_ms": p2s.get("p50"), "publish_to_store_p99_ms": p2s.get("p99"),
-                "ingest_mps": h.get("messages_per_second"), "seq_gaps": h.get("seq_gaps"), "command_p50_ms": self.cmd_ms.pct(0.5),
+                "ingest_mps": h.get("messages_per_second"), "seq_gaps": h.get("seq_gaps"), "command_p50_ms": self.cmd_ms.pct(0.5), "checks_p50_ms": self.checks_ms.pct(0.5),
                 "bff_to_abenix_ms": round(self.rtt_ms.pct(0.1) / 2, 2) if self.rtt_ms.pct(0.1) is not None else None,
                 "confirm_p50_ms": self.confirm_ms.pct(0.5), "last_stop": last, "sent": self.sent[-5:]}
