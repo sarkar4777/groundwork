@@ -54,9 +54,12 @@ export class Playback {
     })
     // segment B: the story, on its own sim clock from its start event
     this.storyV = lastA + 0.05
+    // a frame without a site time, like a loop record, plays when the frame before it did
+    let lastT = 0
     fr.slice(sAt).forEach((x, k) => {
       const t = tOf(x.f)
-      const v = this.storyV + (isFinite(t) ? Math.max(0, t) : 0)
+      if (isFinite(t) && x.f.type === 'state') lastT = Math.max(lastT, t)
+      const v = this.storyV + (isFinite(t) ? Math.max(0, t) : lastT)
       this.sched.push({ v, f: x.f, i: sAt + k })
     })
     this.sched.sort((a, b) => a.v - b.v || a.i - b.i)

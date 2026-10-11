@@ -502,7 +502,7 @@ body.noblur * { backdrop-filter: none !important; -webkit-backdrop-filter: none 
 .sc-loop-step .k { font: 700 1.6vmin var(--mono); color: var(--sky); text-transform: uppercase; letter-spacing: 0.1em; }
 .sc-loop-step .t { font: 700 2.4vmin var(--sans); color: #fff; }
 .sc-loop-step .d { font: 500 1.7vmin var(--sans); color: var(--muted); }
-.sc-lapse { position: absolute; z-index: 8; left: 3%; bottom: 14%; display: flex; flex-direction: column; gap: 0.4vmin; padding: 1vmin 1.6vmin; border-radius: 1.2vmin; background: rgba(4, 18, 43, 0.75); border: 1px solid rgba(120, 180, 255, 0.3); }
+.sc-lapse { position: absolute; z-index: 8; left: 3%; top: 16%; display: flex; flex-direction: column; gap: 0.4vmin; padding: 1vmin 1.6vmin; border-radius: 1.2vmin; background: rgba(4, 18, 43, 0.75); border: 1px solid rgba(120, 180, 255, 0.3); }
 .sc-lapse .speed { font: 800 2.4vmin var(--mono); color: var(--mint); letter-spacing: 0.08em; }
 .sc-lapse.fast .speed { color: var(--amber); }
 .sc-lapse .clock { font: 500 1.8vmin var(--mono); color: #fff; }

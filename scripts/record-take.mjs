@@ -87,14 +87,14 @@ ws.onmessage = (e) => {
   for (const x of list) {
     take.frames.push({ w: now(), f: x })
     if (x.type === 'state' && x.terrain) terrain(x.terrain.rev)
-    if (x.type === 'event' && x.kind === 'story' && /start/i.test(x.title) && take.storyAt < 0) {
+    if (x.type === 'event' && x.kind === 'story' && /^story started/i.test(x.title) && take.storyAt < 0) {
       take.storyAt = take.frames.length - 1
       log('story started at frame', take.storyAt)
       take.site_story = null
       get('/site').then((s) => (take.site_story = s)).catch(() => {})
     }
     if (x.type === 'event' && x.kind === 'autonomy') agents()
-    if (x.type === 'event' && x.kind === 'story' && /finish/i.test(x.title) && finishedAt < 0) {
+    if (x.type === 'event' && x.kind === 'story' && /^story finished/i.test(x.title) && finishedAt < 0) {
       finishedAt = now()
       log('story finished')
     }

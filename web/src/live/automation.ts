@@ -18,6 +18,8 @@ export function installAutomation() {
         site: !!hot.site,
         story: s.story.running,
         storyT: s.story.running && hot.curr ? hot.curr.t - s.story.t0 : null,
+        storyKind: s.story.loop ? 'loop' : s.story.ipc ? 'ipc' : 'main',
+        steps: s.story.steps ?? {},
         recorded: s.story.recorded,
         fps: s.fps,
       }

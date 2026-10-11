@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import time
 from pathlib import Path
 
@@ -395,6 +396,16 @@ class IpcStory(Story):
         self.vecus = (out.get("stats") or {}).get("vecus", self.vecus)
 
 
+def hot_words(rec: dict) -> str:
+    """The firing in plain words: how far above normal, from the rule's own numbers."""
+    m = re.search(r"mean ([0-9.]+) against ([0-9.]+)", str(rec.get("detail") or ""))
+    if not m:
+        return ""
+    now, before = float(m.group(1)), float(m.group(2))
+    pct = round((now / before - 1) * 100) if before else 0
+    return f", {pct}% above its own normal: {now:.1f} °C over the last 5 minutes against {before:.1f} °C the half hour before"
+
+
 class LoopStory(IpcStory):
     """The closed loop, live: a wearing pump on EX1, a rule in Abenix, the maintenance tech, a person, the PC.
     Captions follow the loop as it happens, so the film can time-lapse the wait and play the loop at true speed."""
@@ -433,7 +444,7 @@ class LoopStory(IpcStory):
                     and self.wear_at is not None and r["id"] not in self.known), None)
         if rec:
             a, act = rec["agent"], rec["action"]
-            await self.say(eng, "fired", t, f"A rule in Abenix sees EX1's oil running hot: {rec.get('detail') or 'above its own normal'}. It wakes the maintenance tech.")
+            await self.say(eng, "fired", t, f"A rule in Abenix sees EX1's oil running hot{hot_words(rec)}. It wakes the maintenance tech.")
             if act.get("state") == "waiting":
                 await self.say(eng, "asked", t, "It reads the last 15 minutes and the manual, and asks to put EX1 in safe mode. A person decides.")
             if act.get("state") in ("approved", "sent", "confirmed"):

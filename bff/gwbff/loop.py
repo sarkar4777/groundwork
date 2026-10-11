@@ -35,10 +35,11 @@ def summary(output: Any) -> str:
 
 
 class Loop:
-    def __init__(self, forge, emit, on_answer=None):
+    def __init__(self, forge, emit, on_answer=None, clock=None):
         self.forge = forge
         self.emit = emit
         self.on_answer = on_answer
+        self.clock = clock
         self.records: dict[str, dict] = {}
         self.order: list[str] = []
         self.by_exec: dict[str, str] = {}
@@ -119,7 +120,8 @@ class Loop:
     async def _push(self, rec: dict, quiet: bool = False) -> None:
         rec["updated"] = time.time()
         if not quiet:
-            await self.emit({"type": "loop", **rec})
+            # the site time too, so a recorded take plays each step when it happened
+            await self.emit({"type": "loop", **rec, **({"t": round(self.clock(), 3)} if self.clock else {})})
 
     async def _fired(self, d: dict, quiet: bool = False) -> None:
         if (d.get("group") or GROUP) != GROUP:
@@ -190,7 +192,7 @@ class Loop:
         st = d.get("status") or "approved"
         rec["action"]["state"] = "approved" if st == "approved" else "denied" if st in ("denied", "rejected") else st
         rec["action"]["decided_by"] = d.get("decided_by") or d.get("approved_by")
-        rec["agent"]["state"] = "running"
+        rec["agent"]["state"] = "sending" if rec["action"]["state"] == "approved" else "running"
         await self._push(rec)
 
     async def _sent(self, d: dict) -> None:

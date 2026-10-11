@@ -243,10 +243,12 @@ function onEvent(e: EventFrame) {
   }
   if (e.kind === 'story') {
     // a finish that lands right after our start belongs to the run we just replaced
-    if (/finish|end|stop/i.test(e.title) && PLAYBACK) {
+    // only the story's own start and end, a story event like "EX1's main pump starts to wear" is not one
+    const ends = /^story (finished|stopped)/i.test(e.title)
+    if (ends && PLAYBACK) {
       /* the render decides where the film ends */
-    } else if (/finish|end|stop/i.test(e.title)) useUi.setState((s) => (performance.now() - s.story.startedAt < 4000 ? s : { story: { ...s.story, running: false } }))
-    else if (/start/i.test(e.title)) {
+    } else if (ends) useUi.setState((s) => (performance.now() - s.story.startedAt < 4000 ? s : { story: { ...s.story, running: false } }))
+    else if (/^story started/i.test(e.title)) {
       // a story may run on another layout, so the site is read again
       loadSite()
       useUi.setState((s) => ({ opening: false, story: { ...s.story, running: true, t0: e.t, startedAt: performance.now(), recorded: e.recorded === true, ipc: e.ipc === true, loop: e.loop === true, steps: {} }, captionLog: [] }))

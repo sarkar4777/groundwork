@@ -270,7 +270,7 @@ class Engine:
                 self.ipc = None
         if self.ipc is not None:
             # the closed loop: rules in Abenix run agents on the PCs, the site hears every step
-            self.loop = Loop(self.forge, self.emit, self.loop_answer)
+            self.loop = Loop(self.forge, self.emit, self.loop_answer, self.t)
             try:
                 await self.loop.start({s: self.ids[s] for s in AGENTS if s in self.ids})
             except Exception as e:  # noqa: BLE001

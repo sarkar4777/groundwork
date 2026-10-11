@@ -345,7 +345,7 @@ export function StoryLoop() {
       <div className="sc-kicker">Rule → agent → action, live from Abenix</div>
       <div className="sc-loop-row">
         <div className="sc-loop-step on"><span className="k">Rule fired</span><span className="t">{r.rule}</span><span className="d">{r.detail}</span></div>
-        <div className={`sc-loop-step ${r.agent.state !== 'running' ? 'on' : 'live'}`}><span className="k">Maintenance tech</span><span className="t">{r.agent.state === 'running' ? 'reading the history and the manual' : r.agent.state}</span>{r.agent.answer && <span className="d">“{r.agent.answer}”</span>}</div>
+        <div className={`sc-loop-step ${r.agent.state !== 'running' ? 'on' : 'live'}`}><span className="k">Maintenance tech</span><span className="t">{r.agent.state === 'running' ? 'reading the history and the manual' : r.agent.state === 'sending' ? 'approved, sending the command' : r.agent.state === 'waiting' ? 'waiting for a person' : r.agent.state}</span>{r.agent.answer && <span className="d">“{r.agent.answer}”</span>}</div>
         <div className={`sc-loop-step ${a.state === 'confirmed' ? 'on' : a.state === 'waiting' ? 'live' : ''}`}><span className="k">Action</span><span className="t">{a.signal ? `${a.signal} = ${String(a.value)} → EX1` : 'not yet'}</span><span className="d">{word[a.state] ?? ''}{a.decided_by || a.approved_by ? `, by ${a.decided_by || a.approved_by}` : ''}{a.timings && typeof a.timings.confirm_ms === 'number' ? `, confirmed in ${fmtMs(a.timings.confirm_ms)}` : ''}</span></div>
       </div>
     </div>

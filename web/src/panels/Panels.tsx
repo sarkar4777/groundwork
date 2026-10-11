@@ -188,11 +188,11 @@ function Tree({ n }: { n: PlanNode }) {
 
 // A rule fired in Abenix, an agent read the machine and answered, a person approved, the PC took it
 const STEP_TONE: Record<string, string> = {
-  fired: 'warn', running: 'ai', waiting: 'warn', answered: 'ok', failed: 'stop', approved: 'ok', denied: 'stop', sent: 'ai', confirmed: 'ok',
+  fired: 'warn', running: 'ai', sending: 'ai', waiting: 'warn', answered: 'ok', failed: 'stop', approved: 'ok', denied: 'stop', sent: 'ai', confirmed: 'ok',
   no_command: '', none: '',
 }
 const STEP_WORD: Record<string, string> = {
-  running: 'reading the machine', waiting: 'asked a person', answered: 'answered', failed: 'failed', approved: 'approved', denied: 'denied',
+  running: 'reading the machine', sending: 'sending', waiting: 'asked a person', answered: 'answered', failed: 'failed', approved: 'approved', denied: 'denied',
   sent: 'sent', confirmed: 'PC took it', no_command: 'no command', none: '',
 }
 

@@ -159,6 +159,43 @@ curl -X POST localhost:8710/story/start -H 'content-type: application/json' -d '
 
 With real ECUs on the bus, run only the gateway container. Point `MQTT_URL` at the site broker and set `GW_MACHINE` to the machine it is fitted to.
 
+### Rules, agents and commands: the closed loop
+
+The PCs' streams drive three signal rules in Abenix. Each rule runs an agent. The agent reads the machine, decides, and acts through a governed command, and the ground station hears every step through the SDK.
+
+| Rule | Watches | Runs | The agent may |
+|---|---|---|---|
+| EX1 hydraulics running hot | `Hydraulics/OilTemp_C` on EX1, the last 5 min against the half hour before, 15% up | Maintenance tech | set `Mode/Set` to `safe` on a PC's safety PLC, a person approves every time |
+| HT1 left the haul road | HT1's site position leaving the ground it works on | Fleet dispatcher | set `Task/Assign` on HT1, the workspace's risk tier decides whether a person approves |
+| A PC went offline | any asset tagged `groundwork-ipc`, silent for 45 s, so a restart does not count | Superintendent | read only. It says whether the shift needs a new plan, and the plan still asks a person |
+
+The Safety officer may also ask for a `Safety/Hold`, true only and always approved. The instant stop stays in the twin's 10 ms tick and never waits for an agent.
+
+The rules are in [abenix/rules](abenix/rules). `python scripts/provision.py --only rules` creates them, names and tags the four PCs, and replays each rule on the last 6 hours first. Each was also built once by hand in the rule builder as a check, from the scope picker to the run step.
+
+**Tuned on the streams, not for the demo.**
+- The first idea for rule 1 was pump 1 pressure 15% above normal. Replayed on an hour of normal digging, it would have fired on its own: EX1's pump pressure swings from 73 to 181 bar by the minute as it digs, swings and holds. The oil temperature stayed between 54.5 and 60 °C in the same hour, and the rule on it would have fired 0 times in 6 hours.
+- HT1's haul area is traced from where the truck really drives: the road with 10 m either side, an 18 m turning pad at the bay and an 8 m margin round the spoil area. A narrow corridor would have fired 22 times an hour, because loaded trucks cut corners. All 231 positions HT1 reported in a 30 minute check fall inside the traced area.
+
+**Set them off from the fault deck.**
+- *Pump wear on EX1* sends `Diagnostics/InjectFault` 4 to EX1's PC. The main pump works harder for the same flow: pressure creeps up, and the oil heats at about 3 °C a minute. Past 82 °C the hydraulics ECU raises DM1 SPN 1638 FMI 16.
+- *Drive HT1 off the road* sends HT1 a route up its own road and 30 m off it, onto open ground clear of every fenced zone.
+
+**In the ground station.** The *Rule → agent → action* panel shows one card per firing: the rule with the signal's last 15 minutes, the agent reading and its answer, then the command waiting for a person, who approved it and when the PC confirmed it. The bff joins this from `forge.events.stream` (`telemetry.rule_fired`, `approval.requested`, `approval.resolved`, `telemetry.command_sent`, `execution.completed`, `telemetry.firing_completed`) and backfills from `forge.telemetry.firings`. It decides nothing.
+
+If an agent or a person sets `Mode/Set` through Abenix, the site leaves it alone. The machine card says who set it. The site's own fallback also uses `Mode/Set safe` while a stop waits for a person, and says so.
+
+Measured live, one run each:
+
+| | HT1 off the road | EX1 pump wear |
+|---|---|---|
+| Fault to rule firing | under 1 s after HT1 crossed out | 7 min 13 s, the oil heating about 3 °C a minute |
+| Agent reads the machine and decides | sent `Task/Assign {"do": "auto"}` | asked for `Mode/Set safe` 18 s after the firing, oil at 76.5 °C and rising |
+| A person approves on /approvals | not needed, the risk tier let it through | 10.6 s |
+| Approval to command at Abenix | | 2.1 s, the agent's tool looks for the decision every 2 s |
+| Abenix checks, then publish | 234 ms | 167 ms |
+| The PC confirms | 330 ms | confirmed on its bus |
+
 ## Run it end to end
 
 Plan on about an hour the first time, most of it Abenix building its images. Later starts take a few minutes.
