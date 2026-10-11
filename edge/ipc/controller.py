@@ -66,6 +66,8 @@ class Controller:
         self.task_seq = (self.task_seq + 1) % 65536
         self.task = task
         self.plan = []
+        # a new task starts from its own first step, whatever the machine was doing
+        self.state = "new"
         if task.get("do") == "auto":
             self._default()
         self.phase_t = 0.0
