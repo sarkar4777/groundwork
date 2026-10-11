@@ -15,6 +15,7 @@ from typing import Any
 from abenix_sdk import Abenix, AbenixDecisionError
 
 from .ipc import Ipc
+from .loop import Loop
 from .lanes import Lane, Open, Rolling
 
 log = logging.getLogger("gw.bff")
@@ -132,6 +133,7 @@ class Engine:
         self.shift_report_sent = False
         self.stats_last: dict = {}
         self.ipc: Ipc | None = None
+        self.loop: Loop | None = None
         self.stops_sent = 0
 
     # plumbing
@@ -266,6 +268,14 @@ class Engine:
             if not await self.ipc.start():
                 log.info("no industrial PCs, every machine simulated")
                 self.ipc = None
+        if self.ipc is not None:
+            # the closed loop: rules in Abenix run agents on the PCs, the site hears every step
+            self.loop = Loop(self.forge, self.emit, self.loop_answer)
+            try:
+                await self.loop.start({s: self.ids[s] for s in AGENTS if s in self.ids})
+            except Exception as e:  # noqa: BLE001
+                log.warning("closed loop not started: %s", e)
+                self.loop = None
         self.ready = True
         self.status = "running"
         await self.event("story", "Site twin running in Abenix", f"gw-site-twin code asset, {len(self.ids)} Abenix resources resolved")
@@ -848,7 +858,7 @@ class Engine:
                       if kind == "unplug_pc" else "Bus/InjectNoise_s through Abenix. The canbus emulator corrupts frames on the wire: error frames, retransmits, TEC climbing")
             await self.event("fault", title, detail, machine=target or "EX1")
             return r
-        if kind in ("cut_can", "drop_gnss", "gust", "worker_in_swing", "hydraulic_wear"):
+        if kind in ("cut_can", "drop_gnss", "gust", "worker_in_swing", "hydraulic_wear", "drive_off_road"):
             self.queue("faults", [{"kind": kind, "target": target, **extra}])
             return {"ok": True}
         return {"ok": False, "error": f"unknown fault {kind}"}
@@ -883,6 +893,13 @@ class Engine:
             self.queue("faults", [{"kind": "kill_switch", "on": False}])
             await self.event("fault", "Kill switch cleared", "AI back online", ai_offline=False)
         return {"ok": not errors, "stopped": done, "errors": errors}
+
+    async def loop_answer(self, rec: dict) -> None:
+        """The superintendent, run by a rule, says whether the plan must change. The plan itself still asks a person."""
+        out = (rec.get("agent") or {}).get("output") or {}
+        if (rec.get("agent") or {}).get("name") == "gw-site-superintendent" and out.get("needs_replan") and self.story is None:
+            self.spawn(self.replan("pc_offline", {"machine": (rec.get("node") or "").replace("ipc-", "").upper(),
+                                                  "title": rec.get("rule"), "detail": out.get("summary") or rec.get("detail")}))
 
     # reads for the routes
 
@@ -925,11 +942,12 @@ class Engine:
         return out
 
     def health(self) -> dict:
-        return {"ok": self.ready, "status": self.status, "abenix_url": self.cfg["abenix_url"], "steps": self.step_n,
+        return {"ok": self.ready, "status": self.status, "abenix_url": self.cfg["abenix_url"], "abenix_web": self.cfg.get("abenix_web"), "steps": self.step_n,
                 "t": self.t(), "lanes": {k: v.info() for k, v in self.lanes.items()}, "last_step_runner": self.stats_last,
                 "ai_offline": self.ai_offline, "killed": self.killed, "story": self.story.info() if self.story else None,
                 "l1_p50_ms": self.l1_all.pct(0.5), "l1_p99_ms": self.l1_all.pct(0.99),
-                "ipc": self.ipc.view() if self.ipc else None}
+                "ipc": self.ipc.view() if self.ipc else None,
+                "loop": {"stream": self.loop.stream_up, "records": len(self.loop.order)} if self.loop else None}
 
 
 def _strip_status(node):

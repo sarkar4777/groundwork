@@ -18,7 +18,7 @@ from fastapi.responses import JSONResponse  # noqa: E402
 
 from .engine import Engine  # noqa: E402
 from .hub import Hub  # noqa: E402
-from .story import IpcStory, Story  # noqa: E402
+from .story import IpcStory, LoopStory, Story  # noqa: E402
 
 logging.basicConfig(level=os.environ.get("GW_LOG", "INFO"), format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -87,6 +87,9 @@ async def ws(sock: WebSocket):
             pass
         if engine and engine.plan:
             await sock.send_json(engine.plan)
+        if engine and engine.loop is not None:
+            for r in reversed(engine.loop.view()):
+                await sock.send_json({"type": "loop", **r})
         while True:
             await sock.receive_text()
     except WebSocketDisconnect:
@@ -158,6 +161,13 @@ async def story_start(req: Request):
         body = await req.json()
     except Exception:  # noqa: BLE001
         body = {}
+    if body.get("loop"):
+        s = LoopStory(int(body.get("ticks") or os.environ.get("GW_STORY_TICKS", "5")), body.get("site") or engine.cfg.get("site") or "northgate")
+        try:
+            await s.start(engine)
+        except Exception as e:  # noqa: BLE001
+            return _err(f"could not start the closed loop story: {e}"[:300], 502)
+        return {"ok": True, "mode": "live", "ipc": True, "loop": True, "seed": 2026, "site": s.site}
     if body.get("ipc"):
         s = IpcStory(int(body.get("ticks") or os.environ.get("GW_STORY_TICKS", "5")), body.get("site") or engine.cfg.get("site") or "northgate")
         try:
@@ -200,6 +210,13 @@ async def approve(req: Request):
         return await engine.decide(key, bool(ok), str(body.get("by") or "a person on the Groundwork phone view")[:120])
     except Exception as e:  # noqa: BLE001
         return _err(str(e)[:300], 502)
+
+
+@app.get("/loop")
+async def loop():
+    if not engine or engine.loop is None:
+        return {"stream": False, "records": []}
+    return {"stream": engine.loop.stream_up, "records": engine.loop.view()}
 
 
 @app.get("/agents")

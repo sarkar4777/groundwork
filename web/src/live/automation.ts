@@ -26,6 +26,9 @@ export function installAutomation() {
     stopStory,
     cam: (m: CamMode) => setCam(m),
     select: (id: string | null) => useUi.setState({ selected: id }),
+    lapse: (k: number) => {
+      ;(window as unknown as { __gwLapse: number }).__gwLapse = k
+    },
     panels: (show: boolean) => useUi.setState({ panelsHidden: !show }),
     clean: (on: boolean) => document.body.classList.toggle('shot-clean', on),
     go: () => playback()?.go(),

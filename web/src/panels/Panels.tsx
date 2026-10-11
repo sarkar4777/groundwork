@@ -3,7 +3,7 @@ import { useUi, type Approval } from '../live/store'
 import { approve, ecuStats, refreshAgents, sendFault } from '../live/client'
 import { ECU_NAMES, Icon, Panel, fmtMs, fmtT, modeTone } from '../ui/kit'
 import { LEVEL_NAMES, prettyAgent } from '../live/parse'
-import type { BusFrame, FaultKind, PlanNode } from '../proto/types'
+import type { BusFrame, FaultKind, LoopRecord, PlanNode } from '../proto/types'
 import { REPLAY } from '../live/config'
 import { hasServerP50, latHistory, p50 } from '../live/latency'
 
@@ -186,6 +186,97 @@ function Tree({ n }: { n: PlanNode }) {
   )
 }
 
+// A rule fired in Abenix, an agent read the machine and answered, a person approved, the PC took it
+const STEP_TONE: Record<string, string> = {
+  fired: 'warn', running: 'ai', waiting: 'warn', answered: 'ok', failed: 'stop', approved: 'ok', denied: 'stop', sent: 'ai', confirmed: 'ok',
+  no_command: '', none: '',
+}
+const STEP_WORD: Record<string, string> = {
+  running: 'reading the machine', waiting: 'asked a person', answered: 'answered', failed: 'failed', approved: 'approved', denied: 'denied',
+  sent: 'sent', confirmed: 'PC took it', no_command: 'no command', none: '',
+}
+
+function LoopSpark({ values }: { values?: number[] }) {
+  if (!values || values.length < 2) return null
+  const lo = Math.min(...values), hi = Math.max(...values)
+  const pts = values.map((v, i) => `${(i / (values.length - 1)) * 100},${22 - ((v - lo) / (hi - lo || 1)) * 20}`).join(' ')
+  return (
+    <svg className="loop-spark" viewBox="0 0 100 24" preserveAspectRatio="none" aria-label={`Last 15 minutes, ${fmtValue(lo)} to ${fmtValue(hi)}`}>
+      <polyline points={pts} fill="none" stroke="currentColor" strokeWidth="1.6" vectorEffect="non-scaling-stroke" />
+    </svg>
+  )
+}
+
+function ago(t: number | string | undefined, now: number) {
+  const ms = typeof t === 'number' ? t : t ? Date.parse(t) : NaN
+  if (!Number.isFinite(ms)) return ''
+  const s = Math.max(0, Math.round((now - ms) / 1000))
+  return s < 60 ? `${s} s ago` : `${Math.round(s / 60)} min ago`
+}
+
+function LoopCard({ r, web, now }: { r: LoopRecord; web?: string; now: number }) {
+  const a = r.action
+  const commandWords = a.signal ? `${a.signal} = ${typeof a.value === 'string' ? a.value : JSON.stringify(a.value)}` : ''
+  const mid = (r.node || '').replace('ipc-', '').toUpperCase()
+  const open = (path: string) => (web ? `${web}${path}` : undefined)
+  const t = a.timings || {}
+  return (
+    <article className={`loop-card ${r.state}`} onClick={() => mid && useUi.setState({ selected: mid })} aria-label={`${r.rule} on ${mid}`}>
+      <div className="loop-step">
+        <span className="loop-k">Rule</span>
+        <span className="loop-t">{r.rule}</span>
+        <span className="loop-d">{r.signal ? `${r.signal.split('/').pop()} ${fmtValue(r.value)}` : r.detail}</span>
+        <LoopSpark values={r.spark} />
+        <span className="loop-at">{ago(r.fired_at, now)}</span>
+      </div>
+      <i className={`loop-link ${r.agent.state === 'running' ? 'live' : ''}`} aria-hidden />
+      <div className="loop-step">
+        <span className="loop-k">Agent</span>
+        <span className="loop-t">{prettyAgent(r.agent.name || 'agent')}</span>
+        <span className={`chip ${STEP_TONE[r.agent.state] ?? ''}`}>{STEP_WORD[r.agent.state] ?? r.agent.state}</span>
+        {r.agent.answer && <span className="loop-d">“{r.agent.answer}”</span>}
+        {r.agent.execution_id && open(`/executions/${r.agent.execution_id}`) && (
+          <a className="loop-a" href={open(`/executions/${r.agent.execution_id}`)} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>Run in Abenix ↗</a>
+        )}
+      </div>
+      <i className={`loop-link ${a.state === 'waiting' ? 'live' : ''}`} aria-hidden />
+      <div className="loop-step">
+        <span className="loop-k">Action</span>
+        <span className="loop-t">{commandWords ? `${commandWords} → ${mid}` : a.state === 'no_command' ? 'No command' : 'Not yet'}</span>
+        {a.state !== 'none' && <span className={`chip ${STEP_TONE[a.state] ?? ''}`}>{STEP_WORD[a.state] ?? a.state}</span>}
+        {a.state === 'waiting' && open(`/approvals`) && (
+          <a className="loop-a" href={open('/approvals')} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>Approve in Abenix ↗</a>
+        )}
+        {(a.approved_by || a.decided_by) && <span className="loop-d">by {a.approved_by || a.decided_by}</span>}
+        {a.state === 'confirmed' || a.state === 'sent' ? (
+          <span className="loop-d mono">{['checks_ms', 'publish_ms', 'confirm_ms'].filter((k) => typeof t[k] === 'number').map((k) => `${k.replace('_ms', '')} ${fmtMs(t[k])}`).join(' · ')}</span>
+        ) : null}
+      </div>
+    </article>
+  )
+}
+
+export function LoopPanel({ focus }: { focus?: boolean }) {
+  useNow(1)
+  const loops = useUi((s) => s.loops)
+  const web = useUi((s) => s.abenix?.web)
+  const hasPc = useUi((s) => !!s.state?.ipc && Object.keys(s.state.ipc).length > 0)
+  if (!hasPc && !loops.length) return null
+  const now = Date.now()
+  return (
+    <Panel id="loop" title="Rule → agent → action" icon="loop" focus={focus} extra={loops.length ? <span className="chip">{loops.length}</span> : undefined}>
+      <div className="loop-list" role="log" aria-live="polite">
+        {loops.length === 0 && (
+          <div className="empty">
+            No rule has fired yet. The rules live in Abenix{web ? <>: <a href={`${web}/telemetry/rules`} target="_blank" rel="noreferrer">Signal rules ↗</a></> : ''}. Try Pump wear on EX1 on the fault deck.
+          </div>
+        )}
+        {loops.slice(0, 6).map((r) => <LoopCard key={r.id} r={r} web={web} now={now} />)}
+      </div>
+    </Panel>
+  )
+}
+
 export function SitePilot({ focus }: { focus?: boolean }) {
   const plan = useUi((s) => s.plan)
   const lines = useUi((s) => s.agentLines)
@@ -313,6 +404,12 @@ const PC_FAULTS = [
   { kind: 'noisy_harness' as FaultKind, label: (id: string) => `Noisy harness on ${id}`, hint: 'Corrupts frames on the real bus for 6 s: error frames, retransmits, error counters climbing' },
 ]
 
+// faults that set off a signal rule in Abenix, on the one PC each is for
+const LOOP_FAULTS = [
+  { kind: 'hydraulic_wear' as FaultKind, id: 'EX1', label: 'Pump wear on EX1', hint: 'The main pump starts losing efficiency: pressure and oil temperature creep up until the rule "EX1 hydraulics running hot" fires' },
+  { kind: 'drive_off_road' as FaultKind, id: 'HT1', label: 'Drive HT1 off the road', hint: 'HT1 takes a wrong turn out of its haul area, the rule "HT1 left the haul road" fires' },
+]
+
 export function FaultDeck({ focus }: { focus?: boolean }) {
   const pcStr = useUi((s) => (s.state?.ipc ? Object.entries(s.state.ipc).map(([id, p]) => `${id}:${p.online ? 1 : 0}`).join('|') : ''))
   const pcs = useMemo(() => pcStr.split('|').filter(Boolean).map((x) => ({ id: x.split(':')[0], online: x.endsWith(':1') })), [pcStr])
@@ -363,6 +460,15 @@ export function FaultDeck({ focus }: { focus?: boolean }) {
                 </button>
               )),
             )}
+            {LOOP_FAULTS.filter((f) => pcs.some((p) => p.id === f.id)).map((f) => {
+              const on = pcs.find((p) => p.id === f.id)?.online
+              return (
+                <button key={f.kind} className="btn amber" onClick={() => sendFault(f.kind, f.id)} disabled={disabled || !on} title={on ? f.hint : `${f.id}'s PC is offline`}>
+                  {f.label}
+                  <span className="mono faint" style={{ marginLeft: 'auto', fontSize: 10 }}>RULE</span>
+                </button>
+              )
+            })}
           </div>
         </>
       )}

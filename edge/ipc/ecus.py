@@ -163,6 +163,8 @@ FAULTS = {
     2: [(639, 9), (520192, 19)],       # J1939 network 1 abnormal update rate, site uplink data error
     3: [(1675, 2), (639, 9)],          # engine starter mode erratic, network abnormal update rate
 }
+# a fault that wears the machine instead of tripping the PLC: 4 is a main pump losing efficiency
+WEAR = {4: 1.0}
 
 
 class Safety(Ecu):
@@ -202,6 +204,7 @@ class Safety(Ecu):
             self.mode_cmd = data[1] if data[1] in (0, 2) else 1
         elif code == F.CMD_FAULT:
             self.fault = data[1]
+            self.plant["wear"] = WEAR.get(self.fault, 0.0)
         else:
             self.node.ack(1, code, F.PROP_A, sa)
             return
@@ -297,6 +300,7 @@ class Hydraulics(Ecu):
     label = "Hydraulic controller"
 
     def setup(self):
+        self.creep = 0.0
         self.node.every(J.HYD1.pgn, 50, lambda: J.encode(J.HYD1.pgn, {"pump1_bar": self.plant["p1"], "pump2_bar": self.plant["p2"],
                                                                      "boom_head_bar": self.plant["boom_head"], "oil_temp_c": self.plant["hyd_t"],
                                                                      "flow_pct": 100 * self.plant["flow"]}), 4)
@@ -306,11 +310,18 @@ class Hydraulics(Ecu):
         flow = min(1.0, (abs(p["r_swing"]) + abs(p["r_boom"]) + abs(p["r_stick"]) + abs(p["r_bucket"])) / 1.6)
         digging = 1.0 if p["stick"] > 0.9 and p["r_stick"] > 0.05 else 0.0
         ripple = 4.0 * math.sin(now * 17.0)
+        # a wearing pump works harder for the same flow: pressure creeps up 1 bar a second to 80 bar over, the oil heats
+        self.creep = min(80.0, self.creep + dt) if p["wear"] > 0 else max(0.0, self.creep - 4 * dt)
+        c = self.creep
         p["flow"] = flow
-        p["p1"] = 35 + 230 * flow + 90 * digging + ripple
-        p["p2"] = 30 + 200 * flow + 60 * digging + 0.6 * ripple
-        p["boom_head"] = 60 + 120 * max(0.0, -p["boom"]) + 25 * digging + ripple
-        p["hyd_t"] = approach(p["hyd_t"], 52 + 14 * flow, 0.05, dt)
+        p["p1"] = 35 + 230 * flow + 90 * digging + ripple + c
+        p["p2"] = 30 + 200 * flow + 60 * digging + 0.6 * ripple + 0.8 * c
+        p["boom_head"] = 60 + 120 * max(0.0, -p["boom"]) + 25 * digging + ripple + 0.3 * c
+        p["hyd_t"] = approach(p["hyd_t"], 52 + 14 * flow + 0.4 * c, 0.05, dt)
+        hot = p["hyd_t"] > 82
+        if hot != bool(self.dtcs):
+            self.dtcs = [J.Dtc(1638, 16, 1)] if hot else []
+            self.lamps = J.lamp_byte(amber=1 if hot else 0)
 
 
 # ---------- haul truck and dozer

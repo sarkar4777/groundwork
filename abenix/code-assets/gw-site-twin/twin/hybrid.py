@@ -66,7 +66,7 @@ def is_ipc(st, mid) -> bool:
 
 def _new(node):
     return {"node": node, "online": None, "v": {}, "since": 0.0, "clock": 0, "cycles": None, "last_load": 0.0,
-            "cmd": {"hold": None, "mode": None, "task": "auto", "hold_at": -99.0}, "dtc_seen": [], "rates_at": 0}
+            "cmd": {"hold": None, "mode": None, "task": "auto", "hold_at": -99.0, "mode_at": -99.0, "mode_ext": False}, "dtc_seen": [], "rates_at": 0}
 
 
 def _val(ip, key, default=None):
@@ -319,6 +319,68 @@ def tick(st, m, d, ev):
         m["health"] = "fault" if any((x[0], x[1]) in V.CRITICAL_DTCS or (x[0], x[1]) in CRITICAL for x in m["dtcs"]) else ("warn" if m["dtcs"] else "ok")
 
 
+# ---------- faults on the PCs, sent as commands through Abenix like any other
+
+WEAR_CODE = 4
+
+
+def takes_fault(st, f) -> bool:
+    k, tgt = f.get("kind"), f.get("target")
+    if k == "drive_off_road":
+        return is_ipc(st, tgt or "HT1")
+    return k == "hydraulic_wear" and is_ipc(st, tgt or "")
+
+
+def fault(st, f, ev) -> None:
+    k = f.get("kind")
+    ips = st.get("ipc") or {}
+    if k == "hydraulic_wear":
+        mid = f["target"]
+        ips[mid].setdefault("queue", []).append({"device": "safety", "signal": "Diagnostics/InjectFault", "value": WEAR_CODE, "kind": "fault",
+                                                 "reason": "Fault deck: a main pump losing efficiency"})
+        ips[mid]["wear"] = True
+        ev.append({"kind": "story", "machine": mid, "title": f"{mid}'s main pump starts to wear",
+                   "detail": "Fault deck, through Abenix: the pump works harder for the same flow, pressure and oil temperature creep up"})
+    elif k == "drive_off_road":
+        mid = f.get("target") or "HT1"
+        m = st["machines"][mid]
+        # out of the pit along its own road first, then the wrong turn off it
+        ax, ay = min((L.NODES[n] for n in ("ramp_top", "j1")), key=lambda q: math.hypot(q[0] - m["x"], q[1] - m["y"]))
+        tx, ty = off_road(ax, ay)
+        task = {"do": "route", "route": [[round(m["x"], 1), round(m["y"], 1)], [ax, ay], [tx, ty]], "then": "stop"}
+        ips[mid].setdefault("queue", []).append({"device": "telematics", "signal": "Task/Assign", "value": json.dumps(task), "kind": "task",
+                                                 "reason": "Fault deck: the driver takes a wrong turn off the haul road"})
+        ips[mid]["cmd"]["task"] = "off_road"
+        ips[mid]["cmd"]["task_at"] = st["t"]
+        ev.append({"kind": "story", "machine": mid, "title": f"{mid} turns off the haul road",
+                   "detail": f"Fault deck, through Abenix: a route to ({tx:.0f}, {ty:.0f}), outside the haul area"})
+    elif k == "clear":
+        for mid, ip in ips.items():
+            if ip.pop("wear", False):
+                ip.setdefault("queue", []).append({"device": "safety", "signal": "Diagnostics/InjectFault", "value": 0, "kind": "fault",
+                                                   "reason": "Fault deck: pump wear cleared"})
+
+
+def off_road(x, y) -> tuple:
+    """The nearest open ground 30 m away that is outside HT1's haul area and every site zone."""
+    poly = corridor()
+    zones = [z["polygon"] for z in L.site()["zones"] if "polygon" in z]
+    best = None
+    for i in range(16):
+        a = i * math.pi / 8
+        for r in (30.0, 40.0, 50.0):
+            tx, ty = x + r * math.cos(a), y + r * math.sin(a)
+            if abs(tx) > 90 or abs(ty) > 90 or inside(poly, tx, ty) or any(inside(z, tx, ty) for z in zones):
+                continue
+            # a wrong turn, not a drive through a fenced zone
+            if any(inside(z, x + (tx - x) * k / 10, y + (ty - y) * k / 10) for z in zones for k in range(1, 10)):
+                continue
+            if best is None or r < best[0]:
+                best = (r, round(tx, 1), round(ty, 1))
+            break
+    return (best[1], best[2]) if best else (round(x + 30, 1), round(y, 1))
+
+
 # ---------- outputs
 
 def commands(st, ev) -> list:
@@ -330,6 +392,8 @@ def commands(st, ev) -> list:
             continue
         cmd = ip["cmd"]
         node = ip["node"]
+        for q in ip.pop("queue", []):
+            out.append({"machine": mid, "node": node, **q})
         reported_hold = _val(ip, "safety/Safety/Hold")
         if cmd["hold"] is None:
             cmd["hold"] = bool(reported_hold) if reported_hold is not None else False
@@ -342,14 +406,38 @@ def commands(st, ev) -> list:
             out.append({"machine": mid, "node": node, "device": "safety", "signal": "Safety/Hold", "value": want, "kind": "hold",
                         "reason": (f"Site safety rule {rule}: hold {mid}" if want else f"{mid} clear to move, released by the site")[:200]})
         mode = "safe" if m["mode"] == "fallback" else "auto"
+        reported_mode = _val(ip, "safety/Mode/Set")
         if cmd["mode"] is None:
-            cmd["mode"] = str(_val(ip, "safety/Mode/Set", "auto") or "auto")
-        if mode != cmd["mode"]:
+            cmd["mode"] = str(reported_mode or "auto")
+            cmd["mode_ext"] = cmd["mode"] != "auto"
+        sent = [v for v, at in cmd.get("mode_sent", []) if st["t"] - at < 30.0]
+        if reported_mode is not None and reported_mode in sent:
+            pass
+        elif reported_mode is not None and reported_mode != cmd["mode"] and st["t"] - cmd.get("mode_at", -99.0) > 3.0:
+            # someone else set it, an agent through Abenix or a person: the site leaves it to them
+            cmd["mode"] = str(reported_mode)
+            cmd["mode_ext"] = cmd["mode"] != "auto"
+            ev.append({"kind": "plan_change", "machine": mid, "title": f"{mid} mode {cmd['mode']}, set outside the site",
+                       "detail": "Mode/Set came through Abenix from an agent or a person. The site will not change it back"})
+        if mode != cmd["mode"] and not cmd.get("mode_ext"):
             cmd["mode"] = mode
+            cmd["mode_at"] = st["t"]
+            # what the site itself sent lately, so a late echo of it is never taken for someone else's
+            cmd["mode_sent"] = [[v, at] for v, at in cmd.get("mode_sent", []) if st["t"] - at < 30.0] + [[mode, st["t"]]]
+            why = m["simplex"].get("rule") or ("the AI is unavailable" if not st["ai_available"] else "a stop waits for a person")
             out.append({"machine": mid, "node": node, "device": "safety", "signal": "Mode/Set", "value": mode, "kind": "mode",
-                        "reason": "AI unavailable, site in fallback" if mode == "safe" else "Site back in auto"})
+                        "reason": f"Site on its fallback plan, {why}" if mode == "safe" else "Site back in auto"})
         task = st["tasks"].get(mid) or {}
         tdo = "hold" if task.get("do") == "hold" else "auto"
+        if cmd["task"] == "off_road":
+            # the wrong turn stands until an agent or a person sends HT1 another task
+            sent = str(_val(ip, "telematics/Task/Assign", "") or "")
+            if st["t"] - cmd.get("task_at", 0.0) < 5.0 or '"route"' in sent or not sent:
+                continue
+            cmd["task"] = "hold" if '"hold"' in sent else "auto"
+            ev.append({"kind": "plan_change", "machine": mid, "title": f"{mid} has a new task from outside the site",
+                       "detail": f"Task/Assign {sent[:80]} came through Abenix"})
+            continue
         if tdo != cmd["task"]:
             cmd["task"] = tdo
             out.append({"machine": mid, "node": node, "device": "telematics", "signal": "Task/Assign", "value": json.dumps({"do": tdo}),
@@ -455,6 +543,8 @@ def frame_extra(st, fr: dict) -> None:
         mm["online"] = bool(ip["online"])
         if _val(ip, "safety/Safety/Holding") is True and mm["mode"] in ("auto", "fallback"):
             mm["mode"] = "hold"
+        elif _val(ip, "safety/Safety/Mode") == "safe" and mm["mode"] in ("auto", "fallback"):
+            mm["mode"] = "safe"
         if ip["online"] is False:
             mm["mode"] = "offline"
     out = {}
@@ -467,5 +557,89 @@ def frame_extra(st, fr: dict) -> None:
                     "bus_load_pct": _val(ip, "Bus/Load_pct"), "fps": _val(ip, "Bus/FramesPerSecond"), "bus_state": _val(ip, "Bus/State"),
                     "error_frames": _val(ip, "Bus/ErrorFrames"), "noise": _val(ip, "Bus/NoiseInjected"), "uplink_mps": _val(ip, "Uplink/MessagesPerSecond"),
                     "task": _val(ip, "telematics/Task/State", ""), "cycles": ip["cycles"], "lat": lat,
-                    "tec_max": max(tec) if tec else None, "ecus_passive": passive}
+                    "mode_set": _val(ip, "safety/Mode/Set"), "mode_by": "outside" if ip["cmd"].get("mode_ext") else "site",
+                    "tec_max": max(tec) if tec else None, "ecus_passive": passive,
+                    "oil_c": _val(ip, "hydraulics/Hydraulics/OilTemp_C"), "pump1_bar": _val(ip, "hydraulics/Hydraulics/Pump1Pressure_bar")}
     fr["ipc"] = out
+
+
+# ---------- HT1's haul area, for the rule that sees it leave and the fault that drives it off
+
+ROAD_M = 10.0          # either side of the road, a loaded truck cuts the corners
+PAD_M = 18.0           # the turning pad round the loading bay
+SPOIL_M = 8.0          # round the spoil area, trucks swing wide to tip
+CELL_M = 1.0
+
+
+def _segd(x, y, a, b):
+    dx, dy = b[0] - a[0], b[1] - a[1]
+    t = max(0.0, min(1.0, ((x - a[0]) * dx + (y - a[1]) * dy) / (dx * dx + dy * dy or 1.0)))
+    return math.hypot(x - a[0] - t * dx, y - a[1] - t * dy)
+
+
+def _simplify(pts, tol):
+    if len(pts) < 3:
+        return pts
+    a, b = pts[0], pts[-1]
+    i, d = max(((k, _segd(pts[k][0], pts[k][1], a, b)) for k in range(1, len(pts) - 1)), key=lambda x: x[1])
+    if d <= tol:
+        return [a, b]
+    return _simplify(pts[:i + 1], tol)[:-1] + _simplify(pts[i:], tol)
+
+
+def corridor() -> list:
+    """The ground HT1 works on, as one polygon in site metres: the road from its bay up the ramp to the spoil area,
+    with the turning pad at the bay and the spoil area's margin, traced on a 1 m grid."""
+    path = [list(L.NODES[n]) for n in ("bay1", "ramp_bot", "ramp_top", "j1", "spoil_in")]
+    bay = path[0]
+    spoil = next(z["polygon"] for z in L.site()["zones"] if z["kind"] == "spoil")
+    sx0, sx1 = min(p[0] for p in spoil) - SPOIL_M, max(p[0] for p in spoil) + SPOIL_M
+    sy0, sy1 = min(p[1] for p in spoil) - SPOIL_M, max(p[1] for p in spoil) + SPOIL_M
+
+    def on(x, y):
+        if sx0 <= x <= sx1 and sy0 <= y <= sy1:
+            return True
+        if math.hypot(x - bay[0], y - bay[1]) <= PAD_M:
+            return True
+        return any(_segd(x, y, path[i], path[i + 1]) <= ROAD_M for i in range(len(path) - 1))
+
+    xs = [p[0] for p in path] + [sx0, sx1, bay[0] - PAD_M, bay[0] + PAD_M]
+    ys = [p[1] for p in path] + [sy0, sy1, bay[1] - PAD_M, bay[1] + PAD_M]
+    x0, y0 = math.floor(min(xs) - ROAD_M - 2), math.floor(min(ys) - ROAD_M - 2)
+    nx, ny = int(math.ceil(max(xs) + ROAD_M + 2 - x0)), int(math.ceil(max(ys) + ROAD_M + 2 - y0))
+    grid = [[on(x0 + (i + 0.5) * CELL_M, y0 + (j + 0.5) * CELL_M) for i in range(nx)] for j in range(ny)]
+    cell = lambda i, j: 0 <= i < nx and 0 <= j < ny and grid[j][i]  # noqa: E731
+    # walk the outline along cell edges, keeping the filled cells on the left
+    start = next((i, j) for j in range(ny) for i in range(nx) if grid[j][i])
+    corner = (start[0], start[1])
+    d = (1, 0)
+    ring = []
+    pos = corner
+    for _ in range(4 * nx * ny):
+        ring.append(pos)
+        x, y = pos
+        left = {(1, 0): (x, y), (0, 1): (x - 1, y), (-1, 0): (x - 1, y - 1), (0, -1): (x, y - 1)}[d]
+        right = {(1, 0): (x, y - 1), (0, 1): (x, y), (-1, 0): (x - 1, y), (0, -1): (x - 1, y - 1)}[d]
+        if cell(*right):
+            d = (d[1], -d[0])
+        elif not cell(*left):
+            d = (-d[1], d[0])
+        pos = (pos[0] + d[0], pos[1] + d[1])
+        if pos == corner and len(ring) > 3:
+            break
+    pts = [[round(x0 + x * CELL_M, 2), round(y0 + y * CELL_M, 2)] for x, y in ring]
+    poly = _simplify(pts + [pts[0]], 0.8)[:-1]
+    return poly if _area(poly) > 0 else poly[::-1]
+
+
+def _area(poly):
+    return sum(poly[i][0] * poly[(i + 1) % len(poly)][1] - poly[(i + 1) % len(poly)][0] * poly[i][1] for i in range(len(poly))) / 2
+
+
+def inside(poly, x, y) -> bool:
+    c = False
+    for i in range(len(poly)):
+        (ax, ay), (bx, by) = poly[i], poly[i - 1]
+        if (ay > y) != (by > y) and x < (bx - ax) * (y - ay) / (by - ay) + ax:
+            c = not c
+    return c

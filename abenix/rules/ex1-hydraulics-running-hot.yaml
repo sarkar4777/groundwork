@@ -1,0 +1,13 @@
+name: "EX1 hydraulics running hot"
+description: "EX1's hydraulic oil runs 15% above its own level of the half hour before, over the last 5 minutes. A wearing main pump shows here. Runs the Maintenance tech."
+severity: warning
+cooldown_s: 600
+scope: {kind: asset, group: groundwork, node: ipc-ex1, device: hydraulics}
+condition: {kind: deviation, signal: Hydraulics/OilTemp_C, window_s: 300, baseline_s: 1800, mode: ratio, direction: up, threshold: 1.15, hysteresis: 0.03}
+actions:
+  - kind: run
+    agent: gw-maintenance-tech
+    wait: true
+    wait_s: 900
+  - {kind: alert}
+# the documented alternative on the older rate condition: {kind: rate, signal: Hydraulics/OilTemp_C, direction: up, limit: 1.5, per: min, window_s: 300, hysteresis: 0.3}

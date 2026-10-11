@@ -1110,6 +1110,11 @@ def apply_faults(st, faults, ev):
     for f in faults or []:
         kind = f.get("kind")
         target = f.get("target")
+        if H.takes_fault(st, f):
+            H.fault(st, f, ev)
+            continue
+        if kind == "clear":
+            H.fault(st, f, ev)
         if kind == "cut_can":
             mid = target if target in ms and ms[target]["ecus"] else "EX2"
             if mid not in st["faults"]["cut_can"]:

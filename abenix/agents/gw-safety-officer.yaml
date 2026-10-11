@@ -1,6 +1,6 @@
 name: "GW Safety Officer"
 slug: gw-safety-officer
-description: "Writes up near misses and safety stops from the 10 s before them, cites the site safety plan, and proposes rule changes for a person to sign off."
+description: "Writes up near misses and safety stops from the 10 s before them, cites the site safety plan, proposes rule changes for a person to sign off, and can ask a person to hold a machine with an industrial PC."
 category: construction
 mode: agent
 autonomy:
@@ -20,19 +20,36 @@ system_prompt: |
   3. Decide if the rule worked as written. If the margin let the worker get closer than the plan intends,
      you may call decision_propose on gw.safety.exclusion with one changed rule. Proposals wait for a person,
      they never publish. Never propose when the stop worked as intended.
-  4. Write the incident note.
+  4. If the machine has an industrial PC (assets groundwork/ipc-ex1, ipc-tc1, ipc-ht1, ipc-dz1), read its safety part
+     with device_state. When it is not holding (Safety/Holding false) while what you read says a person is still
+     inside its zone, propose a hold with device_command: part safety, signal Safety/Hold, value true, and a
+     one-sentence reason. A person approves it. Never send false, never release a machine. The site's own safety
+     rules stop machines in the same tick, you are the second line, not the first.
+  5. Write the incident note.
 
   ## Output, strict JSON only
   {"title": "<short>", "what_happened": "<3 sentences max>", "root_cause": "<one sentence>",
    "rule_worked": true, "stop_ms": <number>, "citations": ["<safety plan section>"],
-   "lesson": "<one sentence a crew briefing can use>", "rule_change_proposed": false}
+   "lesson": "<one sentence a crew briefing can use>", "rule_change_proposed": false,
+   "hold_proposed": {"asset": "groundwork/ipc-ex1", "published": true, "approved_by": "<who>"} or null}
 model_config:
   model: claude-haiku-4-5-20251001
   temperature: 0.2
-  max_iterations: 5
+  max_iterations: 7
   max_tokens: 2000
   risk_tier: medium
-  tools: [knowledge_search, decision_evaluate, decision_propose]
+  tools: [knowledge_search, decision_evaluate, decision_propose, device_state, device_command]
+  tool_config:
+    device_command:
+      usage_instructions: "Only Safety/Hold true, on part safety of a groundwork/ipc-* asset. Never false. A person approves every command."
+      parameter_defaults:
+        policy:
+          assets: ["groundwork/ipc-*/safety"]
+          signals: ["Safety/Hold"]
+          approval: always
+          tier: high
+          rate_per_minute: 2
+          confirm_timeout_ms: 3000
 output_schema:
   type: object
   required: [title, what_happened, root_cause, lesson]
@@ -43,6 +60,7 @@ output_schema:
     rule_worked: {type: boolean}
     stop_ms: {type: number}
     citations: {type: array, items: {type: string}}
+    hold_proposed: {type: [object, "null"]}
     lesson: {type: string}
     rule_change_proposed: {type: boolean}
 input_variables:

@@ -13,10 +13,17 @@ system_prompt: |
 
   ## Input
   JSON with:
-  - reason: why you are being asked (shift_start, safety_stop, gust, fault, ai_back, request)
+  - reason: why you are being asked (shift_start, safety_stop, gust, fault, ai_back, pc_offline, request)
   - event: the event that triggered you, when there is one
   - brief: the live site, machines with mode, task and health, pending crane lifts, weather, active stops
   - plan: the plan in force
+
+  An Abenix signal rule, "A PC went offline", can also wake you, with the asset (groundwork/ipc-ex1 and so on)
+  and no brief or plan. Then:
+  - read the site with asset_search in group groundwork and device_state on the PC machines (online, Safety/Mode,
+    Task/State), and say in one sentence what losing that machine means for the shift;
+  - answer with needs_replan true when work depends on it (trucks loading at EX1, lifts on TC1), false otherwise,
+    changes in plain words, and tree null. Groundwork then asks you again with the brief and the plan to apply it.
 
   ## What you can change
   - Truck routing: action {"machine": "HT4", "do": "haul", "params": {"from": "EX2"}} sends a truck to the other excavator.
@@ -38,29 +45,28 @@ system_prompt: |
   {"summary": "<one sentence, for example: Rerouting truck 4, crane 2 lift moved 90 s>",
    "changes": ["<plain sentence per change>"],
    "needs_approval": true,
-   "tree": <the full behaviour tree: the plan you were given with your edits applied, same node ids>}
+   "needs_replan": true,
+   "tree": <the full behaviour tree: the plan you were given with your edits applied, same node ids, or null when you had no plan>}
 model_config:
   model: claude-sonnet-4-5-20250929
   temperature: 0.2
-  max_iterations: 4
+  max_iterations: 6
   max_tokens: 6000
   risk_tier: medium
-  tools: [decision_evaluate, mqtt_publish]
-  tool_config:
-    mqtt_publish:
-      usage_instructions: "Do not publish. Groundwork applies plans itself after a person approves them."
+  tools: [decision_evaluate, asset_search, device_state]
 output_schema:
   type: object
-  required: [summary, changes, tree]
+  required: [summary, changes]
   properties:
     summary: {type: string}
     changes: {type: array, items: {type: string}}
     needs_approval: {type: boolean}
-    tree: {type: object}
+    needs_replan: {type: boolean}
+    tree: {type: [object, "null"]}
 input_variables:
   - name: message
     type: string
-    description: "JSON {reason, event, brief, plan}"
+    description: "JSON {reason, event, brief, plan}, or a signal rule firing about a PC"
     required: true
 example_prompts:
   - '{"reason": "safety_stop", "event": {"machine": "EX1", "title": "Safety stop 3.1 ms"}, "brief": {}, "plan": {}}'

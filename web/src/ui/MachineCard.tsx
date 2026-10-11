@@ -44,7 +44,7 @@ export function MachineCard() {
             <>
               <dt>Industrial PC</dt><dd>{pc.node} · {pc.online ? 'online' : 'offline'}</dd>
               <dt>Bus</dt><dd>{pc.bus_load_pct != null ? `${pc.bus_load_pct.toFixed(1)}% load` : '--'}{pc.fps != null ? ` · ${pc.fps} frames/s` : ''}{pc.bus_state ? ` · ${pc.bus_state}` : ''}</dd>
-              <dt>Safety PLC</dt><dd>{pc.holding ? 'holding' : pc.mode || '--'}</dd>
+              <dt>Safety PLC</dt><dd>{pc.holding ? 'holding' : pc.mode || '--'}{pc.mode_set && pc.mode_set !== 'auto' ? ` · Mode/Set ${pc.mode_set} by ${pc.mode_by === 'outside' ? 'Abenix, an agent or a person' : 'the site fallback'}` : ''}</dd>
             </>
           )}
         </dl>

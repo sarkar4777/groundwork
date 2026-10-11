@@ -9,12 +9,13 @@
 //   node scripts/capture.mjs --proof --sizes 1920x1080   the real-imagery proof clip, see docs/real-imagery.md
 //   node scripts/capture.mjs --real                       the story on real ground, from .run/take-real.json
 //   node scripts/capture.mjs --ipc --out .run/ipc         the industrial PC story cut, from .run/take-ipc.json
+//   node scripts/capture.mjs --loop --out .run/ipc        the closed loop clip, the wait as a labelled time-lapse
 //
 // The film is one live take (scripts/record-take.mjs) played back on a virtual clock. Each frame
 // is stepped exactly 1/60 s, drawn, then screenshotted, so the video has no dropped or doubled frames.
 
 import { createRequire } from 'node:module'
-import { mkdirSync, writeFileSync, rmSync, existsSync, statSync } from 'node:fs'
+import { mkdirSync, writeFileSync, readFileSync, rmSync, existsSync, statSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawn, spawnSync } from 'node:child_process'
@@ -168,7 +169,10 @@ async function renderFilm(browser, w, h, film = {}) {
   })
 
   const story = film.story ?? FILM
-  const spans = film.spans ?? [OPENING, ...story.map(([a, b]) => [tl.storyV + a, tl.storyV + b])]
+  const spans = film.spans ?? (film.storySpans ? film.storySpans(tl) : [OPENING, ...story.map(([a, b]) => [tl.storyV + a, tl.storyV + b])])
+  // [from, to, k]: that stretch of the virtual clock plays k times faster, and the page shows it
+  const speeds = film.speeds ? film.speeds(tl) : []
+  const speedAt = (v) => (speeds.find(([a, b]) => v >= a && v < b) || [0, 0, 1])[2]
   const endV = spans[spans.length - 1][1]
   if (endV > tl.endV + 0.5) throw new Error(`the take ends at ${tl.endV.toFixed(1)} s, the film needs ${endV.toFixed(1)} s`)
   const mp4 = join(MEDIA, `${name}-${tag}.mp4`)
@@ -181,11 +185,18 @@ async function renderFilm(browser, w, h, film = {}) {
   let k = 0
   let ms = 0
   let shot = 0
+  let v = 0
+  let lapse = 1
   const t0 = Date.now()
   for (;;) {
     k++
     // the page sees the exact frame time, the timers run on the nearest whole millisecond
-    const v = k / FPS
+    const sp = speedAt(v)
+    v += sp / FPS
+    if (sp !== lapse) {
+      lapse = sp
+      await page.evaluate((x) => window.__gw.lapse(x), sp)
+    }
     await page.evaluate((t) => window.__gwNow(t), base + v * 1000)
     const target = Math.round(v * 1000)
     await page.clock.runFor(target - ms)
@@ -195,7 +206,7 @@ async function renderFilm(browser, w, h, film = {}) {
     if (!spans.some(([a, b]) => v >= a && v < b)) continue
     const { data } = await cdp.send('Page.captureScreenshot', { format: 'jpeg', quality: 92 })
     await write(Buffer.from(data, 'base64'))
-    caps.push(v >= tl.storyV + story[story.length - 1][0] ? '' : cap)
+    caps.push(!film.storySpans && v >= tl.storyV + story[story.length - 1][0] ? '' : cap)
     shot++
     if (shot % 600 === 0) log(tag, `${(shot / FPS).toFixed(0)} s rendered, ${((Date.now() - t0) / 1000).toFixed(0)} s so far`)
   }
@@ -404,6 +415,25 @@ try {
       if (r.status !== 0) throw new Error('record-take failed')
     }
     for (const [w, h] of SIZES) await renderFilm(browser, w, h, { take, page: 'proof.html', name: 'groundwork-real-proof', spans: [[0, 30]] })
+  } else if (flag('--loop')) {
+    const take = opt('--take', join(root, '.run', 'take-loop.json'))
+    if (!existsSync(take)) throw new Error(`no ${take}, record one with node scripts/record-take.mjs --loop --out ${take}`)
+    const tk = JSON.parse(readFileSync(take, 'utf8'))
+    // when the loop reached each step, on the story clock, from the captions the bff sent
+    const t0 = tk.frames.find((x) => x.f.type === 'event' && x.f.title === 'Story started')?.f.t ?? 0
+    const step = (k) => tk.frames.find((x) => x.f.type === 'caption' && x.f.loop_step === k)?.f.t
+    const fired = step('fired'), done = step('taken') ?? step('nocmd')
+    if (fired === undefined || done === undefined) throw new Error('the take has no firing or no outcome, record it again')
+    const f = fired - t0, d = done - t0
+    // the wait plays in about 12 s at a round speed, from the firing on everything is real time
+    const k = [4, 8, 16, 32, 64].find((x) => (f - 3) / x <= 14) ?? 64
+    log(`loop take: fired at ${f.toFixed(1)} s, done at ${d.toFixed(1)} s, the wait plays at x${k}`)
+    for (const [w, h] of SIZES)
+      await renderFilm(browser, w, h, {
+        take, name: 'groundwork-ipc-loop-cut', page: '',
+        storySpans: (tl) => [[tl.storyV + 0.3, tl.storyV + d + 6]],
+        speeds: (tl) => [[tl.storyV + 2, tl.storyV + f - 2, k]],
+      })
   } else if (flag('--ipc')) {
     const take = opt('--take', join(root, '.run', 'take-ipc.json'))
     if (!existsSync(take)) throw new Error(`no ${take}, record one with node scripts/record-take.mjs --ipc --out ${take}`)

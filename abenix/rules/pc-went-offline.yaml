@@ -1,0 +1,12 @@
+name: "A PC went offline"
+description: "Any of the four industrial PCs stops sending for 5 s, or its last will arrives. Runs the Superintendent."
+severity: critical
+cooldown_s: 60
+scope: {kind: tag, tag: groundwork-ipc, group: groundwork}
+condition: {kind: stale, seconds: 5}
+actions:
+  - kind: run
+    agent: gw-site-superintendent
+    wait: true
+    wait_s: 300
+  - {kind: alert}

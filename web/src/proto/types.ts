@@ -42,6 +42,10 @@ export interface IpcNode {
   lat: Record<string, number>
   tec_max: number | null
   ecus_passive: number
+  mode_set?: string | null
+  mode_by?: 'site' | 'outside'
+  oil_c?: number | null
+  pump1_bar?: number | null
 }
 
 export interface IpcView {
@@ -158,11 +162,43 @@ export interface PlanNode {
 
 export interface PlanFrame { type: 'plan'; t: number; tree: PlanNode }
 
-export interface CaptionFrame { type: 'caption'; t: number; text: string; until: number }
+export interface CaptionFrame { type: 'caption'; t: number; text: string; until: number; loop_step?: string }
 
-export type Frame = StateFrame | BusFrame | EventFrame | AgentFrame | PlanFrame | CaptionFrame
+export interface LoopRecord {
+  type: 'loop'
+  id: string
+  rule_id: string
+  rule: string
+  severity?: string
+  node?: string
+  device?: string
+  asset?: string
+  signal?: string
+  value?: unknown
+  detail?: string
+  fired_at?: number | string
+  state: 'running' | 'done' | string
+  agent: { id?: string | null; name?: string; state: string; execution_id?: string | null; answer?: string | null; duration_ms?: number | null }
+  action: {
+    state: 'none' | 'waiting' | 'approved' | 'denied' | 'sent' | 'confirmed' | 'no_command' | string
+    approval_id?: string
+    signal?: string
+    value?: unknown
+    node?: string
+    device?: string
+    reason?: string
+    decided_by?: string | null
+    approved_by?: string | null
+    confirmed?: boolean | null
+    timings?: Record<string, number>
+  }
+  updated?: number
+  spark?: number[]
+}
 
-export type FaultKind = 'cut_can' | 'drop_gnss' | 'gust' | 'worker_in_swing' | 'ai_offline' | 'kill_switch' | 'clear' | 'unplug_pc' | 'noisy_harness'
+export type Frame = StateFrame | BusFrame | EventFrame | AgentFrame | PlanFrame | CaptionFrame | LoopRecord
+
+export type FaultKind = 'cut_can' | 'drop_gnss' | 'gust' | 'worker_in_swing' | 'ai_offline' | 'kill_switch' | 'clear' | 'unplug_pc' | 'noisy_harness' | 'hydraulic_wear' | 'drive_off_road'
 
 export interface AgentInfo {
   name: string

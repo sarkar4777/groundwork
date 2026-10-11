@@ -20,6 +20,7 @@ FIELDS = (
     "body_deg", "load_t", "blade_m", "blade_load",
     "slew", "slew_rate", "radius", "radius_rate", "hook_z", "rope_speed", "crane_load_t", "lmi_pct", "chart_t", "wind",
     "rpm", "torque", "coolant", "oil_t", "fuel_rate", "fuel_l", "hours", "revs", "eng_load",
+    "wear",
 )
 IDX = {f: i for i, f in enumerate(FIELDS)}
 SIZE = 8 * len(FIELDS)

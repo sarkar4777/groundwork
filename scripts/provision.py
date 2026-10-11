@@ -38,7 +38,7 @@ MODELS = {
     "gw-gust-nowcast": "gust",
     "gw-cycle-time": "cycle_time",
 }
-STEPS = ("key", "assets", "decisions", "agents", "pipelines", "kb", "autonomy", "models", "check")
+STEPS = ("key", "assets", "decisions", "agents", "pipelines", "kb", "autonomy", "models", "rules", "check")
 
 
 def read_env() -> dict:
@@ -308,6 +308,8 @@ async def upsert_agent(f: Abenix, spec: dict, asset_ids: dict, rep: Report, kind
     else:
         old = a.get("model_config") or {}
         same = (old.get("tools") == mc.get("tools") and a.get("system_prompt") == body["system_prompt"]
+                and a.get("description") == body["description"]
+                and json.dumps(old.get("tool_config"), sort_keys=True) == json.dumps(mc.get("tool_config"), sort_keys=True)
                 and json.dumps(old.get("pipeline_config"), sort_keys=True) == json.dumps(mc.get("pipeline_config"), sort_keys=True)
                 and old.get("model") == mc.get("model") and json.dumps(old.get("output_schema"), sort_keys=True) == json.dumps(mc.get("output_schema"), sort_keys=True))
         if same:
@@ -326,6 +328,86 @@ async def agents(f: Abenix, rep: Report, asset_ids: dict, folder: str, kind: str
         spec = yaml.safe_load(p.read_text())
         out[spec["slug"]] = await upsert_agent(f, spec, asset_ids, rep, kind)
     return out
+
+
+# signal rules on the industrial PCs
+
+PCS = {"ipc-ex1": ("Excavator EX1", "machine"), "ipc-tc1": ("Tower crane TC1", "machine"),
+       "ipc-ht1": ("Haul truck HT1", "vehicle"), "ipc-dz1": ("Dozer DZ1", "machine")}
+PC_TAG = "groundwork-ipc"
+
+
+def _norm(v):
+    """Rules come back with whole numbers as floats, compare them as numbers."""
+    if isinstance(v, bool) or v is None:
+        return v
+    if isinstance(v, (int, float)):
+        return float(v)
+    if isinstance(v, dict):
+        return {k: _norm(x) for k, x in v.items()}
+    if isinstance(v, list):
+        return [_norm(x) for x in v]
+    return v
+
+
+def _rule_body(spec: dict, agent_ids: dict) -> dict:
+    cond = dict(spec["condition"])
+    if cond.get("polygon") == "haul_corridor":
+        # the polygon is the twin's own: the layout's bay, ramp, haul road and spoil area
+        sys.path.insert(0, str(AB / "code-assets" / "gw-site-twin"))
+        from twin import hybrid, layout
+        layout.use(env("GW_SITE", "northgate"))
+        cond["polygon"] = hybrid.corridor()
+    acts = []
+    for a in spec.get("actions") or []:
+        a = dict(a)
+        if a.get("kind") == "run":
+            slug = a.pop("agent")
+            if slug not in agent_ids:
+                raise SystemExit(f"rule {spec['name']}: agent {slug} was not provisioned")
+            a["agent_id"] = agent_ids[slug]
+        acts.append(a)
+    return {"description": spec.get("description"), "severity": spec.get("severity", "warning"),
+            "cooldown_s": int(spec.get("cooldown_s", 60)), "scope": spec["scope"], "condition": cond, "actions": acts}
+
+
+async def rules(f: Abenix, rep: Report, agent_ids: dict) -> None:
+    for node, (label, kind) in PCS.items():
+        try:
+            a = await f.telemetry.asset("groundwork", node)
+            tags = sorted(set((a.get("tags") or []) + [PC_TAG]))
+            if a.get("display_name") != label or a.get("type") != kind or tags != sorted(a.get("tags") or []):
+                await f.telemetry.update_asset("groundwork", node, display_name=label, type=kind, tags=tags)
+                rep.add("asset", f"groundwork/{node}", "updated", f"/telemetry?group=groundwork&node={node}", f"{label}, tag {PC_TAG}")
+            else:
+                rep.add("asset", f"groundwork/{node}", "same", f"/telemetry?group=groundwork&node={node}", label)
+        except AbenixError as e:
+            rep.add("asset", f"groundwork/{node}", "skipped", "", f"not streaming yet ({e.message[:80]}). Deploy the PCs first")
+    have = {r["name"]: r for r in await f.telemetry.rules()}
+    for p in sorted((AB / "rules").glob("*.yaml")):
+        spec = yaml.safe_load(p.read_text())
+        body = _rule_body(spec, agent_ids)
+        # evidence the rule is not tuned for a demo: what it would have done on the last hours of normal work
+        try:
+            pv = await f.telemetry.preview_rule(body["scope"], body["condition"], cooldown_s=body["cooldown_s"], hours=6)
+            n = int(pv.get("fired") or 0)
+            note = f"replayed on the last 6 h: would have fired {n} time{'' if n == 1 else 's'}"
+        except AbenixError as e:
+            note = f"preview: {e.message[:80]}"
+        cur = have.get(spec["name"])
+        if cur is None:
+            r = await f.telemetry.create_rule(spec["name"], body["scope"], body["condition"], body["actions"],
+                                              description=body["description"], severity=body["severity"], cooldown_s=body["cooldown_s"])
+            rep.add("rule", spec["name"], "created", f"/telemetry/rules/{r['id']}", note)
+        else:
+            want = {k: body[k] for k in ("description", "severity", "cooldown_s", "scope", "condition", "actions")}
+            keys = ("description", "severity", "cooldown_s", "scope", "condition")
+            same = all(_norm(cur.get(k)) == _norm(want[k]) for k in keys) and len(cur.get("actions") or []) == len(want["actions"]) and                 all(_norm({k: v for k, v in a.items() if k in w}) == _norm(w) for a, w in zip(cur.get("actions") or [], want["actions"]))
+            if same:
+                rep.add("rule", spec["name"], "same", f"/telemetry/rules/{cur['id']}", note)
+            else:
+                await f.telemetry.update_rule(cur["id"], **want)
+                rep.add("rule", spec["name"], "updated", f"/telemetry/rules/{cur['id']}", note)
 
 
 # knowledge
@@ -456,7 +538,7 @@ async def main():
         if "decisions" in only:
             await decisions(f, rep)
         agent_ids = {}
-        if "agents" in only or "autonomy" in only:
+        if "agents" in only or "autonomy" in only or "rules" in only:
             agent_ids = await agents(f, rep, asset_ids, "agents", "agent")
         if "pipelines" in only:
             await agents(f, rep, asset_ids, "pipelines", "pipeline")
@@ -466,6 +548,8 @@ async def main():
             await autonomy(f, rep, agent_ids)
         if "models" in only:
             await models(f, rep, args.retrain, args.model)
+        if "rules" in only:
+            await rules(f, rep, agent_ids)
         if "check" in only:
             await check(f, rep, asset_ids)
     rep.show()

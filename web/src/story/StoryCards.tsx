@@ -317,3 +317,52 @@ export function StoryPc() {
     </div>
   )
 }
+
+// EX1's oil and pump while the wear builds
+export function StoryOil() {
+  const pc = useUi((s) => s.state?.ipc?.EX1)
+  if (!pc) return null
+  return (
+    <div className="sc-card sc-oil">
+      <div className="sc-kicker">EX1 · hydraulics · real bus, through Abenix</div>
+      <div className="sc-oil-row">
+        <div><span className="v">{pc.oil_c != null ? `${pc.oil_c.toFixed(1)} °C` : '--'}</span><span className="l">Oil temperature</span></div>
+        <div><span className="v">{pc.pump1_bar != null ? `${Math.round(pc.pump1_bar)} bar` : '--'}</span><span className="l">Pump 1 pressure</span></div>
+      </div>
+      <div className="sc-oil-note">Signal rule in Abenix: fires when the last 5 minutes run 15% above the half hour before</div>
+    </div>
+  )
+}
+
+// the rule, the agent and the action, large
+export function StoryLoop() {
+  const r = useUi((s) => s.loops.find((x) => x.node === 'ipc-ex1'))
+  if (!r) return null
+  const a = r.action
+  const word: Record<string, string> = { waiting: 'waiting for a person', approved: 'approved', sent: 'sent', confirmed: 'PC took it', no_command: 'no command', denied: 'denied' }
+  return (
+    <div className="sc-card sc-loop">
+      <div className="sc-kicker">Rule → agent → action, live from Abenix</div>
+      <div className="sc-loop-row">
+        <div className="sc-loop-step on"><span className="k">Rule fired</span><span className="t">{r.rule}</span><span className="d">{r.detail}</span></div>
+        <div className={`sc-loop-step ${r.agent.state !== 'running' ? 'on' : 'live'}`}><span className="k">Maintenance tech</span><span className="t">{r.agent.state === 'running' ? 'reading the history and the manual' : r.agent.state}</span>{r.agent.answer && <span className="d">“{r.agent.answer}”</span>}</div>
+        <div className={`sc-loop-step ${a.state === 'confirmed' ? 'on' : a.state === 'waiting' ? 'live' : ''}`}><span className="k">Action</span><span className="t">{a.signal ? `${a.signal} = ${String(a.value)} → EX1` : 'not yet'}</span><span className="d">{word[a.state] ?? ''}{a.decided_by || a.approved_by ? `, by ${a.decided_by || a.approved_by}` : ''}{a.timings && typeof a.timings.confirm_ms === 'number' ? `, confirmed in ${fmtMs(a.timings.confirm_ms)}` : ''}</span></div>
+      </div>
+    </div>
+  )
+}
+
+// the clock, and how fast the film plays it
+export function StoryLapse({ s }: { s: number }) {
+  const t0 = useUi((st) => st.story.t0)
+  const wear = useUi((st) => st.story.steps?.wear)
+  const k = (window as unknown as { __gwLapse?: number }).__gwLapse ?? 1
+  const since = wear !== undefined ? Math.max(0, s - (wear - t0)) : 0
+  const mm = Math.floor(since / 60), ss = Math.floor(since % 60)
+  return (
+    <div className={`sc-lapse ${k > 1 ? 'fast' : ''}`} aria-live="off">
+      <span className="speed">{k > 1 ? `×${k} TIME-LAPSE` : 'REAL TIME'}</span>
+      <span className="clock">+{mm}:{String(ss).padStart(2, '0')} since the pump started to wear</span>
+    </div>
+  )
+}

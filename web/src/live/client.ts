@@ -60,7 +60,7 @@ export async function startClient() {
     useUi.setState({ conn: 'recorded', opening: true })
     await pb.load()
     const h = pb.health() ?? {}
-    useUi.setState({ abenix: { url: String(h.abenix_url ?? 'Abenix'), reachable: h.abenix !== false } })
+    useUi.setState({ abenix: { url: String(h.abenix_url ?? 'Abenix'), reachable: h.abenix !== false, web: typeof h.abenix_web === 'string' ? h.abenix_web : undefined } })
     loadSite()
     refreshAgents()
     return
@@ -169,10 +169,18 @@ export function ingest(f: Frame, at?: number) {
     case 'plan':
       useUi.setState({ plan: f.tree, planT: f.t })
       break
+    case 'loop': {
+      // one record per rule firing, newest first, replaced as its steps fill in
+      const s = useUi.getState()
+      useUi.setState({ loops: [f, ...s.loops.filter((x) => x.id !== f.id)].slice(0, 20) })
+      if (f.action.state === 'waiting' && f.node) hot.flashes.push({ type: 'event', t: hot.curr?.t ?? 0, kind: 'fault', title: f.rule, machine: f.node.replace('ipc-', '').toUpperCase() })
+      break
+    }
     case 'caption': {
       const s = useUi.getState()
       const log = s.story.running ? [...s.captionLog.filter((c) => c.t !== f.t), { t: f.t, until: f.until, text: f.text }] : s.captionLog
-      useUi.setState({ caption: f, captionLog: log })
+      const steps = f.loop_step && s.story.running ? { ...(s.story.steps || {}), [f.loop_step]: f.t } : s.story.steps
+      useUi.setState({ caption: f, captionLog: log, ...(steps !== s.story.steps ? { story: { ...s.story, steps } } : {}) })
       break
     }
   }
@@ -241,7 +249,7 @@ function onEvent(e: EventFrame) {
     else if (/start/i.test(e.title)) {
       // a story may run on another layout, so the site is read again
       loadSite()
-      useUi.setState((s) => ({ opening: false, story: { ...s.story, running: true, t0: e.t, startedAt: performance.now(), recorded: e.recorded === true, ipc: e.ipc === true }, captionLog: [] }))
+      useUi.setState((s) => ({ opening: false, story: { ...s.story, running: true, t0: e.t, startedAt: performance.now(), recorded: e.recorded === true, ipc: e.ipc === true, loop: e.loop === true, steps: {} }, captionLog: [] }))
     }
   }
 }
@@ -346,7 +354,7 @@ export async function sendFault(kind: FaultKind, target?: string): Promise<boole
     if (kind === 'ai_offline') useUi.setState({ aiOffline: true })
     if (kind === 'kill_switch') useUi.setState({ killed: true })
     if (kind === 'clear') useUi.setState({ aiOffline: false, killed: false })
-    const said: Record<string, string> = { unplug_pc: `Unplugging ${target}'s PC through Abenix`, noisy_harness: `Noise on ${target}'s bus through Abenix` }
+    const said: Record<string, string> = { unplug_pc: `Unplugging ${target}'s PC through Abenix`, noisy_harness: `Noise on ${target}'s bus through Abenix`, hydraulic_wear: `Pump wear on ${target}, the rule watches its oil`, drive_off_road: `${target} turns off the haul road` }
     toast(kind === 'clear' ? 'Faults cleared' : said[kind] ?? `Sent ${kind.replace(/_/g, ' ')}${target ? ' to ' + target : ''}`, kind === 'clear' ? 'ok' : 'warn')
     return true
   } catch (e) {

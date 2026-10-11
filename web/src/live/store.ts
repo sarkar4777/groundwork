@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { AgentFrame, AgentInfo, BusFrame, CaptionFrame, EventFrame, PlanNode, StateFrame } from '../proto/types'
+import type { AgentFrame, AgentInfo, BusFrame, CaptionFrame, EventFrame, LoopRecord, PlanNode, StateFrame } from '../proto/types'
 
 export type Conn = 'connecting' | 'live' | 'offline' | 'replay' | 'recorded'
 export type CamMode = 'drone' | 'orbit' | 'follow' | 'cab' | 'seat' | 'nervous'
@@ -40,6 +40,7 @@ export interface UiState {
   agents: AgentInfo[] | null
   agentsError: string | null
   approvals: Approval[]
+  loops: LoopRecord[]
   aiOffline: boolean
   killed: boolean
   cam: CamMode
@@ -48,12 +49,12 @@ export interface UiState {
   overlays: Overlays
   panelsHidden: boolean
   help: boolean
-  story: { running: boolean; t0: number; startedAt: number; error: string | null; recorded: boolean; ipc?: boolean }
+  story: { running: boolean; t0: number; startedAt: number; error: string | null; recorded: boolean; ipc?: boolean; loop?: boolean; steps?: Record<string, number> }
   hover: { x: number; y: number; z: number } | null
   tracePaused: boolean
   fps: number
   toast: { text: string; tone: 'ok' | 'warn' | 'err'; at: number } | null
-  abenix: { url: string; reachable: boolean } | null
+  abenix: { url: string; reachable: boolean; web?: string } | null
   siteError: string | null
   siteVersion: number
   realGround: { site: string; attribution: string; captured: string | null } | null
@@ -77,6 +78,7 @@ export const useUi = create<UiState>(() => ({
   agents: null,
   agentsError: null,
   approvals: [],
+  loops: [],
   aiOffline: false,
   killed: false,
   cam: 'drone',

@@ -6,7 +6,7 @@ import { useUi } from '../live/store'
 
 interface Pose { pos: THREE.Vector3; look: THREE.Vector3; fov: number }
 
-export type Focus = 'phone' | 'latency' | 'gust' | 'aioff' | 'code' | 'autonomy' | 'endcard' | 'hops' | 'pc'
+export type Focus = 'phone' | 'latency' | 'gust' | 'aioff' | 'code' | 'autonomy' | 'endcard' | 'hops' | 'pc' | 'oil' | 'loop'
 
 export interface Beat { from: number; to: number; name: string; mode: CamMode; focus?: Focus }
 
@@ -36,9 +36,28 @@ export const IPC_BEATS: Beat[] = [
   { from: 58, to: 70, name: 'end', mode: 'orbit', focus: 'endcard' },
 ]
 
-export const storyLength = () => (useUi.getState().story.ipc ? 64 : 60)
+export const storyLength = () => {
+  const st = useUi.getState().story
+  if (st.loop) {
+    const done = st.steps?.taken ?? st.steps?.nocmd
+    return done !== undefined ? Math.ceil(done - st.t0 + 16) : Math.max(60, Math.ceil((useUi.getState().state?.t ?? 0) - st.t0 + 30))
+  }
+  return st.ipc ? 64 : 60
+}
+
+// the loop story waits on Abenix, so its beats come from the steps it has reached
+function loopBeat(s: number): Beat {
+  const st = useUi.getState().story
+  const at = (k: string) => (st.steps?.[k] !== undefined ? st.steps[k] - st.t0 : undefined)
+  const done = at('taken') ?? at('nocmd')
+  if (done !== undefined && s >= done + 6) return { from: done + 6, to: done + 30, name: 'end', mode: 'orbit', focus: 'endcard' }
+  const fired = at('fired')
+  if (fired !== undefined && s >= fired) return { from: fired, to: (done ?? fired + 120) + 6, name: 'loop_run', mode: 'drone', focus: 'loop' }
+  return { from: 0, to: fired ?? 3600, name: 'loop_build', mode: 'drone', focus: 'oil' }
+}
 
 export const beatAt = (s: number): Beat => {
+  if (useUi.getState().story.loop) return loopBeat(s)
   const list = useUi.getState().story.ipc ? IPC_BEATS : BEATS
   return list.find((b) => s >= b.from && s < b.to) ?? list[list.length - 1]
 }
@@ -158,6 +177,13 @@ export function storyShot(s: number, pose: Pose, t: number): { name: string; mod
     case 'autonomy':
       dronePose(pose, -18, 10, 150, t, -86, 44)
       break
+    case 'loop_build':
+    case 'loop_run': {
+      // EX1 on the left, the card on the right
+      const e = at('EX1')
+      dronePose(pose, e.x + 14, e.y - 3, 122, t, -89, 34)
+      break
+    }
     case 'ipc_release':
     case 'ipc_abenix': {
       // EX1 back at work, with the trucks it loads

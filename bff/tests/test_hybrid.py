@@ -153,3 +153,60 @@ def test_excavator_cycles_cut_the_face(rules):
     for c in (11, 12):
         o, z = _step(z, devices={"ipc-ex1": {"online": True, "m": {"telematics/Task/Cycles": [c, 1000 + c]}}})
     assert o["frame"]["terrain"]["rev"] > rev
+
+
+def test_mode_set_from_outside_is_left_alone(rules):
+    z = _init(rules)
+    _, z = _step(z, devices=_ex1(1000))
+    o, z = _step(z, devices={"ipc-ex1": {"online": True, "m": {"safety/Mode/Set": ["safe", 1100], "safety/Safety/Mode": ["safe", 1100]}}})
+    assert any("set outside the site" in e["title"] for e in o["events"])
+    assert next(m for m in o["frame"]["machines"] if m["id"] == "EX1")["mode"] == "safe"
+    assert o["frame"]["ipc"]["EX1"]["mode_by"] == "outside"
+    for _ in range(20):
+        o, z = _step(z)
+        assert not [c for c in o.get("commands") or [] if c["signal"] == "Mode/Set"]
+
+
+def _ht1(ts, x, y, extra=None):
+    m = {"Properties/Site": ["northgate", 1], "telematics/GNSS/X_m": [x, ts], "telematics/GNSS/Y_m": [y, ts],
+         "telematics/GNSS/Heading_rad": [0.0, ts], "telematics/GNSS/Speed_mps": [5.0, ts], "telematics/Task/State": ["haul", ts],
+         "telematics/Task/Cycles": [1, ts]}
+    m.update(extra or {})
+    return {"ipc-ht1": {"online": True, "m": m}}
+
+
+def test_drive_off_road_routes_ht1_outside_its_haul_area(rules):
+    from twin import hybrid as H
+    from twin import layout as L
+    L.use("northgate")
+    z = _init(rules)
+    _, z = _step(z, devices=_ht1(1000, 26.0, -42.0))
+    o, z = _step(z, faults=[{"kind": "drive_off_road", "target": "HT1"}])
+    c = [x for x in o["commands"] if x["signal"] == "Task/Assign"]
+    assert c and c[0]["node"] == "ipc-ht1" and c[0]["device"] == "telematics"
+    task = json.loads(c[0]["value"])
+    tx, ty = task["route"][-1]
+    assert task["do"] == "route" and not H.inside(H.corridor(), tx, ty)
+    # the plan does not undo it, an outside task ends it
+    for _ in range(3):
+        o, z = _step(z)
+        assert not [x for x in o.get("commands") or [] if x["signal"] == "Task/Assign"]
+
+
+def test_pump_wear_goes_to_the_pc_and_clear_takes_it_back(rules):
+    z = _init(rules)
+    _, z = _step(z, devices=_ex1(1000))
+    o, z = _step(z, faults=[{"kind": "hydraulic_wear", "target": "EX1"}])
+    assert [x for x in o["commands"] if x["signal"] == "Diagnostics/InjectFault" and x["value"] == 4]
+    o, z = _step(z, faults=[{"kind": "clear"}])
+    assert [x for x in o["commands"] if x["signal"] == "Diagnostics/InjectFault" and x["value"] == 0]
+
+
+def test_haul_corridor_holds_every_route_point():
+    from twin import hybrid as H
+    from twin import layout as L
+    L.use("northgate")
+    poly = H.corridor()
+    pts = L.route_to_bay("EX1") + L.route_haul("EX1", "spoil", 0) + L.route_return("spoil", 0) + [list(p) for p in L.DUMP_POINTS]
+    assert all(H.inside(poly, x, y) for x, y in pts)
+    assert len(poly) <= 200

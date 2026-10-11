@@ -5,7 +5,7 @@ import { startStory, stopStory } from './live/client'
 import { REPLAY, CAPTURE } from './live/config'
 import { Feed, MODES } from './ui/Feed'
 import { Icon } from './ui/kit'
-import { Autonomy, Events, FaultDeck, LatencyStrip, PhoneApprovals, SignalTrace, SitePilot, VecuConsole } from './panels/Panels'
+import { Autonomy, Events, FaultDeck, LatencyStrip, LoopPanel, PhoneApprovals, SignalTrace, SitePilot, VecuConsole } from './panels/Panels'
 import { downloadSrt } from './story/StoryLayer'
 import { TourCaption, useTour } from './story/Tour'
 import { OpeningTitle } from './story/StoryCards'
@@ -182,6 +182,7 @@ export function App() {
       </aside>
       <Feed />
       <aside className="col right" aria-label="AI panels">
+        <LoopPanel />
         <SitePilot />
         <Autonomy />
         <PhoneApprovals />

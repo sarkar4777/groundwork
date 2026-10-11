@@ -40,6 +40,7 @@ CACHED_TIMES = {
 
 class Story:
     ipc = False
+    loop = False
 
     def __init__(self, mode: str, ticks: int = 5, site: str = "northgate"):
         self.mode = mode          # live, cached or record
@@ -84,7 +85,7 @@ class Story:
         elif self.mode == "record":
             note = "live Abenix calls, recorded for identical takes"
         await eng.emit({"type": "event", "t": 0.0, "kind": "story", "title": "Story started", "detail": f"Seed {SEED}, {note}",
-                        "mode": self.mode, "recorded": self.mode == "cached", "site": self.site, "ipc": self.ipc})
+                        "mode": self.mode, "recorded": self.mode == "cached", "site": self.site, "ipc": self.ipc, "loop": self.loop})
 
     async def before_step(self, eng, inp: dict) -> None:
         # the twin's own clock, it only moves when a step really ran in Abenix
@@ -392,3 +393,66 @@ class IpcStory(Story):
 
     async def after_step(self, eng, out: dict) -> None:
         self.vecus = (out.get("stats") or {}).get("vecus", self.vecus)
+
+
+class LoopStory(IpcStory):
+    """The closed loop, live: a wearing pump on EX1, a rule in Abenix, the maintenance tech, a person, the PC.
+    Captions follow the loop as it happens, so the film can time-lapse the wait and play the loop at true speed."""
+
+    loop = True
+
+    def __init__(self, ticks: int = 5, site: str = "northgate"):
+        super().__init__(ticks, site)
+        self.said: set = set()
+        self.known: set = set()
+        self.wear_at = None
+        self.done_at = None
+
+    async def start(self, eng) -> None:
+        if eng.loop is None:
+            raise RuntimeError("the closed loop is not running, the bff needs the Abenix events stream")
+        self.known = {r["id"] for r in eng.loop.view()}
+        await Story.start(self, eng)
+        await eng.emit({"type": "event", "t": 0.0, "kind": "story", "title": "Closed loop story",
+                        "detail": "A rule in Abenix, an agent, a person and EX1's PC. Live", "ipc": True, "loop": True})
+
+    async def say(self, eng, key: str, t: float, text: str) -> None:
+        if key in self.said:
+            return
+        self.said.add(key)
+        await eng.emit({"type": "caption", "t": t, "text": text, "until": t + 60.0, "recorded": False, "ipc": True, "loop_step": key})
+
+    async def before_step(self, eng, inp: dict) -> None:
+        t = round(eng.t(), 3)
+        self.k = int(round(t / (self.ticks * 0.01)))
+        if self.once("wear", t, 1.0):
+            self.wear_at = t
+            eng.queue("faults", [{"kind": "hydraulic_wear", "target": "EX1"}])
+            await self.say(eng, "wear", t, "EX1's main pump starts to wear. It works harder for the same flow, and the oil heats up.")
+        rec = next((r for r in (eng.loop.view() if eng.loop else []) if r.get("node") == "ipc-ex1" and "hot" in (r.get("rule") or "").lower()
+                    and self.wear_at is not None and r["id"] not in self.known), None)
+        if rec:
+            a, act = rec["agent"], rec["action"]
+            await self.say(eng, "fired", t, f"A rule in Abenix sees EX1's oil running hot: {rec.get('detail') or 'above its own normal'}. It wakes the maintenance tech.")
+            if act.get("state") == "waiting":
+                await self.say(eng, "asked", t, "It reads the last 15 minutes and the manual, and asks to put EX1 in safe mode. A person decides.")
+            if act.get("state") in ("approved", "sent", "confirmed"):
+                await self.say(eng, "approved", t, f"Approved in Abenix by {act.get('decided_by') or act.get('approved_by') or 'a person'}.")
+            if act.get("state") == "confirmed":
+                await self.say(eng, "taken", t, "EX1's PC takes it: Mode/Set safe, confirmed on its bus. EX1 runs slower until a person says otherwise.")
+                if self.done_at is None:
+                    self.done_at = t
+            if act.get("state") == "no_command" and a.get("state") == "answered":
+                await self.say(eng, "nocmd", t, f"The maintenance tech says: {a.get('answer')}")
+                if self.done_at is None:
+                    self.done_at = t
+        if self.done_at is not None and self.once("end", t, self.done_at + 10.0):
+            self.finished = True
+            eng.queue("faults", [{"kind": "clear"}])
+            await eng.event("story", "Story finished", "Groundwork on Abenix, open source")
+            eng.story = None
+            eng.wall0 = time.monotonic()
+            eng.sim0 = eng.t()
+
+    async def after_step(self, eng, out: dict) -> None:
+        pass

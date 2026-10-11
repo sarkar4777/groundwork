@@ -3,7 +3,7 @@ import { useUi, type CaptionLog } from '../live/store'
 import { hot } from '../live/hot'
 import { stopStory } from '../live/client'
 import { beatAt, storyLength } from './shots'
-import { StoryAiOff, StoryAutonomy, StoryCode, StoryEnd, StoryGust, StoryHops, StoryLatency, StoryPc, StoryPhone } from './StoryCards'
+import { StoryAiOff, StoryAutonomy, StoryCode, StoryEnd, StoryGust, StoryHops, StoryLatency, StoryLoop, StoryOil, StoryPc, StoryPhone, StoryLapse } from './StoryCards'
 import { Icon } from '../ui/kit'
 
 // Numbers with their units read in amber, the rest stays white.
@@ -140,7 +140,7 @@ export function StoryLayer() {
     document.body.dataset.beat = running ? beat.name : ''
     const prev = useUi.getState().storyBeat
     const next = running ? beat.name : ''
-    const pick = (b: string) => b === 'platform' || b === 'ipc_pc'
+    const pick = (b: string) => b === 'platform' || b === 'ipc_pc' || b === 'loop_build'
     if (prev !== next) useUi.setState({ storyBeat: next, ...(pick(next) ? { selected: 'EX1' } : pick(prev) ? { selected: null } : {}) })
   }, [running, beat.name])
   if (!running) return null
@@ -160,6 +160,9 @@ export function StoryLayer() {
       {f === 'autonomy' && <StoryAutonomy />}
       {f === 'hops' && <StoryHops />}
       {f === 'pc' && <StoryPc />}
+      {f === 'oil' && <StoryOil />}
+      {f === 'loop' && <StoryLoop />}
+      {useUi.getState().story.loop && <StoryLapse s={s} />}
       <StoryEnd show={end} />
     </>
   )

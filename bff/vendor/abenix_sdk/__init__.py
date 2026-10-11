@@ -576,6 +576,13 @@ class AbenixDecisionError(AbenixError):
     """A decision call the platform refused, with its message and code."""
 
 
+def _q(part: str) -> str:
+    """One path segment, escaped, so an asset id with a slash or space still lands on its route."""
+    from urllib.parse import quote
+
+    return quote(str(part), safe="")
+
+
 async def _call(client: "Abenix", exc: type[AbenixError], method: str, path: str, **kw: Any) -> Any:
     res = await client._http.request(method, path, **kw)
     body: dict[str, Any] = {}
@@ -1123,6 +1130,95 @@ class EventsClient:
 
     async def redeliver(self, delivery_id: str) -> dict[str, Any]:
         return await self._call("POST", f"/api/webhooks/deliveries/{delivery_id}/redeliver")
+
+    async def types(self) -> list[dict[str, Any]]:
+        """Every event type the stream can carry, with a description and a sample."""
+        return await self._call("GET", "/api/events/types") or []
+
+    async def stream(
+        self,
+        types: list[str] | str | None = None,
+        since: str | int | None = None,
+        *,
+        reconnect: bool = True,
+        max_retries: int | None = None,
+    ) -> Any:
+        """Platform events as they happen, as dicts {id, type, occurred_at, data}.
+
+        types takes names or patterns, e.g. ["telemetry.rule_fired", "execution.*"].
+        since resumes after an event id, or replays from an ISO time. A dropped
+        connection reconnects and resumes after the last event it gave you.
+
+        async for ev in forge.events.stream(["telemetry.rule_fired", "execution.completed"]): ...
+        """
+        import asyncio as _asyncio
+        import json as _json
+
+        pats = ",".join(types) if isinstance(types, (list, tuple)) else (types or "")
+        last: str | None = str(since) if since is not None else None
+        tries = 0
+        while True:
+            params: dict[str, Any] = {"types": pats} if pats else {}
+            headers: dict[str, str] = {}
+            if last is not None:
+                if str(last).isdigit():
+                    headers["Last-Event-ID"] = str(last)
+                else:
+                    params["since"] = last
+            try:
+                async with self._client._http.stream(
+                    "GET",
+                    "/api/events/stream",
+                    params=params,
+                    headers=headers,
+                    timeout=httpx.Timeout(None, connect=10.0),
+                ) as res:
+                    if res.status_code >= 400:
+                        await res.aread()
+                        body: Any = {}
+                        try:
+                            body = res.json() or {}
+                        except ValueError:
+                            pass
+                        err = (body.get("error") if isinstance(body, dict) else None) or {}
+                        raise AbenixError(
+                            res.status_code,
+                            err.get("message") or f"HTTP {res.status_code}",
+                            err.get("error_code"),
+                            err.get("details"),
+                        )
+                    tries = 0
+                    event, data, eid = "message", [], None
+                    async for line in res.aiter_lines():
+                        if line == "":
+                            if data and event not in ("gap",):
+                                try:
+                                    doc = _json.loads("\n".join(data))
+                                except ValueError:
+                                    doc = None
+                                if isinstance(doc, dict):
+                                    if eid is not None:
+                                        last = eid
+                                    yield doc
+                            event, data, eid = "message", [], None
+                        elif line.startswith(":"):
+                            continue
+                        elif line.startswith("id:"):
+                            eid = line[3:].strip()
+                        elif line.startswith("event:"):
+                            event = line[6:].strip()
+                        elif line.startswith("data:"):
+                            data.append(line[5:].lstrip())
+            except AbenixError as e:
+                if e.status in (401, 403, 422) or not reconnect:
+                    raise
+            except (httpx.HTTPError, OSError):
+                if not reconnect:
+                    raise
+            tries += 1
+            if max_retries is not None and tries > max_retries:
+                raise AbenixError(0, "The event stream dropped and did not come back.")
+            await _asyncio.sleep(min(30.0, 0.5 * (2 ** min(tries, 6))))
 
     @staticmethod
     def verify_signature(secret: str, body: bytes | str, signature: str | None) -> bool:
@@ -1971,7 +2067,7 @@ class TelemetryClient:
         limit: int = 500,
         offset: int = 0,
     ) -> list[dict[str, Any]]:
-        """Every machine (device "") and device in view: online, last_seen, birth_at, msgs_per_sec, seq_gaps, metric_count, connection_id."""
+        """Every machine (device "") and device in view: online, last_seen, birth_at, msgs_per_sec, readings_per_sec, seq_gaps, metric_count, connection_id."""
         params: dict[str, Any] = {
             k: v for k, v in {"q": q, "group": group, "node": node, "status": status, "team": team}.items() if v
         }
@@ -2244,6 +2340,262 @@ class TelemetryClient:
     async def rotate_token(self, connection_id: str) -> dict[str, Any]:
         """A new push token for an HTTP push source, the old one stops at once."""
         return await self._call("POST", f"/api/telemetry/connections/{connection_id}/token")
+
+    async def forget_device(self, group: str, node: str, device: str | None = None, force: bool = False) -> dict[str, Any]:
+        """Forgets a device, or a whole asset when device is None. History stays, it comes back if it reports."""
+        params: dict[str, Any] = {"device": device or ""}
+        if force:
+            params["force"] = "true"
+        return await self._call("DELETE", f"/api/telemetry/devices/{group}/{node}", params=params)
+
+    async def forget_devices(
+        self,
+        offline_for_s: int,
+        *,
+        group: str | None = None,
+        node_glob: str | None = None,
+        connection_id: str | None = None,
+        dry_run: bool = False,
+        limit: int | None = None,
+    ) -> dict[str, Any]:
+        """Forgets devices offline for at least offline_for_s. dry_run counts them first, loop while remaining > 0."""
+        body: dict[str, Any] = {"offline_for_s": offline_for_s, "dry_run": dry_run}
+        for k, v in (("group", group), ("node_glob", node_glob), ("connection_id", connection_id), ("limit", limit)):
+            if v is not None:
+                body[k] = v
+        return await self._call("POST", "/api/telemetry/devices/forget", json=body)
+
+    # signal rules
+
+    async def rules(self, q: str = "") -> list[dict[str, Any]]:
+        """Signal rules in view, each with summary in plain words, fire_count, last_fired_at, firing_now and last_firing."""
+        return await self._call("GET", "/api/telemetry/rules", params={"q": q} if q else None) or []
+
+    async def rule(self, rule_id: str) -> dict[str, Any]:
+        """One signal rule."""
+        return await self._call("GET", f"/api/telemetry/rules/{rule_id}")
+
+    async def create_rule(
+        self,
+        name: str,
+        scope: dict[str, Any],
+        condition: dict[str, Any],
+        actions: list[dict[str, Any]] | None = None,
+        *,
+        description: str | None = None,
+        severity: str = "warning",
+        cooldown_s: int = 60,
+        enabled: bool = True,
+        team_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Add a signal rule. Needs telemetry.manage, and telemetry.command for a command step.
+
+        scope is {kind: asset, group, node, device ("*" any part, "" the asset itself)}, {kind: type, type}
+        or {kind: tag, tag}. condition kinds: threshold, range, rate, stale, state, geofence, count and
+        deviation. actions: alert, notify, run, decision and command. Field problems raise AbenixError
+        422 with details["fields"].
+        """
+        body: dict[str, Any] = {
+            "name": name,
+            "scope": scope,
+            "condition": condition,
+            "actions": actions or [],
+            "severity": severity,
+            "cooldown_s": cooldown_s,
+            "enabled": enabled,
+        }
+        if description:
+            body["description"] = description
+        if team_id:
+            body["team_id"] = team_id
+        return await self._call("POST", "/api/telemetry/rules", json=body)
+
+    async def update_rule(self, rule_id: str, **fields: Any) -> dict[str, Any]:
+        """Change a rule. Pass only what changes, like enabled=False or condition={...}."""
+        return await self._call("PATCH", f"/api/telemetry/rules/{rule_id}", json=fields)
+
+    async def delete_rule(self, rule_id: str) -> dict[str, Any]:
+        """Delete a rule and its firing history. Its open alerts resolve."""
+        return await self._call("DELETE", f"/api/telemetry/rules/{rule_id}")
+
+    async def test_rule(self, rule_id: str) -> dict[str, Any]:
+        """Run the rule's steps once now with the latest reading, as a test. Commands are skipped. {firing_id, queued}."""
+        return await self._call("POST", f"/api/telemetry/rules/{rule_id}/test")
+
+    async def preview_rule(
+        self,
+        scope: dict[str, Any],
+        condition: dict[str, Any],
+        *,
+        cooldown_s: int = 60,
+        hours: int = 1,
+    ) -> dict[str, Any]:
+        """Replay a rule, saved or not, over the last 1, 6 or 24 hours: {summary, fired, cleared, assets: [{key, firings, series}]}."""
+        body = {"scope": scope, "condition": condition, "cooldown_s": cooldown_s, "hours": hours}
+        return await self._call("POST", "/api/telemetry/rules/preview", json=body)
+
+    async def rule_options(self) -> dict[str, Any]:
+        """What rule steps can pick: agents and pipelines, decision tables, people, teams and can_command."""
+        return await self._call("GET", "/api/telemetry/rules/options")
+
+    async def rule_signals(
+        self,
+        group: str = "",
+        node: str = "",
+        device: str | None = None,
+        *,
+        kind: str = "",
+        type: str = "",
+        tag: str = "",
+    ) -> list[dict[str, Any]]:
+        """Signals streaming now with their latest values, for one asset (group, node) or kind="type"/"tag"."""
+        params: dict[str, Any] = {
+            k: v for k, v in {"group": group, "node": node, "kind": kind, "type": type, "tag": tag}.items() if v
+        }
+        if device is not None:
+            params["device"] = device
+        return await self._call("GET", "/api/telemetry/rules/signals", params=params) or []
+
+    async def rules_mode(self) -> dict[str, Any]:
+        """Where this workspace's rules run: {default, override, chosen, effective, pool_replicas, help}."""
+        return await self._call("GET", "/api/telemetry/rules/mode")
+
+    async def set_rules_mode(self, mode: str | None) -> dict[str, Any]:
+        """inprocess, pool, or None for the platform default. Admins only, 409 POOL_NOT_RUNNING without a pool."""
+        return await self._call("PUT", "/api/telemetry/rules/mode", json={"mode": mode})
+
+    # asset registry
+
+    async def assets(
+        self,
+        *,
+        q: str = "",
+        type: str = "",
+        tag: str = "",
+        group: str = "",
+        status: str = "",
+        parts: bool = False,
+        limit: int = 500,
+        offset: int = 0,
+    ) -> list[dict[str, Any]]:
+        """Assets from the streams and the registry: {key, group, node, device, registered, display_name, type, tags, team_id, location, fields, live, online, ...}.
+
+        status is registered or unregistered. parts=True adds the parts as their own rows.
+        """
+        params: dict[str, Any] = {
+            k: v for k, v in {"q": q, "type": type, "tag": tag, "group": group, "status": status}.items() if v
+        }
+        params.update({"parts": str(parts).lower(), "limit": limit, "offset": offset})
+        return await self._call("GET", "/api/telemetry/assets", params=params) or []
+
+    async def asset(self, group: str, node: str, device: str | None = None) -> dict[str, Any]:
+        """One asset, or one part with device."""
+        return await self._call(
+            "GET",
+            f"/api/telemetry/assets/{_q(group)}/{_q(node)}",
+            params={"device": device or ""},
+        )
+
+    async def update_asset(
+        self,
+        group: str,
+        node: str,
+        device: str | None = None,
+        *,
+        display_name: str | None = None,
+        type: str | None = None,
+        tags: list[str] | None = None,
+        team_id: str | None = None,
+        location: dict[str, Any] | None = None,
+        fields: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        """Name an asset and set its type, tags, team, location ({lat, lon} or {x, y}) and details like vin or serial.
+
+        The whole entry is replaced, so pass every value it should keep. Needs telemetry.manage.
+        """
+        body = {
+            "display_name": display_name,
+            "type": type,
+            "tags": tags or [],
+            "team_id": team_id,
+            "location": location,
+            "fields": fields or {},
+        }
+        return await self._call(
+            "PUT",
+            f"/api/telemetry/assets/{_q(group)}/{_q(node)}",
+            params={"device": device or ""},
+            json=body,
+        )
+
+    async def delete_asset(self, group: str, node: str, device: str | None = None) -> dict[str, Any]:
+        """Forget an asset's name and details. The stream keeps flowing and it shows as unregistered again."""
+        return await self._call(
+            "DELETE",
+            f"/api/telemetry/assets/{_q(group)}/{_q(node)}",
+            params={"device": device or ""},
+        )
+
+    async def import_assets(self, csv: str, dry_run: bool = True) -> dict[str, Any]:
+        """Name assets from a CSV with a header row: {rows: [{line, key, action, errors}], summary, applied}.
+
+        dry_run (the default) only checks. Nothing is applied while any row has an error.
+        """
+        return await self._call("POST", "/api/telemetry/assets/import", json={"csv": csv, "dry_run": dry_run})
+
+    async def asset_facets(self, parts: bool = False) -> dict[str, Any]:
+        """Counts for filters: {types: [{type, count}], tags: [{tag, count}], registered, unregistered}."""
+        return await self._call("GET", "/api/telemetry/assets/facets", params={"parts": str(parts).lower()})
+
+    async def firings(
+        self,
+        rule_id: str | None = None,
+        since: str | None = None,
+        *,
+        status: str | None = None,
+        limit: int = 50,
+        outputs: bool = True,
+    ) -> list[dict[str, Any]]:
+        """Signal rule firings with each step's status, and its input and output when outputs is on.
+
+        With since (an ISO time) they come oldest first, so a poller can pass the last fired_at back.
+        """
+        params: dict[str, Any] = {"limit": limit}
+        if rule_id:
+            params["rule_id"] = rule_id
+        if since:
+            params["since"] = since
+        if status:
+            params["status"] = status
+        if outputs:
+            params["include"] = "outputs"
+        return await self._call("GET", "/api/telemetry/rules/firings", params=params) or []
+
+    async def firing(self, firing_id: str) -> dict[str, Any]:
+        """One firing with its context and each step's input, output, duration, status and run link."""
+        return await self._call("GET", f"/api/telemetry/rules/firings/{firing_id}")
+
+    async def find_assets(
+        self,
+        q: str = "",
+        *,
+        type: str = "",
+        tag: str = "",
+        group: str = "",
+        online: bool | None = None,
+        signals: list[str] | None = None,
+        limit: int = 25,
+    ) -> list[dict[str, Any]]:
+        """Assets by name, type, tag or group, with a few latest readings, as agents see them."""
+        params: dict[str, Any] = {
+            k: v for k, v in {"q": q, "type": type, "tag": tag, "group": group}.items() if v
+        }
+        if online is not None:
+            params["online"] = "yes" if online else "no"
+        if signals:
+            params["headline_signals"] = ",".join(signals)
+        params["limit"] = limit
+        return await self._call("GET", "/api/telemetry/loop/assets", params=params) or []
 
     async def stream(
         self,

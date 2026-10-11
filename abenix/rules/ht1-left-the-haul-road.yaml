@@ -1,0 +1,12 @@
+name: "HT1 left the haul road"
+description: "HT1's site position leaves the ground it works on: its road from the bay up the ramp to the spoil area, 10 m either side, the turning pad at the bay and the spoil area with its margin. Traced from where the truck really drives. Runs the Fleet dispatcher."
+severity: warning
+cooldown_s: 120
+scope: {kind: asset, group: groundwork, node: ipc-ht1, device: telematics}
+condition: {kind: geofence, frame: site, x_signal: GNSS/X_m, y_signal: GNSS/Y_m, polygon: haul_corridor, "on": exit, zone: "HT1 haul area"}
+actions:
+  - kind: run
+    agent: gw-fleet-dispatcher
+    wait: true
+    wait_s: 900
+  - {kind: alert}
