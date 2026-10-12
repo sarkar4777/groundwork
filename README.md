@@ -204,6 +204,8 @@ Measured live, one run each:
 | Abenix checks, then publish | 234 ms | 28 ms |
 | The PC confirms | 330 ms | 80 ms |
 
+A second EX1 run, through the ground station deployed in the cluster: the agent asked 19 s after the firing, a person approved 18 s later, the command reached Abenix 168 ms after the approval and was published after 136 ms of checks, and the PC confirmed it in 79 ms. Approval to publish varies run to run, 147 ms in the filmed run and 304 ms here.
+
 ## Run it end to end
 
 Plan on about an hour the first time, most of it Abenix building its images. Later starts take a few minutes.
