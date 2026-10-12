@@ -24,6 +24,13 @@ def _short(v: Any, n: int = 160) -> str:
     return s if len(s) <= n else s[: n - 1] + "…"
 
 
+def who(v: Any) -> str | None:
+    """A person as Abenix sends them, a name, an email or a user record, as one readable name."""
+    if isinstance(v, dict):
+        return v.get("name") or v.get("email") or v.get("id")
+    return v or None
+
+
 def summary(output: Any) -> str:
     """One line from an agent's answer, whichever of the Groundwork agents gave it."""
     if isinstance(output, dict):
@@ -191,7 +198,7 @@ class Loop:
             return
         st = d.get("status") or "approved"
         rec["action"]["state"] = "approved" if st == "approved" else "denied" if st in ("denied", "rejected") else st
-        rec["action"]["decided_by"] = d.get("decided_by") or d.get("approved_by")
+        rec["action"]["decided_by"] = who(d.get("decided_by") or d.get("approved_by"))
         rec["agent"]["state"] = "sending" if rec["action"]["state"] == "approved" else "running"
         await self._push(rec)
 
@@ -205,7 +212,7 @@ class Loop:
             return
         self._link_exec(rec, eid)
         rec["action"].update({"state": "confirmed" if d.get("confirmed") else "sent", "signal": d.get("signal"), "value": d.get("value"),
-                              "node": d.get("node"), "device": d.get("device"), "approved_by": d.get("approved_by"),
+                              "node": d.get("node"), "device": d.get("device"), "approved_by": who(d.get("approved_by")),
                               "confirmed": d.get("confirmed"), "timings": d.get("timings") or {}, "reason": _short(d.get("reason"))})
         await self._push(rec)
 

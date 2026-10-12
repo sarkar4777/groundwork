@@ -447,10 +447,19 @@ class LoopStory(IpcStory):
             await self.say(eng, "fired", t, f"A rule in Abenix sees EX1's oil running hot{hot_words(rec)}. It wakes the maintenance tech.")
             if act.get("state") == "waiting":
                 await self.say(eng, "asked", t, "It reads the last 15 minutes and the manual, and asks to put EX1 in safe mode. A person decides.")
-            if act.get("state") in ("approved", "sent", "confirmed"):
-                await self.say(eng, "approved", t, f"Approved in Abenix by {act.get('decided_by') or act.get('approved_by') or 'a person'}.")
+            by = act.get("decided_by") or act.get("approved_by") or "a person"
             if act.get("state") == "confirmed":
-                await self.say(eng, "taken", t, "EX1's PC takes it: Mode/Set safe, confirmed on its bus. EX1 runs slower until a person says otherwise.")
+                # an approval that lands in the same step as the PC's confirmation is one caption
+                gap = ""
+                tm = act.get("timings") or {}
+                if tm.get("approved_at") and tm.get("published_at"):
+                    gap = f" {max(0.0, (tm['published_at'] - tm['approved_at']) / 1000 + (tm.get('confirm_ms') or 0) / 1000):.1f} s later"
+                text = f"Approved in Abenix by {by}, and EX1's PC takes it{gap}: Mode/Set safe, confirmed on its bus."
+                if "approved" in self.said:
+                    text = f"EX1's PC takes it{gap}: Mode/Set safe, confirmed on its bus. EX1 runs slower until a person says otherwise."
+                await self.say(eng, "taken", t, text)
+            elif act.get("state") in ("approved", "sent"):
+                await self.say(eng, "approved", t, f"Approved in Abenix by {by}.")
                 if self.done_at is None:
                     self.done_at = t
             if act.get("state") == "no_command" and a.get("state") == "answered":

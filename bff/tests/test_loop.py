@@ -28,8 +28,8 @@ def test_rule_agent_approval_command_answer_join_into_one_record():
         await lp.on_event("approval.requested", {"approval_id": "ap1", "gate_kind": "telemetry.command", "agent_id": "a-maint", "execution_id": "e1",
                                                  "command": {"node": "ipc-ex1", "device": "safety", "signal": "Mode/Set", "value": "safe", "reason": "oil 71 C"}})
         assert r["action"]["state"] == "waiting" and r["agent"]["execution_id"] == "e1"
-        await lp.on_event("approval.resolved", {"approval_id": "ap1", "status": "approved", "decided_by": "ops@groundwork"})
-        assert r["action"]["state"] == "approved"
+        await lp.on_event("approval.resolved", {"approval_id": "ap1", "status": "approved", "decided_by": {"id": "u1", "name": "Ops Lead", "email": "ops@groundwork"}})
+        assert r["action"]["state"] == "approved" and r["action"]["decided_by"] == "Ops Lead"
         await lp.on_event("telemetry.command_sent", {"group": "groundwork", "node": "ipc-ex1", "device": "safety", "signal": "Mode/Set", "value": "safe",
                                                      "execution_id": "e1", "approved_by": "ops@groundwork", "confirmed": True, "timings": {"checks_ms": 9}})
         assert r["action"]["state"] == "confirmed" and r["action"]["approved_by"] == "ops@groundwork"
