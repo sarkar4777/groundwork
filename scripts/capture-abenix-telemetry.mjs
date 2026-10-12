@@ -64,7 +64,7 @@ const VIEWS = [
   ...(RULE ? [{ name: 'loop-rule-firings', path: `/telemetry/rules/${RULE}`, wait: '[data-testid="firing-history"]', click: '[data-testid="firing-step-toggle"]' }] : []),
   ...(APPROVAL ? [{ name: 'loop-command-approved', path: `/approvals#${APPROVAL}`, wait: `[data-approval-id="${APPROVAL}"]`, frame: `[data-approval-id="${APPROVAL}"]`, up: 0 }] : []),
   { name: 'loop-asset-agents', path: '/telemetry/agents', wait: 'main' },
-  { name: 'backfill', path: tel({ group: 'edge-demo', node: 'truck-7', device: 'engine', range: '15m' }), wait: '[data-testid="tel-chart"]', manual: true },
+  { name: 'backfill', path: tel({ group: 'edge-demo', node: 'truck-7', device: 'engine', range: '15m' }), wait: '[data-testid="tel-chart"]', frame: '[data-testid="tel-device-detail"]', manual: true },
 ]
 
 const browser = await chromium.launch()

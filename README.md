@@ -159,6 +159,12 @@ curl -X POST localhost:8710/story/start -H 'content-type: application/json' -d '
 
 With real ECUs on the bus, run only the gateway container. Point `MQTT_URL` at the site broker and set `GW_MACHINE` to the machine it is fitted to.
 
+**The film.** `groundwork-ipc-story-1920x1080.mp4` and `-1080x1350.mp4`, 2 min 3 s with subtitles, attached to the release: the stop over the real bus, every hop, the unplugged PC, the noisy harness, the closed loop on EX1 with the wait as a labelled ×32 time-lapse and the rest at real speed, then the PCs in Abenix. Screens of the Abenix side are in [docs/screenshots/ipc](docs/screenshots/ipc), named `abenix-*`.
+
+**Backfill through an uplink cut.** The same Abenix stack takes machine data from its Edge gateway too. With the gateway's uplink cut for 123 s, it buffered 7,288 readings at the peak and drained them in under a second when the link came back: 7,449 sent, 0 lost, and 75 of 75 sequence points in order with no gaps or repeats. The truck's engine chart in Abenix shows no hole where the cut was ([abenix-backfill-1440.png](docs/screenshots/ipc/abenix-backfill-1440.png)).
+
+**About the latency numbers.** The hop table above and the loop timings were measured with the site under reduced load. On the laptop with the testbed, the Edge demo and the four PCs all running, the Abenix ingest strip showed p99 ingest delay between 117 and 580 ms, which is the CPU saturating, not the pipeline. A full-scale run is planned on Azure.
+
 ### Rules, agents and commands: the closed loop
 
 The PCs' streams drive three signal rules in Abenix. Each rule runs an agent. The agent reads the machine, decides, and acts through a governed command, and the ground station hears every step through the SDK.
@@ -184,6 +190,8 @@ The rules are in [abenix/rules](abenix/rules). `python scripts/provision.py --on
 **In the ground station.** The *Rule → agent → action* panel shows one card per firing: the rule with the signal's last 15 minutes, the agent reading and its answer, then the command waiting for a person, who approved it and when the PC confirmed it. The bff joins this from `forge.events.stream` (`telemetry.rule_fired`, `approval.requested`, `approval.resolved`, `telemetry.command_sent`, `execution.completed`, `telemetry.firing_completed`) and backfills from `forge.telemetry.firings`. It decides nothing.
 
 `Mode/Set` belongs to people and agents. The site holds a PC machine when its rules say so and never sets its mode, so a safe mode on screen always traces back to whoever asked for it, shown on the machine card.
+
+<p align="center"><img src="docs/screenshots/ipc/abenix-loop-command-approval-1440.png" alt="The maintenance agent's Mode/Set safe command for EX1 waiting on a person in Abenix, with its reason" width="100%"></p>
 
 Measured live, one run each:
 
