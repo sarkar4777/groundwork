@@ -2,7 +2,7 @@
 
 <p align="center"><img src="docs/media/preview.gif" alt="Groundwork story: the title over the live ground station, the drone feed, a safety stop in 4.7 ms, the whole ground station, the end card" width="100%"></p>
 
-<p align="center"><a href="https://github.com/sarkar4777/groundwork/releases/tag/v1.0.0">Watch the full 64 s films</a>, on the painted site and on a real drone orthophoto, landscape and portrait with subtitles.</p>
+<p align="center"><a href="https://github.com/sarkar4777/groundwork/releases/tag/v1.0.0">Watch the full 64 s films</a>, on the painted site and on a real drone orthophoto, landscape and portrait with subtitles. <a href="https://github.com/sarkar4777/groundwork/releases/tag/v1.1.0">The 2 min industrial PC film</a> shows the real CAN bus, the closed loop and the PCs in Abenix.</p>
 
 An autonomous construction site, run by [Abenix](https://github.com/sarkar4777/abenix). Northgate Yard is a fictional 4 hectare site digging the two-level basement of a 22-storey tower: two excavators, a dozer, six haul trucks, a luffing tower crane, a mobile crane, a piling rig, a roller, two survey drones and fourteen tagged workers. Every machine has its own virtual controllers talking J1939 on its own bus. Safety rules stop a machine in the same 10 ms tick a worker steps too close. Agents plan the day, a person approves the risky moves, and every number on screen is measured.
 
@@ -159,7 +159,7 @@ curl -X POST localhost:8710/story/start -H 'content-type: application/json' -d '
 
 With real ECUs on the bus, run only the gateway container. Point `MQTT_URL` at the site broker and set `GW_MACHINE` to the machine it is fitted to.
 
-**The film.** `groundwork-ipc-story-1920x1080.mp4` and `-1080x1350.mp4`, 2 min 3 s with subtitles, attached to the release: the stop over the real bus, every hop, the unplugged PC, the noisy harness, the closed loop on EX1 with the wait as a labelled ×32 time-lapse and the rest at real speed, then the PCs in Abenix. Screens of the Abenix side are in [docs/screenshots/ipc](docs/screenshots/ipc), named `abenix-*`.
+**The film.** `groundwork-ipc-story-1920x1080.mp4` and `-1080x1350.mp4`, 2 min 3 s with subtitles, in the [v1.1.0 release](https://github.com/sarkar4777/groundwork/releases/tag/v1.1.0): the stop over the real bus, every hop, the unplugged PC, the noisy harness, the closed loop on EX1 with the wait as a labelled ×32 time-lapse and the rest at real speed, then the PCs in Abenix. Screens of the Abenix side are in [docs/screenshots/ipc](docs/screenshots/ipc), named `abenix-*`.
 
 **Backfill through an uplink cut.** The same Abenix stack takes machine data from its Edge gateway too. With the gateway's uplink cut for 123 s, it buffered 7,288 readings at the peak and drained them in under a second when the link came back: 7,449 sent, 0 lost, and 75 of 75 sequence points in order with no gaps or repeats. The truck's engine chart in Abenix shows no hole where the cut was ([abenix-backfill-1440.png](docs/screenshots/ipc/abenix-backfill-1440.png)).
 
@@ -226,7 +226,7 @@ Without a model the site, the safety rules, the ML models and the dispatch loop 
 
 ### 1. Start Abenix
 
-Groundwork needs Abenix 2.5.7 or later. The core platform is enough, the other Abenix apps are not needed.
+Groundwork needs Abenix 2.5.8 or later, for its telemetry, signal rules and governed commands. The core platform is enough, the other Abenix apps are not needed.
 
 ```bash
 git clone https://github.com/sarkar4777/abenix.git
@@ -326,7 +326,7 @@ Everything the site does is visible in Abenix too: runs in the Flight Recorder, 
 | You see | Do this |
 |---|---|
 | `provision.py` says it cannot sign in | Check `ABENIX_URL` and `ABENIX_ADMIN_PASSWORD` in `.env`, and that http://localhost:3000 lets you sign in with them |
-| `provision.py` fails at a step | Fix what it names and run it again. `--only models` reruns one step, the steps are `key,assets,decisions,agents,pipelines,kb,autonomy,models,check` |
+| `provision.py` fails at a step | Fix what it names and run it again. `--only models` reruns one step, the steps are `key,assets,decisions,agents,pipelines,kb,autonomy,models,rules,check` |
 | `dev.sh` says Abenix is not answering | Start Abenix first. After any Abenix pod restarts, run `bash scripts/deploy.sh forwards` in the `abenix` folder |
 | `dev.sh` says there is no ABENIX_API_KEY in .env | Run step 3 |
 | The bff health says `401 Unauthorized` | The key in `.env` was revoked. Run step 3 again, then `bash scripts/deploy-k8s.sh` so the bff picks up the new key |
