@@ -189,12 +189,12 @@ Measured live, one run each:
 
 | | HT1 off the road | EX1 pump wear |
 |---|---|---|
-| Fault to rule firing | under 1 s after HT1 crossed out | 7 min 13 s, the oil heating about 3 °C a minute |
-| Agent reads the machine and decides | sent `Task/Assign {"do": "auto"}` | asked for `Mode/Set safe` 18 s after the firing, oil at 76.5 °C and rising |
-| A person approves on /approvals | not needed, the risk tier let it through | 10.6 s |
-| Approval to command at Abenix | | 2.1 s, the agent's tool looks for the decision every 2 s |
-| Abenix checks, then publish | 234 ms | 167 ms |
-| The PC confirms | 330 ms | confirmed on its bus |
+| Fault to rule firing | under 1 s after HT1 crossed out | 5 min 15 s, the oil heating about 3 °C a minute, 64.5 °C against 55.7 °C |
+| Agent reads the machine and decides | sent `Task/Assign {"do": "auto"}` | asked for `Mode/Set safe` 16 s after the firing, oil at 72 °C and rising |
+| A person approves on /approvals | not needed, the risk tier let it through | 18 s |
+| Approval to command at Abenix | | 119 ms |
+| Abenix checks, then publish | 234 ms | 28 ms |
+| The PC confirms | 330 ms | 80 ms |
 
 ## Run it end to end
 

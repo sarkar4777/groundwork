@@ -43,20 +43,23 @@ mkdirSync(OUT, { recursive: true })
 const tel = (q) => `/telemetry?${new URLSearchParams(q)}`
 // each view: a name, a deep link, what to wait for, and an optional element to frame
 const VIEWS = [
-  { name: 'devices-groundwork', path: tel({ grp: 'groundwork' }), wait: '[data-testid="tel-grid"], [data-testid="tel-grid-windowed"]', scroll: '[data-testid="tel-filters"]', scrollBy: 260 },
+  { name: 'telemetry-home', path: tel({ grp: 'groundwork' }), wait: '[data-testid="tel-grid"], [data-testid="tel-grid-windowed"]' },
+  { name: 'devices-groundwork', path: tel({ grp: 'groundwork' }), wait: '[data-testid="tel-grid"], [data-testid="tel-grid-windowed"]', frame: '[data-testid="tel-grid"], [data-testid="tel-grid-windowed"]' },
   { name: 'ex1-engine', path: tel({ group: 'groundwork', node: 'ipc-ex1', device: 'engine', range: '15m' }), wait: '[data-testid="tel-chart"]' },
   { name: 'ex1-hydraulics', path: tel({ group: 'groundwork', node: 'ipc-ex1', device: 'hydraulics', range: '15m' }), wait: '[data-testid="tel-chart"]' },
   { name: 'ex1-swing', path: tel({ group: 'groundwork', node: 'ipc-ex1', device: 'swing', range: '15m' }), wait: '[data-testid="tel-chart"]' },
   { name: 'ex1-bus', path: tel({ group: 'groundwork', node: 'ipc-ex1', range: '15m' }), wait: '[data-testid="tel-device-detail"]' },
   { name: 'ex1-frames', path: tel({ group: 'groundwork', node: 'ipc-ex1' }), wait: '[data-testid="tel-open-frames"]', click: '[data-testid="tel-open-frames"]' },
   { name: 'ingest-health', path: tel({}), wait: '[data-testid="tel-health"]', frame: '[data-testid="tel-health"]', up: 0 },
-  { name: 'devices-edge-demo', path: tel({ grp: 'edge-demo' }), wait: '[data-testid="tel-grid"], [data-testid="tel-grid-windowed"]', scroll: '[data-testid="tel-filters"]', scrollBy: 260 },
+  { name: 'devices-edge-demo', path: tel({ grp: 'edge-demo' }), wait: '[data-testid="tel-grid"], [data-testid="tel-grid-windowed"]', frame: '[data-testid="tel-grid"], [data-testid="tel-grid-windowed"]' },
   { name: 'edge-truck-7-engine', path: tel({ group: 'edge-demo', node: 'truck-7', device: 'engine', range: '15m' }), wait: '[data-testid="tel-chart"]' },
   { name: 'edge-truck-7-gps', path: tel({ group: 'edge-demo', node: 'truck-7', device: 'gps', range: '15m' }), wait: '[data-testid="tel-chart"]' },
   { name: 'edge-truck-7-bus', path: tel({ group: 'edge-demo', node: 'truck-7', device: 'bus', range: '15m' }), wait: '[data-testid="tel-chart"]' },
   { name: 'edge-truck-7-obd', path: tel({ group: 'edge-demo', node: 'truck-7-obd', device: 'engine', range: '15m' }), wait: '[data-testid="tel-chart"]' },
   { name: 'edge-meter-1', path: tel({ group: 'edge-demo', node: 'meter-1', device: 'main', range: '15m' }), wait: '[data-testid="tel-chart"]' },
-  { name: 'edge-line-1', path: tel({ group: 'edge-demo', node: 'line-1', device: 'plc', range: '15m' }), wait: '[data-testid="tel-chart"]' },
+  { name: 'edge-truck-7-all-parts', path: tel({ group: 'edge-demo', node: 'truck-7', focus: 'charts', range: '15m' }), wait: '[data-testid="tel-chart"]' },
+  { name: 'edge-opc-plc', path: tel({ group: 'edge-demo', node: 'opc-plc', device: 'plc', range: '15m' }), wait: '[data-testid="tel-chart"]' },
+  { name: 'testbed-opc-plc-boiler', path: tel({ group: 'plant', node: 'opc-plc', range: '15m', metric: 'Boiler2/Temperature_C' }), wait: '[data-testid="tel-chart"]' },
   { name: 'edge-gateway', path: '/edge', wait: '[data-testid="edge-gateways"]' },
   ...(RULE ? [{ name: 'loop-rule-firings', path: `/telemetry/rules/${RULE}`, wait: '[data-testid="firing-history"]', click: '[data-testid="firing-step-toggle"]' }] : []),
   ...(APPROVAL ? [{ name: 'loop-command-approved', path: `/approvals#${APPROVAL}`, wait: `[data-approval-id="${APPROVAL}"]`, frame: `[data-approval-id="${APPROVAL}"]`, up: 0 }] : []),
@@ -140,10 +143,11 @@ async function clip() {
     await page.waitForFunction(() => !document.querySelector('input[type="password"]'), null, { timeout: 30000 })
   }
   // three beats: every PC live, EX1's engine streaming, the raw frames
+  const view = (n) => VIEWS.find((v) => v.name === n)
   const beats = [
-    { v: VIEWS[0], s: 3 },
-    { v: VIEWS[1], s: 3 },
-    { v: VIEWS[5], s: 2 },
+    { v: view('ex1-bus'), s: 3 },
+    { v: view('ex1-engine'), s: 3 },
+    { v: view('ex1-frames'), s: 2 },
   ]
   const FPS = 20
   const ff = spawn('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'image2pipe', '-framerate', String(FPS), '-c:v', 'mjpeg', '-i', '-', '-c:v', 'libx264', '-preset', 'slow', '-crf', '18', '-pix_fmt', 'yuv420p', out], { stdio: ['pipe', 'inherit', 'inherit'] })

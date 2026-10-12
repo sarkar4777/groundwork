@@ -1,0 +1,58 @@
+1
+00:00:05,300 --> 00:00:11,000
+Four machines here run on industrial PCs: real J1939 buses,
+Sparkplug B over MQTT, into Abenix.
+
+2
+00:00:11,083 --> 00:00:18,067
+A worker walks into EX1's swing zone. The hold crosses MQTT to EX1's PC,
+and EX1 is still 162 ms after the twin saw the worker.
+
+3
+00:00:18,067 --> 00:00:25,067
+Every hop is measured, from the bus through the gateway
+and the broker into the Abenix store, and back.
+
+4
+00:00:25,067 --> 00:00:31,083
+The worker is clear. EX1 works on the fallback
+plan until a person signs the stop off.
+
+5
+00:00:31,083 --> 00:00:39,000
+We unplug EX1's PC. Abenix sees it die on the broker,
+and EX1's own safety PLC holds it.
+
+6
+00:00:39,000 --> 00:00:47,100
+Plugged back in, it is born again on
+the broker and goes back to work.
+
+7
+00:00:47,100 --> 00:00:55,000
+A noisy harness on EX1. Error frames and
+retransmits on the wire, and the bus keeps going.
+
+8
+00:00:55,783 --> 00:00:58,533
+EX1's main pump starts to wear.
+It works harder for the same flow, and the oil heats up.
+
+9
+00:01:08,400 --> 00:01:24,433
+A rule in Abenix sees EX1's oil running hot, 16% above its own normal: 64.5 °C over the
+last 5 minutes against 55.7 °C the half hour before. It wakes the maintenance tech.
+
+10
+00:01:24,433 --> 00:01:42,433
+It reads the last 15 minutes and the manual,
+and asks to put EX1 in safe mode. A person decides.
+
+11
+00:01:42,433 --> 00:01:48,433
+Approved in Abenix by Admin User,
+and EX1's PC takes it 0.2 s later: Mode/Set safe, confirmed on its bus.
+
+12
+00:01:48,433 --> 00:01:56,433
+In Abenix every PC is a device, with live graphs, history and the raw frames.
