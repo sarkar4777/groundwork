@@ -419,20 +419,8 @@ def commands(st, ev) -> list:
             cmd["mode_ext"] = True
             ev.append({"kind": "plan_change", "machine": mid, "title": f"{mid} mode {cmd['mode']}, set outside the site",
                        "detail": "Mode/Set came through Abenix from an agent or a person. The site leaves it, and only asks for safe again on a new stop"})
-        # the site speaks when its own reason changes, never to undo someone else's choice, and never releases their safe
-        want_changed = mode != cmd.get("want")
+        # Mode/Set belongs to people and agents: the site holds a machine when it must and never sets its mode
         cmd["want"] = mode
-        ours = not cmd.get("mode_ext")
-        if want_changed and mode != cmd["mode"] and (ours or mode == "safe"):
-            cmd["mode"] = mode
-            cmd["mode_ext"] = False
-            cmd["mode_at"] = st["t"]
-            # what the site itself sent lately, so a late echo of it is never taken for someone else's
-            cmd["mode_sent"] = [[v, at] for v, at in cmd.get("mode_sent", []) if st["t"] - at < 30.0] + [[mode, st["t"]]]
-            why = m["simplex"].get("rule") or ("the AI is unavailable" if not st["ai_available"] else "a stop waits for a person")
-            reason = f"Site on its fallback plan, {why}" if mode == "safe" else "Site back in auto"
-            out.append({"machine": mid, "node": node, "device": "safety", "signal": "Mode/Set", "value": mode, "kind": "mode", "reason": reason})
-            ev.append({"kind": "plan_change", "machine": mid, "title": f"{mid} Mode/Set {mode}, from the site", "detail": reason})
         task = st["tasks"].get(mid) or {}
         tdo = "hold" if task.get("do") == "hold" else "auto"
         if cmd["task"] == "off_road":

@@ -183,7 +183,7 @@ The rules are in [abenix/rules](abenix/rules). `python scripts/provision.py --on
 
 **In the ground station.** The *Rule → agent → action* panel shows one card per firing: the rule with the signal's last 15 minutes, the agent reading and its answer, then the command waiting for a person, who approved it and when the PC confirmed it. The bff joins this from `forge.events.stream` (`telemetry.rule_fired`, `approval.requested`, `approval.resolved`, `telemetry.command_sent`, `execution.completed`, `telemetry.firing_completed`) and backfills from `forge.telemetry.firings`. It decides nothing.
 
-If an agent or a person sets `Mode/Set` through Abenix, the site leaves it alone. The machine card says who set it. The site's own fallback also uses `Mode/Set safe` while a stop waits for a person, and says so.
+`Mode/Set` belongs to people and agents. The site holds a PC machine when its rules say so and never sets its mode, so a safe mode on screen always traces back to whoever asked for it, shown on the machine card.
 
 Measured live, one run each:
 
