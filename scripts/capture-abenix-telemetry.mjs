@@ -4,6 +4,7 @@
 //   ABENIX_WEB_URL=http://localhost:3100 ABENIX_ADMIN_EMAIL=... ABENIX_ADMIN_PASSWORD=... node scripts/capture-abenix-telemetry.mjs
 //   ... node scripts/capture-abenix-telemetry.mjs --only backfill      the history after an Edge uplink cut, once it is back
 //   ... node scripts/capture-abenix-telemetry.mjs --clip                the clip for the film beat, .run/ipc/abenix-telemetry-<size>.mp4
+//   --clip-name abenix-telemetry-real   a new name for the clip
 //   --rule <id> --approval <id>   the closed loop views: a rule's firing history with step outputs, a command approval
 //
 // Signs in through the login page and opens each view by its own deep link, dark theme, live data only.
@@ -128,7 +129,7 @@ async function shoot(page, v, width) {
 
 async function clip() {
   const [w, h] = [1920, 1080]
-  const out = join(root, '.run', 'ipc', `abenix-telemetry-${w}x${h}.mp4`)
+  const out = join(root, '.run', 'ipc', `${opt('--clip-name', 'abenix-telemetry')}-${w}x${h}.mp4`)
   if (existsSync(out)) throw new Error(`${out} is already there, move it away first`)
   mkdirSync(dirname(out), { recursive: true })
   const ctx = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 1, colorScheme: 'dark' })
@@ -145,9 +146,9 @@ async function clip() {
   // three beats: every PC live, EX1's engine streaming, the raw frames
   const view = (n) => VIEWS.find((v) => v.name === n)
   const beats = [
-    { v: view('ex1-bus'), s: 3 },
-    { v: view('ex1-engine'), s: 3 },
-    { v: view('ex1-frames'), s: 2 },
+    { v: view('ex1-bus'), s: 4.5 },
+    { v: view('ex1-engine'), s: 4.5 },
+    { v: view('ex1-frames'), s: 3.5 },
   ]
   const FPS = 20
   const ff = spawn('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'image2pipe', '-framerate', String(FPS), '-c:v', 'mjpeg', '-i', '-', '-c:v', 'libx264', '-preset', 'slow', '-crf', '18', '-pix_fmt', 'yuv420p', out], { stdio: ['pipe', 'inherit', 'inherit'] })
@@ -155,14 +156,17 @@ async function clip() {
   for (const b of beats) {
     await page.goto(`${WEB}${b.v.path}`)
     await settle(page, b.v)
-    // frames on a fixed cadence, so the clip runs at the speed the data arrived
+    // frames on a fixed cadence, so the clip runs at the speed the data arrived: a slow screenshot
+    // holds the last frame for the slots it missed rather than speeding the clip up
     const t0 = Date.now()
-    for (let k = 0; k < b.s * FPS; k++) {
-      const due = t0 + (k * 1000) / FPS
-      const wait = due - Date.now()
+    const slots = Math.round(b.s * FPS)
+    let k = 0
+    while (k < slots) {
+      const wait = t0 + (k * 1000) / FPS - Date.now()
       if (wait > 0) await page.waitForTimeout(wait)
       const buf = await page.screenshot({ type: 'jpeg', quality: 92 })
-      if (!ff.stdin.write(buf)) await new Promise((r) => ff.stdin.once('drain', r))
+      const upto = Math.min(slots, Math.max(k + 1, Math.floor(((Date.now() - t0) * FPS) / 1000)))
+      for (; k < upto; k++) if (!ff.stdin.write(buf)) await new Promise((r) => ff.stdin.once('drain', r))
     }
   }
   ff.stdin.end()

@@ -494,15 +494,15 @@ body.noblur * { backdrop-filter: none !important; -webkit-backdrop-filter: none 
 .sc-oil-row .v { font: 800 6vmin var(--mono); color: #fff; }
 .sc-oil-row .l { font: 500 1.8vmin var(--sans); color: var(--muted); }
 .sc-oil-note { margin-top: 1.4vmin; font: 500 1.7vmin var(--sans); color: var(--ice); }
-.sc-loop { left: 50%; top: 6%; transform: translateX(-50%); width: min(94%, 160vmin); }
-.sc-loop-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.4vmin; }
+.sc-loop { right: 3%; top: 12%; width: min(40%, 64vmin); }
+.sc-loop-row { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.2vmin; }
 .sc-loop-step { display: flex; flex-direction: column; gap: 0.5vmin; padding: 1.4vmin; border-radius: 1.4vmin; background: rgba(4, 18, 43, 0.6); border: 1px solid rgba(120, 180, 255, 0.2); opacity: 0.55; }
 .sc-loop-step.on { opacity: 1; border-color: rgba(62, 230, 168, 0.5); }
 .sc-loop-step.live { opacity: 1; border-color: rgba(255, 176, 32, 0.6); }
 .sc-loop-step .k { font: 700 1.6vmin var(--mono); color: var(--sky); text-transform: uppercase; letter-spacing: 0.1em; }
 .sc-loop-step .t { font: 700 2.4vmin var(--sans); color: #fff; }
-.sc-loop-step .d { font: 500 1.7vmin var(--sans); color: var(--muted); }
-.sc-lapse { position: absolute; z-index: 8; left: 3%; top: 16%; display: flex; flex-direction: column; gap: 0.4vmin; padding: 1vmin 1.6vmin; border-radius: 1.2vmin; background: rgba(4, 18, 43, 0.75); border: 1px solid rgba(120, 180, 255, 0.3); }
+.sc-loop-step .d { font: 500 1.7vmin var(--sans); color: var(--muted); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.sc-lapse { position: absolute; z-index: 8; left: 3%; top: 12%; max-width: 36%; display: flex; flex-direction: column; gap: 0.4vmin; padding: 1vmin 1.6vmin; border-radius: 1.2vmin; background: rgba(4, 18, 43, 0.75); border: 1px solid rgba(120, 180, 255, 0.3); }
 .sc-lapse .speed { font: 800 2.4vmin var(--mono); color: var(--mint); letter-spacing: 0.08em; }
 .sc-lapse.fast .speed { color: var(--amber); }
 .sc-lapse .clock { font: 500 1.8vmin var(--mono); color: #fff; }
@@ -656,6 +656,15 @@ body:has(.sc-open) { background: #04122b; overflow: hidden; }
 .real-credit { position: absolute; z-index: 4; left: 50%; top: 52px; transform: translateX(-50%); max-width: calc(100% - 32px); padding: 3px 10px; border-radius: 7px; background: rgba(4, 18, 43, 0.62); border: 1px solid rgba(201, 236, 255, 0.16); font: 500 11px/1.35 var(--sans); color: #e8f4ff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
 .real-credit b { font: 700 9.5px var(--mono); letter-spacing: 0.1em; padding: 0 4px; border-radius: 3px; background: rgba(62, 230, 168, 0.2); color: var(--mint); }
 .real-credit b.sim { background: rgba(255, 176, 32, 0.22); color: var(--amber); }
-.cinema .real-credit, body.capture .real-credit { top: 74px; font-size: max(11px, 1.3vmin); }
+/* in a film the credit has its own lane along the bottom edge, under the captions and clear of the drone strip */
+.cinema .real-credit, body.capture .real-credit { top: auto; bottom: 8px; width: max-content; max-width: calc(100% - 520px); white-space: normal; text-align: center; font-size: max(11px, 1.25vmin); }
+.app.cinema:has(.real-credit) .captions { bottom: calc(5% + 22px); }
+/* the end card carries its own photo credit */
+body[data-endcard='1'] .real-credit { display: none; }
+body.capture .hover-grid { display: none; }
+/* the hops card owns the top of the nervous system view, the legend, the rate chips and the core labels step aside */
+body[data-beat='ipc_hops'] .hud .legend, body[data-beat='ipc_noise'] .hud .legend,
+body[data-beat='ipc_hops'] .hud .tr, body[data-beat='ipc_noise'] .hud .tr,
+body[data-beat='ipc_hops'] .corelabel, body[data-beat='ipc_noise'] .corelabel { display: none; }
 .cinema .real-credit b, body.capture .real-credit b { font-size: max(9.5px, 1.1vmin); }
 .sc-end .real-line, .sc-open .real-line { display: block; margin-top: 1.4vmin; font: 500 max(11px, 1.6vmin)/1.35 var(--sans); color: rgba(232, 244, 255, 0.92); text-shadow: 0 0.3vmin 1.4vmin rgba(0, 10, 30, 0.9); max-width: min(90vw, 120vmin); }

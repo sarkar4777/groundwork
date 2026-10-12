@@ -458,6 +458,9 @@ class LoopStory(IpcStory):
                 if "approved" in self.said:
                     text = f"EX1's PC takes it{gap}: Mode/Set safe, confirmed on its bus. EX1 runs slower until a person says otherwise."
                 await self.say(eng, "taken", t, text)
+                # a fast PC confirms before the bff ever sees approved or sent
+                if self.done_at is None:
+                    self.done_at = t
             elif act.get("state") in ("approved", "sent"):
                 await self.say(eng, "approved", t, f"Approved in Abenix by {by}.")
                 if self.done_at is None:

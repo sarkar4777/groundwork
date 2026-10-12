@@ -61,3 +61,45 @@ def test_an_answer_without_a_command_says_so():
 
 def test_summary_reads_each_agents_answer():
     assert summary({"finding": "a"}) == "a" and summary({"summary": "b"}) == "b" and summary("plain text") == "plain text"
+
+
+def test_the_loop_story_ends_when_the_pc_confirms_straight_from_waiting():
+    from gwbff.story import LoopStory
+
+    class Eng:
+        def __init__(self):
+            self.now, self.sent, self.faults = 0.0, [], []
+            self.loop = type("L", (), {"view": lambda s: self.recs})()
+            self.recs = []
+
+        def t(self):
+            return self.now
+
+        def queue(self, k, v):
+            self.faults.append((k, v))
+
+        async def emit(self, f):
+            self.sent.append(f)
+
+        async def event(self, *a, **k):
+            self.sent.append({"type": "event", "title": a[1]})
+
+    async def go():
+        eng = Eng()
+        st = LoopStory()
+        st.known = set()
+        eng.now = 1.0
+        await st.before_step(eng, {})
+        rec = {"id": "f1", "node": "ipc-ex1", "rule": "EX1 hydraulics running hot", "detail": "", "agent": {"state": "running"},
+               "action": {"state": "waiting"}}
+        eng.recs = [rec]
+        eng.now = 300.0
+        await st.before_step(eng, {})
+        rec["action"] = {"state": "confirmed", "decided_by": "Admin User", "timings": {"approved_at": 1000, "published_at": 1300, "confirm_ms": 35}}
+        eng.now = 320.0
+        await st.before_step(eng, {})
+        eng.now = 330.5
+        await st.before_step(eng, {})
+        assert st.finished and ("faults", [{"kind": "clear"}]) in eng.faults
+    asyncio.run(go())
+

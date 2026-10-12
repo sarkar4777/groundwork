@@ -350,6 +350,13 @@ def _norm(v):
     return v
 
 
+def _same(cur, want) -> bool:
+    """Abenix fills in defaults the yaml leaves out, so only what the yaml says is compared."""
+    if isinstance(want, dict):
+        return isinstance(cur, dict) and all(_same(cur.get(k), v) for k, v in want.items())
+    return _norm(cur) == _norm(want)
+
+
 def _rule_body(spec: dict, agent_ids: dict) -> dict:
     cond = dict(spec["condition"])
     if cond.get("polygon") == "haul_corridor":
@@ -402,7 +409,7 @@ async def rules(f: Abenix, rep: Report, agent_ids: dict) -> None:
         else:
             want = {k: body[k] for k in ("description", "severity", "cooldown_s", "scope", "condition", "actions")}
             keys = ("description", "severity", "cooldown_s", "scope", "condition")
-            same = all(_norm(cur.get(k)) == _norm(want[k]) for k in keys) and len(cur.get("actions") or []) == len(want["actions"]) and                 all(_norm({k: v for k, v in a.items() if k in w}) == _norm(w) for a, w in zip(cur.get("actions") or [], want["actions"]))
+            same = all(_same(cur.get(k), want[k]) for k in keys) and len(cur.get("actions") or []) == len(want["actions"]) and                 all(_same(a, w) for a, w in zip(cur.get("actions") or [], want["actions"]))
             if same:
                 rep.add("rule", spec["name"], "same", f"/telemetry/rules/{cur['id']}", note)
             else:

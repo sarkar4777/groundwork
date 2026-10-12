@@ -122,6 +122,10 @@ edge() {
   docker build -f edge/Dockerfile -t groundwork-ipc:local .
   say "applying deploy/k8s/groundwork-edge.yaml"
   $K apply -f deploy/k8s/groundwork-edge.yaml
+  # the PCs drive the same layout as the twin, northgate or nh108, from GW_SITE or .env
+  local site="${GW_SITE:-$(grep -s '^GW_SITE=' .env | cut -d= -f2- || true)}"
+  $K -n groundwork-edge patch configmap groundwork-edge --type merge -p "{\"data\":{\"site\":\"${site:-northgate}\"}}" >/dev/null
+  say "PCs on the ${site:-northgate} layout"
   for m in ex1 tc1 ht1 dz1; do $K -n groundwork-edge rollout restart deploy/ipc-$m >/dev/null; done
   for m in ex1 tc1 ht1 dz1; do $K -n groundwork-edge rollout status deploy/ipc-$m --timeout=180s; done
   say "four industrial PCs publishing Sparkplug B to abenix-mosquitto, check with: bash scripts/deploy-k8s.sh edge-check"

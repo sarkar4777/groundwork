@@ -9,7 +9,8 @@
 //   node scripts/capture.mjs --proof --sizes 1920x1080   the real-imagery proof clip, see docs/real-imagery.md
 //   node scripts/capture.mjs --real                       the story on real ground, from .run/take-real.json
 //   node scripts/capture.mjs --ipc --out .run/ipc         the industrial PC story cut, from .run/take-ipc.json
-//   node scripts/capture.mjs --loop --out .run/ipc        the closed loop clip, the wait as a labelled time-lapse
+//   node scripts/capture.mjs --loop --out .run/ipc        the closed loop clip, the wait cut with a title card
+//   add --real to either for the nh108 take on real ground
 //
 // The film is one live take (scripts/record-take.mjs) played back on a virtual clock. Each frame
 // is stepped exactly 1/60 s, drawn, then screenshotted, so the video has no dropped or doubled frames.
@@ -129,6 +130,7 @@ async function renderFilm(browser, w, h, film = {}) {
   const context = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 1 })
   const page = await context.newPage()
   page.on('pageerror', (e) => log('page error:', e.message))
+  page.on('crash', () => log('page crashed'))
   page.on('console', (m) => m.type() === 'error' && log('console:', m.text().slice(0, 200)))
   await page.route('**/__take.json', (r) => r.fulfill({ path: take, contentType: 'application/json' }))
   await page.clock.install({ time: Date.now() })
@@ -181,6 +183,31 @@ async function renderFilm(browser, w, h, film = {}) {
   const cdp = await context.newCDPSession(page)
   const write = (buf) => (ff.stdin.write(buf) ? null : new Promise((r) => ff.stdin.once('drain', r)))
 
+  // a jump cuts a long wait: a title card dissolves in at from, the clock runs on unseen, it dissolves out at to
+  const jump = film.jump ? film.jump(tl) : null
+  // the ground dips to the card colour first, the words come up only on a plain card, so they never sit over the site
+  const FADE = 0.6, WORDS = 0.35, HOLD = 1.8
+  const ramp = (x) => Math.max(0, Math.min(1, x))
+  const cardAt = (x) => {
+    if (!jump) return [0, 0]
+    const { from: a, to: b } = jump
+    if (x < a || x >= b) return [0, 0]
+    return [ramp(Math.min((x - a) / FADE, (b - x) / FADE)), ramp(Math.min((x - a - FADE) / WORDS, (b - FADE - x) / WORDS))]
+  }
+  if (jump) {
+    spans.splice(0, spans.length, ...spans.flatMap(([a, b]) => (a < jump.from && b > jump.to ? [[a, jump.from + FADE + HOLD], [jump.to - FADE - HOLD, b]] : [[a, b]])))
+    await page.evaluate(({ title, sub }) => {
+      const d = document.createElement('div')
+      d.id = 'gw-jump'
+      d.style.cssText = 'position:fixed;inset:0;z-index:99;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2vmin;background:#04122b;opacity:0;pointer-events:none;font-family:Inter,system-ui,sans-serif;text-align:center;padding:0 6vw'
+      d.innerHTML = `<div id="gw-jump-words" style="display:flex;flex-direction:column;align-items:center;gap:2vmin;opacity:0"><div style="font:800 7vmin/1.1 Inter,system-ui,sans-serif;color:#fff;letter-spacing:-0.02em"></div><div style="font:500 3.2vmin/1.35 Inter,system-ui,sans-serif;color:#9fc3ff"></div></div>`
+      d.firstChild.children[0].textContent = title
+      d.firstChild.children[1].textContent = sub
+      document.body.appendChild(d)
+    }, jump)
+  }
+  let card = '0,0'
+
   const caps = []
   let k = 0
   let ms = 0
@@ -202,11 +229,19 @@ async function renderFilm(browser, w, h, film = {}) {
     await page.clock.runFor(target - ms)
     ms = target
     if (v >= endV) break
+    const op = cardAt(v).map((o) => Math.round(o * 100) / 100)
+    if (op.join() !== card) {
+      card = op.join()
+      await page.evaluate(([bg, words]) => {
+        document.getElementById('gw-jump').style.opacity = String(bg)
+        document.getElementById('gw-jump-words').style.opacity = String(words)
+      }, op)
+    }
     const cap = await flush()
     if (!spans.some(([a, b]) => v >= a && v < b)) continue
     const { data } = await cdp.send('Page.captureScreenshot', { format: 'jpeg', quality: 92 })
     await write(Buffer.from(data, 'base64'))
-    caps.push(!film.storySpans && v >= tl.storyV + story[story.length - 1][0] ? '' : cap)
+    caps.push((!film.storySpans && v >= tl.storyV + story[story.length - 1][0]) || card !== '0,0' ? '' : cap)
     shot++
     if (shot % 600 === 0) log(tag, `${(shot / FPS).toFixed(0)} s rendered, ${((Date.now() - t0) / 1000).toFixed(0)} s so far`)
   }
@@ -422,22 +457,35 @@ try {
     // when the loop reached each step, on the story clock, from the captions the bff sent
     const t0 = tk.frames.find((x) => x.f.type === 'event' && x.f.title === 'Story started')?.f.t ?? 0
     const step = (k) => tk.frames.find((x) => x.f.type === 'caption' && x.f.loop_step === k)?.f.t
-    const fired = step('fired'), done = step('taken') ?? step('nocmd')
+    const fired = step('fired'), done = step('taken') ?? step('nocmd'), wear = step('wear') ?? t0 + 1
     if (fired === undefined || done === undefined) throw new Error('the take has no firing or no outcome, record it again')
     const f = fired - t0, d = done - t0
-    // the wait plays in about 12 s at a round speed, from the firing on everything is real time
-    const k = [4, 8, 16, 32, 64].find((x) => (f - 3) / x <= 14) ?? 64
-    log(`loop take: fired at ${f.toFixed(1)} s, done at ${d.toFixed(1)} s, the wait plays at x${k}`)
+    // the wear caption plays out, a title card covers the wait, the scene is back 3.5 s before the rule fires
+    // and from there on everything is real time
+    const a = wear - t0 + 7.5, b = f - 3.5
+    const oil = (x) => {
+      let best = null
+      for (const fr of tk.frames) if (fr.f.type === 'state' && fr.f.ipc?.EX1?.oil_c != null && fr.f.t <= t0 + x) best = fr.f.ipc.EX1.oil_c
+      return best
+    }
+    const mins = Math.round((b - (wear - t0)) / 60)
+    const o0 = oil(wear - t0), o1 = oil(b)
+    if (o0 == null || o1 == null) throw new Error('the take has no oil temperature for EX1')
+    const title = `${mins} minute${mins === 1 ? '' : 's'} later, oil at ${o1.toFixed(0)} °C`
+    const sub = `EX1's hydraulic oil was at ${o0.toFixed(0)} °C when the pump started to wear`
+    log(`loop take: fired at ${f.toFixed(1)} s, done at ${d.toFixed(1)} s, a card from ${a.toFixed(1)} to ${b.toFixed(1)} s: ${title}`)
     for (const [w, h] of SIZES)
       await renderFilm(browser, w, h, {
-        take, name: 'groundwork-ipc-loop-cut', page: '',
+        take, name: REAL ? 'groundwork-ipc-real-loop-cut' : 'groundwork-ipc-loop-cut', page: '',
         storySpans: (tl) => [[tl.storyV + 0.3, tl.storyV + d + 6]],
-        speeds: (tl) => [[tl.storyV + 2, tl.storyV + f - 2, k]],
+        // the unseen wait runs fast so the render does not take five minutes of frames
+        speeds: (tl) => [[tl.storyV + a + 2.6, tl.storyV + b - 2.6, 16]],
+        jump: (tl) => ({ from: tl.storyV + a, to: tl.storyV + b, title, sub }),
       })
   } else if (flag('--ipc')) {
     const take = opt('--take', join(root, '.run', 'take-ipc.json'))
     if (!existsSync(take)) throw new Error(`no ${take}, record one with node scripts/record-take.mjs --ipc --out ${take}`)
-    for (const [w, h] of SIZES) await renderFilm(browser, w, h, { take, name: 'groundwork-ipc-story-cut', story: IPC_FILM })
+    for (const [w, h] of SIZES) await renderFilm(browser, w, h, { take, name: REAL ? 'groundwork-ipc-real-story-cut' : 'groundwork-ipc-story-cut', story: IPC_FILM })
   } else if (VIDEO && !REPLAY) {
     if (REAL && !existsSync(TAKE)) throw new Error(`no ${TAKE}, record one with node scripts/record-take.mjs --site nh108 --out ${TAKE}`)
     if (flag('--retake') || !existsSync(TAKE)) {

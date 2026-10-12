@@ -2,7 +2,7 @@
 
 <p align="center"><img src="docs/media/preview.gif" alt="Groundwork story: the title over the live ground station, the drone feed, a safety stop in 4.7 ms, the whole ground station, the end card" width="100%"></p>
 
-<p align="center"><a href="https://github.com/sarkar4777/groundwork/releases/tag/v1.0.0">Watch the full 64 s films</a>, on the painted site and on a real drone orthophoto, landscape and portrait with subtitles. <a href="https://github.com/sarkar4777/groundwork/releases/tag/v1.1.0">The 2 min industrial PC film</a> shows the real CAN bus, the closed loop and the PCs in Abenix.</p>
+<p align="center"><a href="https://github.com/sarkar4777/groundwork/releases/tag/v1.0.0">Watch the full 64 s films</a>, on the painted site and on a real drone orthophoto, landscape and portrait with subtitles. <a href="https://github.com/sarkar4777/groundwork/releases/tag/v1.1.1">The 2 min industrial PC film</a>, on the real ground, shows the real CAN bus, the closed loop and the PCs in Abenix.</p>
 
 An autonomous construction site, run by [Abenix](https://github.com/sarkar4777/abenix). Northgate Yard is a fictional 4 hectare site digging the two-level basement of a 22-storey tower: two excavators, a dozer, six haul trucks, a luffing tower crane, a mobile crane, a piling rig, a roller, two survey drones and fourteen tagged workers. Every machine has its own virtual controllers talking J1939 on its own bus. Safety rules stop a machine in the same 10 ms tick a worker steps too close. Agents plan the day, a person approves the risky moves, and every number on screen is measured.
 
@@ -59,7 +59,7 @@ echo "GW_SITE=nh108" >> .env
 bash scripts/deploy-k8s.sh                  # or: bash scripts/dev.sh
 ```
 
-The ground station switches to the real ground by itself when the bff runs the `nh108` site. Remove the line from `.env` and deploy again to go back to Northgate.
+The ground station switches to the real ground by itself when the bff runs the `nh108` site. With the industrial PCs deployed, run `bash scripts/deploy-k8s.sh edge` as well, so they drive the same layout. The twin refuses a PC set up for another one. Then `python scripts/trace_haul.py` and `python scripts/provision.py` once HT1 has driven for 20 minutes, so the geofence follows the new haul road. Remove the line from `.env` and deploy again to go back to Northgate.
 
 ### Reconstruct your own site
 
@@ -159,7 +159,7 @@ curl -X POST localhost:8710/story/start -H 'content-type: application/json' -d '
 
 With real ECUs on the bus, run only the gateway container. Point `MQTT_URL` at the site broker and set `GW_MACHINE` to the machine it is fitted to.
 
-**The film.** `groundwork-ipc-story-1920x1080.mp4` and `-1080x1350.mp4`, 2 min 3 s with subtitles, in the [v1.1.0 release](https://github.com/sarkar4777/groundwork/releases/tag/v1.1.0): the stop over the real bus, every hop, the unplugged PC, the noisy harness, the closed loop on EX1 with the wait as a labelled ×32 time-lapse and the rest at real speed, then the PCs in Abenix. Screens of the Abenix side are in [docs/screenshots/ipc](docs/screenshots/ipc), named `abenix-*`.
+**The film.** `groundwork-ipc-real-story-1920x1080.mp4` and `-1080x1350.mp4`, 1 min 56 s with subtitles, in the [v1.1.1 release](https://github.com/sarkar4777/groundwork/releases/tag/v1.1.1). It runs on the real NH108 orthophoto with the PCs on the `nh108` layout: the stop over the real bus, every hop, the unplugged PC, the noisy harness, then the closed loop on EX1. The three minute wait for the oil to heat is a title card with the numbers from the take, and from a few seconds before the rule fires everything plays at real speed. Captions sit along the bottom, the clock top left and the cards on the right, one caption at a time. Then the PCs in Abenix. The first cut on the drawn site, with the wait as a time-lapse, is in [v1.1.0](https://github.com/sarkar4777/groundwork/releases/tag/v1.1.0). Screens of the Abenix side are in [docs/screenshots/ipc](docs/screenshots/ipc), named `abenix-*`.
 
 **Backfill through an uplink cut.** The same Abenix stack takes machine data from its Edge gateway too. With the gateway's uplink cut for 123 s, it buffered 7,288 readings at the peak and drained them in under a second when the link came back: 7,449 sent, 0 lost, and 75 of 75 sequence points in order with no gaps or repeats. The truck's engine chart in Abenix shows no hole where the cut was ([abenix-backfill-1440.png](docs/screenshots/ipc/abenix-backfill-1440.png)).
 
@@ -181,7 +181,7 @@ The rules are in [abenix/rules](abenix/rules). `python scripts/provision.py --on
 
 **Tuned on the streams, not for the demo.**
 - The first idea for rule 1 was pump 1 pressure 15% above normal. Replayed on an hour of normal digging, it would have fired on its own: EX1's pump pressure swings from 73 to 181 bar by the minute as it digs, swings and holds. The oil temperature stayed between 54.5 and 60 °C in the same hour, and the rule on it would have fired 0 times in 6 hours.
-- HT1's haul area is traced from where the truck really drives: the road with 10 m either side, an 18 m turning pad at the bay and an 8 m margin round the spoil area. A narrow corridor would have fired 22 times an hour, because loaded trucks cut corners. All 231 positions HT1 reported in a 30 minute check fall inside the traced area.
+- HT1's haul area is traced from where the truck really drives: the legs its controller drives with 10 m either side, an 18 m turning pad at the bay, a 14 m margin round the spoil area where trucks swing wide to tip, and 6 m round the positions HT1 reported. A narrow corridor would have fired 22 times an hour, because loaded trucks cut corners. On the real NH108 ground the planned road alone missed the U-turn past the far end of the spoil area and a corner cut back to the bay, so `scripts/trace_haul.py` records HT1's GNSS from Abenix into the twin's `drive.json` and the corridor takes it in. 645 positions from 20 minutes of driving went into the trace, and none of the next 53 fell outside.
 
 **Set them off from the fault deck.**
 - *Pump wear on EX1* sends `Diagnostics/InjectFault` 4 to EX1's PC. The main pump works harder for the same flow: pressure creeps up, and the oil heats at about 3 °C a minute. Past 82 °C the hydraulics ECU raises DM1 SPN 1638 FMI 16.
@@ -205,6 +205,8 @@ Measured live, one run each:
 | The PC confirms | 330 ms | 80 ms |
 
 A second EX1 run, through the ground station deployed in the cluster: the agent asked 19 s after the firing, a person approved 18 s later, the command reached Abenix 168 ms after the approval and was published after 136 ms of checks, and the PC confirmed it in 79 ms. Approval to publish varies run to run, 147 ms in the filmed run and 304 ms here.
+
+The v1.1.1 film's run, on the NH108 layout: the rule fired 3 min 22 s after the wear started, 66.5 °C against 57.6 °C. The agent asked 25 s later, a person approved 27 s after that, the command reached Abenix 358 ms after the approval, was published after 127 ms of checks, and the PC confirmed it in 35 ms.
 
 ## Run it end to end
 

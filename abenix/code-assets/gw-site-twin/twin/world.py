@@ -1137,7 +1137,8 @@ def apply_faults(st, faults, ev):
             m = ms[mid]
             wid = f.get("worker") or "W07"
             w = st["workers"][wid]
-            ang = m["heading"] + m["joints"]["swing"] + 0.6
+            # in from the side the worker is on, so the walk back out never crosses the swing zone again
+            ang = math.atan2(w["y"] - m["y"], w["x"] - m["x"]) if math.hypot(w["x"] - m["x"], w["y"] - m["y"]) > 1.0 else m["heading"] + m["joints"]["swing"] + 0.6
             inside = (m["x"] + 6.0 * math.cos(ang), m["y"] + 6.0 * math.sin(ang))
             far = float(f.get("start_m", 22.0))
             start = (m["x"] + far * math.cos(ang), m["y"] + far * math.sin(ang))

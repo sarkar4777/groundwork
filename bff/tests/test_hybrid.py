@@ -2,6 +2,8 @@
 
 import json
 
+import pytest
+
 from twin import j1939 as J
 from twin.api import run
 
@@ -202,14 +204,22 @@ def test_pump_wear_goes_to_the_pc_and_clear_takes_it_back(rules):
     assert [x for x in o["commands"] if x["signal"] == "Diagnostics/InjectFault" and x["value"] == 0]
 
 
-def test_haul_corridor_holds_every_route_point():
+@pytest.mark.parametrize("site", ["northgate", "nh108"])
+def test_haul_corridor_holds_every_route_point(site):
     from twin import hybrid as H
     from twin import layout as L
-    L.use("northgate")
-    poly = H.corridor()
-    pts = L.route_to_bay("EX1") + L.route_haul("EX1", "spoil", 0) + L.route_return("spoil", 0) + [list(p) for p in L.DUMP_POINTS]
-    assert all(H.inside(poly, x, y) for x, y in pts)
-    assert len(poly) <= 200
+    L.use(site)
+    try:
+        poly = H.corridor()
+        pts = L.route_to_bay("EX1") + L.route_haul("EX1", "spoil", 0) + L.route_return("spoil", 0) + [list(p) for p in L.DUMP_POINTS]
+        assert all(H.inside(poly, x, y) for x, y in pts)
+        assert len(poly) <= 200
+        # a wrong turn from either end of the haul road lands outside it
+        for n in ("ramp_top", "j1"):
+            tx, ty = H.off_road(*L.NODES[n])
+            assert not H.inside(poly, tx, ty)
+    finally:
+        L.use("northgate")
 
 
 def test_the_site_never_sets_a_pc_mode(rules):

@@ -104,7 +104,7 @@ export function DroneHud() {
           <span className="hud-v">{scaleM} m</span>
           <div className="bar" style={{ width: scalePx }} />
         </div>
-        <span className="hud-box">
+        <span className="hud-box hover-grid">
           {hover ? (
             <>
               <span className="hud-k">E</span><span className="hud-v">{hover.x.toFixed(1)}</span>{'  '}

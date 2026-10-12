@@ -236,7 +236,9 @@ function RealLine() {
 
 export function RealCredit() {
   const rg = useUi((s) => s.realGround)
-  if (!rg) return null
+  // the nervous system view shows no photo, so there is nothing to credit
+  const nerv = useUi((s) => s.cam === 'nervous')
+  if (!rg || nerv) return null
   return (
     <div className="real-credit" aria-label="Imagery credit">
       <b>REAL</b> drone orthophoto, {rg.attribution} · <b className="sim">SIMULATED</b> machines and people

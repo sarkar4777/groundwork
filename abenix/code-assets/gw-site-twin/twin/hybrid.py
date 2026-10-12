@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import math
+from pathlib import Path
 
 from . import j1939 as J
 from . import layout as L
@@ -365,18 +366,22 @@ def off_road(x, y) -> tuple:
     """The nearest open ground 30 m away that is outside HT1's haul area and every site zone."""
     poly = corridor()
     zones = [z["polygon"] for z in L.site()["zones"] if "polygon" in z]
+    # on nh108 the haul road starts inside the pit, so leaving the zone it is in is fine, the shorter the better
+    home = [z for z in zones if inside(z, x, y)]
+    zones = [z for z in zones if z not in home]
     best = None
     for i in range(16):
         a = i * math.pi / 8
         for r in (30.0, 40.0, 50.0):
             tx, ty = x + r * math.cos(a), y + r * math.sin(a)
-            if abs(tx) > 90 or abs(ty) > 90 or inside(poly, tx, ty) or any(inside(z, tx, ty) for z in zones):
+            if abs(tx) > 90 or abs(ty) > 90 or inside(poly, tx, ty) or any(inside(z, tx, ty) for z in zones + home):
                 continue
             # a wrong turn, not a drive through a fenced zone
             if any(inside(z, x + (tx - x) * k / 10, y + (ty - y) * k / 10) for z in zones for k in range(1, 10)):
                 continue
-            if best is None or r < best[0]:
-                best = (r, round(tx, 1), round(ty, 1))
+            cost = r + sum(r / 10 for k in range(1, 10) if any(inside(z, x + (tx - x) * k / 10, y + (ty - y) * k / 10) for z in home))
+            if best is None or cost < best[0]:
+                best = (cost, round(tx, 1), round(ty, 1))
             break
     return (best[1], best[2]) if best else (round(x + 30, 1), round(y, 1))
 
@@ -561,8 +566,18 @@ def frame_extra(st, fr: dict) -> None:
 
 ROAD_M = 10.0          # either side of the road, a loaded truck cuts the corners
 PAD_M = 18.0           # the turning pad round the loading bay
-SPOIL_M = 8.0          # round the spoil area, trucks swing wide to tip
+SPOIL_M = 14.0         # round the spoil area, trucks swing wide to tip, 13 m seen on nh108
+DRIVE_M = 6.0          # round HT1's own recorded driving
 CELL_M = 1.0
+DRIVE = Path(__file__).with_name("drive.json")
+
+
+def driven() -> list:
+    """HT1's recorded GNSS runs on this layout, from scripts/trace_haul.py, as lists of [x, y]."""
+    try:
+        return json.loads(DRIVE.read_text(encoding="utf-8")).get(L.LAYOUT, {}).get("runs", [])
+    except (OSError, ValueError):
+        return []
 
 
 def _segd(x, y, a, b):
@@ -582,10 +597,12 @@ def _simplify(pts, tol):
 
 
 def corridor() -> list:
-    """The ground HT1 works on, as one polygon in site metres: the road from its bay up the ramp to the spoil area,
-    with the turning pad at the bay and the spoil area's margin, traced on a 1 m grid."""
-    path = [list(L.NODES[n]) for n in ("bay1", "ramp_bot", "ramp_top", "j1", "spoil_in")]
-    bay = path[0]
+    """The ground HT1 works on, as one polygon in site metres: the legs its controller drives on this layout, with the
+    turning pad at the bay, the spoil area's margin and the ground it was seen driving, traced on a 1 m grid."""
+    legs = [L.route_haul("EX1", "spoil", 0)[:-1], L.path(*L.ROUTES["return_spoil"]) + L.route_to_bay("EX1") + [list(L.NODES["bay1"])]]
+    segs = [(leg[i], leg[i + 1]) for leg in legs for i in range(len(leg) - 1)]
+    path = [p for leg in legs for p in leg]
+    bay = list(L.NODES["bay1"])
     spoil = next(z["polygon"] for z in L.site()["zones"] if z["kind"] == "spoil")
     sx0, sx1 = min(p[0] for p in spoil) - SPOIL_M, max(p[0] for p in spoil) + SPOIL_M
     sy0, sy1 = min(p[1] for p in spoil) - SPOIL_M, max(p[1] for p in spoil) + SPOIL_M
@@ -595,13 +612,27 @@ def corridor() -> list:
             return True
         if math.hypot(x - bay[0], y - bay[1]) <= PAD_M:
             return True
-        return any(_segd(x, y, path[i], path[i + 1]) <= ROAD_M for i in range(len(path) - 1))
+        return any(_segd(x, y, a, b) <= ROAD_M for a, b in segs)
 
-    xs = [p[0] for p in path] + [sx0, sx1, bay[0] - PAD_M, bay[0] + PAD_M]
-    ys = [p[1] for p in path] + [sy0, sy1, bay[1] - PAD_M, bay[1] + PAD_M]
+    runs = driven()
+    seen = [p for r in runs for p in r]
+    xs = [p[0] for p in path + seen] + [sx0, sx1, bay[0] - PAD_M, bay[0] + PAD_M]
+    ys = [p[1] for p in path + seen] + [sy0, sy1, bay[1] - PAD_M, bay[1] + PAD_M]
     x0, y0 = math.floor(min(xs) - ROAD_M - 2), math.floor(min(ys) - ROAD_M - 2)
     nx, ny = int(math.ceil(max(xs) + ROAD_M + 2 - x0)), int(math.ceil(max(ys) + ROAD_M + 2 - y0))
     grid = [[on(x0 + (i + 0.5) * CELL_M, y0 + (j + 0.5) * CELL_M) for i in range(nx)] for j in range(ny)]
+    # stamp a disc round every half metre of the recorded driving
+    rc = int(math.ceil(DRIVE_M / CELL_M))
+    for r in runs:
+        for a, b in zip(r, r[1:]):
+            n = max(1, int(math.hypot(b[0] - a[0], b[1] - a[1]) / 0.5))
+            for k in range(n + 1):
+                px, py = a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n
+                ci, cj = int((px - x0) / CELL_M), int((py - y0) / CELL_M)
+                for j in range(max(0, cj - rc), min(ny, cj + rc + 1)):
+                    for i in range(max(0, ci - rc), min(nx, ci + rc + 1)):
+                        if math.hypot(x0 + (i + 0.5) * CELL_M - px, y0 + (j + 0.5) * CELL_M - py) <= DRIVE_M:
+                            grid[j][i] = True
     cell = lambda i, j: 0 <= i < nx and 0 <= j < ny and grid[j][i]  # noqa: E731
     # walk the outline along cell edges, keeping the filled cells on the left
     start = next((i, j) for j in range(ny) for i in range(nx) if grid[j][i])
