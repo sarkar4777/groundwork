@@ -1,5 +1,6 @@
 import { Fragment, useEffect } from 'react'
 import { setCam, useUi } from './live/store'
+import { isTour } from './story/shots'
 import type { Kpi } from './proto/types'
 import { startStory, stopStory } from './live/client'
 import { REPLAY, CAPTURE } from './live/config'
@@ -169,7 +170,7 @@ export function App() {
   const hidden = useUi((s) => s.panelsHidden)
   const story = useUi((s) => s.story.running)
   const opening = useUi((s) => s.opening)
-  const tour = useUi((s) => (s.story.running && s.storyBeat === 'platform') || s.opening)
+  const tour = useUi((s) => (s.story.running && isTour(s.storyBeat)) || s.opening)
   const cinema = (story && !tour) || (CAPTURE && hidden && !story && !opening)
   useTour(tour, opening)
   return (

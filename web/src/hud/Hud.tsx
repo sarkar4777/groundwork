@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { useUi } from '../live/store'
+import { isTour } from '../story/shots'
 import { camInfo, drone } from '../scene/CameraRig'
 import { ecuStats, busRate } from '../live/client'
-import { fmtMs } from '../ui/kit'
+import { ackMs, fmtMs } from '../ui/kit'
 
 function useTick(hz = 15) {
   const [, set] = useState(0)
@@ -248,7 +249,7 @@ function IpcHops() {
   const id = useUi((s) => (s.state?.ipc?.EX1 ? 'EX1' : s.state?.ipc ? Object.keys(s.state.ipc)[0] : ''))
   const v = useUi((s) => s.state?.latency?.ipc)
   const decide = useUi((s) => (s.state?.latency as { l2_tick_ms?: number } | undefined)?.l2_tick_ms)
-  const inStory = useUi((s) => s.story.running)
+  const inStory = useUi((s) => s.story.running && !isTour(s.storyBeat))
   if (!pc || !v || inStory) return null
   const L = pc.lat || {}
   const stop = v.last_stop && v.last_stop.machine === id ? v.last_stop : null
@@ -278,7 +279,7 @@ function IpcHops() {
         ) : (
           <Hop label="Abenix to the PC" ms={hop('Abenix to the PC') ?? L.SiteToGateway_ms} note="checks, MQTT" />
         )}
-        <Hop label="PC ACK on the bus" ms={stop?.hold_ack_ms ?? L.HoldAck_ms} note="J1939" />
+        <Hop label="PC ACK on the bus" ms={ackMs(stop?.hold_ack_ms ?? L.HoldAck_ms)} note="J1939" />
         <Hop label={stop && !stop.moving ? 'Hold in force' : 'Machine still'} ms={stop && !stop.moving ? hop('Hold in force') : hop('PC to standstill') ?? L.HoldStop_ms} note={stop && !stop.moving ? 'was already still' : 'from the hold'} />
       </div>
       <div className="hops-total">

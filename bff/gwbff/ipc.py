@@ -19,6 +19,7 @@ FRAME_POLL_S = 0.25
 FRAMES_KEPT = 80
 # the trace shows a handful per step, and since keeps each poll to what is new
 FRAME_LIMIT = 50
+ACK_MAX_MS = 10_000
 # gateway numbers a stop is measured from, written by the PC after it acts on a hold
 STOP_KEYS = ("Latency/HoldStop_ms", "Latency/HoldAck_ms", "Latency/SiteToGateway_ms", "Latency/Commands", "Latency/Stops")
 
@@ -258,6 +259,9 @@ class Ipc:
 
     def _stop(self, w: dict) -> dict:
         g = w["got"]
+        # the gateway forgets a command after 10 s, an older ACK figure belongs to another command
+        if (g.get("Latency/HoldAck_ms") or 0) > ACK_MAX_MS:
+            g.pop("Latency/HoldAck_ms")
         detect = float(w.get("detect_ms") or 0.0)
         # Abenix stamps a command on arrival, so the leg before it is half the quickest round trip
         rtt = self.rtt_ms.pct(0.1)

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useUi, type CaptionLog } from '../live/store'
 import { hot } from '../live/hot'
 import { stopStory } from '../live/client'
-import { beatAt, storyLength } from './shots'
+import { beatAt, isTour, storyLength } from './shots'
 import { StoryAiOff, StoryAutonomy, StoryCode, StoryEnd, StoryGust, StoryHops, StoryLatency, StoryLoop, StoryOil, StoryPc, StoryPhone, StoryLapse } from './StoryCards'
 import { Icon } from '../ui/kit'
 
@@ -30,7 +30,7 @@ const BEAT_CAPTION: Record<string, number> = { hero: 0, stop: 1, replan: 2, nerv
 
 export function Captions() {
   const cap = useUi((s) => s.caption)
-  const platform = useUi((s) => s.storyBeat === 'platform')
+  const platform = useUi((s) => isTour(s.storyBeat))
   const [, tick] = useState(0)
   useEffect(() => {
     const id = setInterval(() => tick((x) => x + 1), 200)
@@ -39,7 +39,10 @@ export function Captions() {
   const log = useUi((s) => s.captionLog)
   const running = useUi((s) => s.story.running)
   const beatName = useUi((s) => s.storyBeat)
-  if (!cap || platform) return null
+  // the beat from the clock as well as the stored one, a caption that opens a tour turn never shows for a frame first
+  const st = useUi.getState().story
+  const comingTour = running && hot.curr ? isTour(beatAt(hot.curr.t - st.t0).name) : false
+  if (!cap || platform || comingTour) return null
   // in the story each beat shows its own line, in the bff's order, whatever the clock says
   const idx = BEAT_CAPTION[beatName]
   if (running && idx !== undefined) {
@@ -140,7 +143,7 @@ export function StoryLayer() {
     document.body.dataset.beat = running ? beat.name : ''
     const prev = useUi.getState().storyBeat
     const next = running ? beat.name : ''
-    const pick = (b: string) => b === 'platform' || b === 'ipc_pc' || b === 'loop_build'
+    const pick = (b: string) => b === 'platform' || b === 'ipc_pc' || b === 'loop_build' || (b.startsWith('tour_') && b !== 'tour_site' && b !== 'tour_hops')
     if (prev !== next) useUi.setState({ storyBeat: next, ...(pick(next) ? { selected: 'EX1' } : pick(prev) ? { selected: null } : {}) })
   }, [running, beat.name])
   if (!running) return null
@@ -162,7 +165,7 @@ export function StoryLayer() {
       {f === 'pc' && <StoryPc />}
       {f === 'oil' && <StoryOil />}
       {f === 'loop' && <StoryLoop />}
-      {useUi.getState().story.loop && <StoryLapse s={s} />}
+      {useUi.getState().story.loop && !isTour(beat.name) && <StoryLapse s={s} />}
       <StoryEnd show={end} />
     </>
   )

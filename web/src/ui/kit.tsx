@@ -83,6 +83,31 @@ export const fmtMs = (ms: number | undefined) => {
   return `${ms.toFixed(1)} ms`
 }
 
+// plain names for the PC signals Abenix carries by path, the registry has none
+const SIGNAL_NAMES: Record<string, string> = {
+  'Hydraulics/OilTemp_C': 'hydraulic oil temperature', 'Hydraulics/Pump1Pressure_bar': 'main pump pressure',
+  'Hydraulics/Pump2Pressure_bar': 'second pump pressure', 'Hydraulics/BoomPressure_bar': 'boom cylinder pressure',
+  'Engine/OilTemp_C': 'engine oil temperature', 'Engine/Coolant_C': 'coolant temperature', 'Engine/Speed_rpm': 'engine speed',
+  'GNSS/X_m': 'site position', 'GNSS/Y_m': 'site position',
+}
+
+export const signalName = (path: string) => {
+  if (SIGNAL_NAMES[path]) return SIGNAL_NAMES[path]
+  const last = (path.split('/').pop() || path).replace(/_[A-Za-z%]+$/, '')
+  return last.replace(/([a-z0-9])([A-Z])/g, '$1 $2').toLowerCase()
+}
+
+// a firing's detail in plain words: the signal by name, long decimals to one place
+export const plainDetail = (detail: string | undefined, signal?: string) => {
+  let s = detail || ''
+  if (signal && s.includes(signal)) s = s.split(signal).join(signalName(signal))
+  s = s.replace(/-?\d+\.\d{2,}/g, (n) => Number(n).toFixed(1))
+  return s.charAt(0).toUpperCase() + s.slice(1)
+}
+
+// the PC's gateway forgets a command after 10 s, so a longer ACK time belongs to another command
+export const ackMs = (ms: number | null | undefined) => (typeof ms === 'number' && ms <= 10000 ? ms : undefined)
+
 export const modeTone = (mode: string) => (mode === 'auto' ? 'ok' : mode === 'manual' ? 'ai' : mode === 'offline' ? 'stop' : 'warn')
 
 export const ECU_NAMES: Record<string, string> = {

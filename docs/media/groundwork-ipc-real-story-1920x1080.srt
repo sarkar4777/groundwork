@@ -9,50 +9,62 @@ A worker walks into EX1's swing zone. The hold crosses MQTT to EX1's PC,
 and EX1 is still 249 ms after the twin saw the worker.
 
 3
-00:00:18,017 --> 00:00:25,017
-Every hop is measured, from the bus through the gateway
-and the broker into the Abenix store, and back.
+00:00:18,900 --> 00:00:24,817
+Every hop is measured, from the bus through the gateway and the broker into the Abenix store, and back.
 
 4
-00:00:25,017 --> 00:00:31,017
-The worker is clear. EX1 works on the fallback
-plan until a person signs the stop off.
+00:00:26,033 --> 00:00:29,833
+Four machines run on their own industrial PCs, the rest are simulated.
+The labels say which: IPC · REAL BUS or SIM.
 
 5
-00:00:31,017 --> 00:00:39,017
-We unplug EX1's PC. Abenix sees it die on the broker,
-and EX1's own safety PLC holds it.
+00:00:31,017 --> 00:00:33,417
+We unplug EX1's PC from the fault deck.
+It drops off MQTT without a goodbye.
 
 6
-00:00:39,017 --> 00:00:47,017
+00:00:34,617 --> 00:00:39,017
+Abenix sees it die on the broker, and EX1's own safety PLC holds it.
+Its console and its card show the PC offline.
+
+7
+00:00:39,017 --> 00:00:42,017
 Plugged back in, it is born again on
 the broker and goes back to work.
 
-7
-00:00:47,017 --> 00:00:54,400
-A noisy harness on EX1. Error frames and
-retransmits on the wire, and the bus keeps going.
-
 8
+00:00:42,933 --> 00:00:46,833
+On the left, EX1's controllers stream live from its PC again.
+Bottom left, every frame on its bus decoded, and every layer timed.
+
+9
+00:00:48,017 --> 00:00:49,433
+A noisy harness on EX1, from the fault deck.
+
+10
+00:00:50,633 --> 00:00:54,400
+Error frames and retransmits on EX1's wire, each frame tagged IPC.
+The bus keeps going.
+
+11
 00:00:55,100 --> 00:01:02,600
 EX1's main pump starts to wear.
 It works harder for the same flow, and the oil heats up.
 
-9
+12
 00:01:10,883 --> 00:01:20,783
 A rule in Abenix sees EX1's oil running hot, 15% above its own normal: 66.5 °C over the
 last 5 minutes against 57.6 °C the half hour before. It wakes the maintenance tech.
 
-10
-00:01:20,783 --> 00:01:31,483
-It reads the last 15 minutes and the manual,
-and asks to put EX1 in safe mode. A person decides.
+13
+00:01:21,683 --> 00:01:31,483
+It asks to put EX1 in safe mode. A person decides in Abenix,
+and the site manager's phone shows the request.
 
-11
-00:01:31,483 --> 00:01:36,883
-Approved in Abenix by Admin User,
-and EX1's PC takes it 0.5 s later: Mode/Set safe, confirmed on its bus.
+14
+00:01:32,483 --> 00:01:36,883
+Approved in Abenix by Admin User, and EX1's PC takes it 0.5 s later: Mode/Set safe, confirmed on its bus.
 
-12
+15
 00:01:37,483 --> 00:01:48,783
 In Abenix every PC is a device, with live graphs, history and the raw frames.

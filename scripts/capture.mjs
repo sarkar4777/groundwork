@@ -153,7 +153,8 @@ async function renderFilm(browser, w, h, film = {}) {
       window.__gwStep()
       window.__gw.frame()
       await mc()
-      return document.querySelector('.caption:not(.off)')?.innerText?.trim() ?? ''
+      // the caption on screen, the story's own or the tour's, whichever is showing
+      return [...document.querySelectorAll('.caption:not(.off)')].map((e) => e.innerText.trim()).find((x) => x) ?? ''
     })
   // the scene builds and its shaders compile on a still site before the clock starts
   for (let i = 0; i < (REAL ? 160 : 90); i++) {

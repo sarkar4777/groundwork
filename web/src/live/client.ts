@@ -1,9 +1,10 @@
-import type { AgentFrame, BusFrame, EventFrame, FaultKind, Frame, StateFrame } from '../proto/types'
+import type { AgentFrame, BusFrame, EventFrame, FaultKind, Frame, LoopRecord, StateFrame } from '../proto/types'
 import { PLAYBACK, REPLAY, SIM_HTTP, wsUrl } from './config'
 import { syncReal } from '../real/realSite'
 import { hot } from './hot'
 import { trackLatency } from './latency'
-import { parseAgents, parseSite, parseTerrain } from './parse'
+import { parseAgents, parseSite, parseTerrain, prettyAgent } from './parse'
+import { fmtMs, plainDetail } from '../ui/kit'
 import { toast, useUi, type Approval } from './store'
 import type { Replay } from '../dev/replay'
 
@@ -154,6 +155,10 @@ export function ingest(f: Frame, at?: number) {
       pending.dirty = true
       break
     case 'event':
+      // the same 10 s rule the bff now applies, for takes recorded before it did
+      if (f.kind === 'ipc_stop' && typeof f.detail === 'string') {
+        f.detail = f.detail.replace(/ACK on the bus at ([\d.]+) ms, /, (m, v) => (Number(v) > 10000 ? '' : m))
+      }
       hot.flashes.push(f)
       if (f.kind === 'safety_stop' && f.machine) hot.stopFlash.set(f.machine, performance.now())
       pending.events.push(f)
@@ -172,6 +177,7 @@ export function ingest(f: Frame, at?: number) {
     case 'loop': {
       // one record per rule firing, newest first, replaced as its steps fill in
       const s = useUi.getState()
+      loopEvents(s.loops.find((x) => x.id === f.id), f)
       useUi.setState({ loops: [f, ...s.loops.filter((x) => x.id !== f.id)].slice(0, 20) })
       if (f.action.state === 'waiting' && f.node) hot.flashes.push({ type: 'event', t: hot.curr?.t ?? 0, kind: 'fault', title: f.rule, machine: f.node.replace('ipc-', '').toUpperCase() })
       break
@@ -184,6 +190,26 @@ export function ingest(f: Frame, at?: number) {
       break
     }
   }
+}
+
+// each step of a rule firing in the event log, as the records arrive: fired, asked, decided, taken
+function loopEvents(prev: LoopRecord | undefined, r: LoopRecord) {
+  const rt = (r as { t?: unknown }).t
+  const t = typeof rt === 'number' ? rt : hot.curr?.t ?? 0
+  const mid = (r.node || '').replace('ipc-', '').toUpperCase()
+  const who = prettyAgent(r.agent?.name || '')
+  const a = r.action || { state: '' }
+  const was = prev?.action?.state
+  const push = (title: string, detail = '') => {
+    pending.events.push({ type: 'event', t, kind: 'loop', machine: mid, title, detail })
+    pending.dirty = true
+  }
+  if (!prev) push(`Rule fired in Abenix: ${r.rule}`, plainDetail(r.detail, r.signal))
+  if (a.state === 'waiting' && was !== 'waiting') push(`${who} asks for ${a.signal} ${String(a.value)} on ${mid}`, 'Waiting for a person in Abenix')
+  const decided = ['approved', 'sent', 'confirmed'].includes(a.state)
+  if (decided && !['approved', 'sent', 'confirmed'].includes(was || '') && (a.decided_by || a.approved_by)) push(`Approved in Abenix by ${a.decided_by || a.approved_by}`)
+  if (a.state === 'confirmed' && was !== 'confirmed') push(`${mid}'s PC took ${a.signal} ${String(a.value)}`, typeof a.timings?.confirm_ms === 'number' ? `Confirmed on its bus in ${fmtMs(a.timings.confirm_ms)}` : '')
+  if (a.state === 'no_command' && r.agent?.state === 'answered' && prev?.agent?.state !== 'answered') push(`${who} answered, no command`, r.agent.answer || '')
 }
 
 function flush() {

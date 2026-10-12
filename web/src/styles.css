@@ -603,7 +603,7 @@ body[data-beat='platform'] { overflow: hidden; background: #04122b; }
   padding: 10px; gap: 10px;
 }
 .app.tour .col { overflow: hidden; flex-direction: column; }
-.app.tour .col.left { flex-direction: column; }
+.app.tour .col.left { flex-direction: column; flex-wrap: nowrap; }
 .app.tour .col.left > * { flex: none; }
 .app.tour .bottom { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) minmax(0, 1fr); }
 .app.tour .bottom > :first-child { grid-column: auto; }
@@ -637,6 +637,22 @@ body[data-tourcap='side-right'] .tour-captions { right: 3%; left: auto; transfor
 
 .tour-captions .caption { background: rgba(2, 10, 26, 0.95); border: 1px solid rgba(201, 236, 255, 0.32); box-shadow: 0 1vmin 6vmin rgba(0, 4, 16, 0.85); transition: opacity 0.2s ease; animation: none; }
 .tour-captions .caption.off { opacity: 0; }
+/* a tour turn lights its own panels and dims the rest */
+.app.tour.litmode .glass:not(.tour-lit), .app.tour.litmode .topbar { opacity: 0.55; filter: saturate(0.8) brightness(0.85); }
+.app.tour.litmode:not([data-tour='feed']):not([data-tour='card']) .feed { opacity: 0.6; filter: saturate(0.8) brightness(0.85); }
+.app.tour.litmode .feed .glass { opacity: 1; filter: none; }
+.app.tour.litmode .tour-lit { box-shadow: 0 0 0 1px rgba(92, 200, 255, 0.75), 0 0 36px rgba(92, 200, 255, 0.35); border-color: rgba(92, 200, 255, 0.8); }
+/* the trace turn gives the trace the console's room */
+body[data-beat='tour_noise'] .app.tour[data-tour='trace'] section[aria-labelledby='h-vecu'] { display: none; }
+body[data-beat='tour_noise'] .app.tour[data-tour='trace'] .trace { max-height: 640px; }
+/* the phone turn brings the phone up under the loop panel */
+body[data-beat='tour_phone'] .app.tour section[aria-labelledby='h-pilot'], body[data-beat='tour_phone'] .app.tour section[aria-labelledby='h-autonomy'] { display: none; }
+/* on a phone the tour lines wrap where they fit */
+@media (max-aspect-ratio: 1/1) { .tour-captions .caption { white-space: normal; } }
+/* the view switcher and layer menu are for people at the screen, not for the film */
+body[data-beat^='tour_'] .modebar, body[data-beat^='tour_'] .layers { display: none !important; }
+/* the take's own fault deck press, shown on the button a person would use */
+.app .bottom button.tour-press { transform: scale(0.96); box-shadow: 0 0 0 3px rgba(92, 200, 255, 0.95), 0 0 34px rgba(92, 200, 255, 0.7); filter: brightness(1.25); transition: transform 0.12s, box-shadow 0.12s; }
 
 /* the film's opening title over the whole live ground station */
 .sc-open { position: fixed; inset: 0; z-index: 70; display: flex; align-items: center; justify-content: center; text-align: center; pointer-events: none; background: rgba(4, 16, 38, 0.52); backdrop-filter: blur(1.5px) saturate(0.9); }
@@ -661,6 +677,8 @@ body:has(.sc-open) { background: #04122b; overflow: hidden; }
 .app.cinema:has(.real-credit) .captions { bottom: calc(5% + 22px); }
 /* the end card carries its own photo credit */
 body[data-endcard='1'] .real-credit { display: none; }
+/* a card in the right lane covers the drone's gimbal readout, so it steps aside */
+body[data-beat='loop_build'] .hud .gimbal, body[data-beat='loop_run'] .hud .gimbal, body[data-beat='ipc_pc'] .hud .gimbal { display: none; }
 body.capture .hover-grid { display: none; }
 /* the hops card owns the top of the nervous system view, the legend, the rate chips and the core labels step aside */
 body[data-beat='ipc_hops'] .hud .legend, body[data-beat='ipc_noise'] .hud .legend,

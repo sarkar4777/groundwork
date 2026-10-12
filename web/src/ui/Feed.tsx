@@ -1,6 +1,7 @@
 import { RealCredit } from '../story/StoryCards'
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import { setCam, useUi, type CamMode, type Overlays } from '../live/store'
+import { isTour } from '../story/shots'
 import { hot } from '../live/hot'
 import { labelEls } from '../scene/Labels'
 import { CabHud, DroneHud, ModeTag, NervousHud, SeatHud } from '../hud/Hud'
@@ -245,7 +246,7 @@ function SceneFallback() {
 
 export function Feed() {
   const cam = useUi((s) => s.cam)
-  const story = useUi((s) => s.story.running && s.storyBeat !== 'platform')
+  const story = useUi((s) => s.story.running && !isTour(s.storyBeat))
   const hud = useMemo(() => {
     switch (cam) {
       case 'drone':

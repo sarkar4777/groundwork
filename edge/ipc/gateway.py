@@ -253,6 +253,9 @@ class Gateway:
         if pgn != F.PROP_A or data[4] != self.node.sa:
             return
         now = time.time()
+        # a command the PLC never answered must not take a later ACK, so stale ones go first
+        for cid in [k for k, c in self.pending.items() if now - c["t"] > 10]:
+            del self.pending[cid]
         for cid, c in sorted(self.pending.items()):
             if c["code"] == fn and not c.get("acked"):
                 c["acked"] = now

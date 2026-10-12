@@ -3,7 +3,7 @@ import { useUi } from '../live/store'
 import { p50 } from '../live/latency'
 import { PhoneDevice } from '../panels/Panels'
 import { LEVEL_NAMES, prettyAgent } from '../live/parse'
-import { fmtMs } from '../ui/kit'
+import { ackMs, fmtMs, plainDetail } from '../ui/kit'
 
 // Large, single-purpose cards for the story video, sized in vmin so they read on a phone.
 
@@ -271,7 +271,7 @@ export function StoryHops() {
           ['Publish to the PC', hop('Abenix publish to the PC') ?? L.SiteToGateway_ms, 'MQTT broker to the gateway'],
         ] as [string, number | null | undefined, string][])
       : ([['Abenix to the PC', hop('Abenix to the PC') ?? L.SiteToGateway_ms, 'checks, MQTT']] as [string, number | null | undefined, string][])),
-    stop && !stop.moving ? ['Hold in force', hop('Hold in force') ?? null, 'ACK on the bus, EX1 was already still'] : ['Machine still', hop('PC to standstill') ?? L.HoldStop_ms, `ACK on the bus at ${fmtMs(stop?.hold_ack_ms ?? L.HoldAck_ms)}`],
+    stop && !stop.moving ? ['Hold in force', hop('Hold in force') ?? null, 'ACK on the bus, EX1 was already still'] : ['Machine still', hop('PC to standstill') ?? L.HoldStop_ms, `ACK on the bus at ${fmtMs(ackMs(stop?.hold_ack_ms ?? L.HoldAck_ms))}`],
   ]
   const row = (dir: string, items: typeof up) => (
     <div className="sc-hops-row">
@@ -346,7 +346,7 @@ export function StoryLoop() {
     <div className="sc-card sc-loop">
       <div className="sc-kicker">Rule → agent → action, live from Abenix</div>
       <div className="sc-loop-row">
-        <div className="sc-loop-step on"><span className="k">Rule fired</span><span className="t">{r.rule}</span><span className="d">{r.detail}</span></div>
+        <div className="sc-loop-step on"><span className="k">Rule fired</span><span className="t">{r.rule}</span><span className="d">{plainDetail(r.detail, r.signal)}</span></div>
         <div className={`sc-loop-step ${r.agent.state !== 'running' ? 'on' : 'live'}`}><span className="k">Maintenance tech</span><span className="t">{r.agent.state === 'running' ? 'reading the history and the manual' : r.agent.state === 'sending' ? 'approved, sending the command' : r.agent.state === 'waiting' ? 'waiting for a person' : r.agent.state}</span>{r.agent.answer && <span className="d">“{r.agent.answer}”</span>}</div>
         <div className={`sc-loop-step ${a.state === 'confirmed' ? 'on' : a.state === 'waiting' ? 'live' : ''}`}><span className="k">Action</span><span className="t">{a.signal ? `${a.signal} = ${String(a.value)} → EX1` : 'not yet'}</span><span className="d">{word[a.state] ?? ''}{a.decided_by || a.approved_by ? `, by ${a.decided_by || a.approved_by}` : ''}{a.timings && typeof a.timings.confirm_ms === 'number' ? `, confirmed in ${fmtMs(a.timings.confirm_ms)}` : ''}</span></div>
       </div>

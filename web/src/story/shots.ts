@@ -25,16 +25,21 @@ export const BEATS: Beat[] = [
 ]
 
 // The industrial PC story, live on the bff's clock. 50 to 58 s is where the film cuts to Abenix.
+// tour_ beats show the whole ground station, Tour.tsx moves over it and captions it
 export const IPC_BEATS: Beat[] = [
   { from: 0, to: 6, name: 'hero', mode: 'drone' },
   { from: 6, to: 13, name: 'stop', mode: 'drone' },
-  { from: 13, to: 20, name: 'ipc_hops', mode: 'nervous', focus: 'hops' },
-  { from: 20, to: 26, name: 'ipc_release', mode: 'drone' },
-  { from: 26, to: 42, name: 'ipc_pc', mode: 'drone', focus: 'pc' },
-  { from: 42, to: 50, name: 'ipc_noise', mode: 'nervous', focus: 'hops' },
+  { from: 13, to: 20, name: 'tour_hops', mode: 'nervous' },
+  { from: 20, to: 25, name: 'tour_site', mode: 'drone' },
+  { from: 25, to: 34, name: 'tour_unplug', mode: 'drone' },
+  { from: 34, to: 37, name: 'ipc_pc', mode: 'drone', focus: 'pc' },
+  { from: 37, to: 42, name: 'tour_streams', mode: 'drone' },
+  { from: 42, to: 50, name: 'tour_noise', mode: 'nervous' },
   { from: 50, to: 58, name: 'ipc_abenix', mode: 'drone' },
   { from: 58, to: 70, name: 'end', mode: 'orbit', focus: 'endcard' },
 ]
+
+export const isTour = (name: string) => name === 'platform' || name.startsWith('tour_')
 
 export const storyLength = () => {
   const st = useUi.getState().story
@@ -51,6 +56,10 @@ function loopBeat(s: number): Beat {
   const at = (k: string) => (st.steps?.[k] !== undefined ? st.steps[k] - st.t0 : undefined)
   const done = at('taken') ?? at('nocmd')
   if (done !== undefined && s >= done + 6) return { from: done + 6, to: done + 30, name: 'end', mode: 'orbit', focus: 'endcard' }
+  // the person's decision and what came of it, on the whole ground station
+  if (done !== undefined && s >= done) return { from: done, to: done + 6, name: 'tour_loop', mode: 'drone' }
+  const asked = at('asked')
+  if (asked !== undefined && s >= asked) return { from: asked, to: done ?? asked + 600, name: 'tour_phone', mode: 'drone' }
   const fired = at('fired')
   if (fired !== undefined && s >= fired) return { from: fired, to: (done ?? fired + 120) + 6, name: 'loop_run', mode: 'drone', focus: 'loop' }
   return { from: 0, to: fired ?? 3600, name: 'loop_build', mode: 'drone', focus: 'oil' }
@@ -178,7 +187,9 @@ export function storyShot(s: number, pose: Pose, t: number): { name: string; mod
       dronePose(pose, -18, 10, 150, t, -86, 44)
       break
     case 'loop_build':
-    case 'loop_run': {
+    case 'loop_run':
+    case 'tour_phone':
+    case 'tour_loop': {
       // EX1 on the left, the card on the right
       const e = at('EX1')
       dronePose(pose, e.x + 14, e.y - 3, 122, t, -89, 34)
@@ -191,6 +202,14 @@ export function storyShot(s: number, pose: Pose, t: number): { name: string; mod
       dronePose(pose, e.x + 4, e.y - 3, 125, t, -88, 36 - u * 4)
       break
     }
+    case 'tour_site': {
+      // every machine on the site with its IPC or SIM label
+      const c = workCentre()
+      dronePose(pose, c.x, c.y, 150, t, -89, 56)
+      break
+    }
+    case 'tour_unplug':
+    case 'tour_streams':
     case 'ipc_pc': {
       // EX1 left of frame, its card on the right
       const e = at('EX1')
@@ -198,7 +217,9 @@ export function storyShot(s: number, pose: Pose, t: number): { name: string; mod
       break
     }
     case 'ipc_hops':
-    case 'ipc_noise': {
+    case 'ipc_noise':
+    case 'tour_hops':
+    case 'tour_noise': {
       const e = at('EX1')
       orbitPose(pose, 120 - u * 20, 80 - u * 8, 0.9 + u * 0.4, new THREE.Vector3(e.x, 20, -e.y))
       pose.pos.x += e.x

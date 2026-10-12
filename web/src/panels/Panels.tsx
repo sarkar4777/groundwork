@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useUi, type Approval } from '../live/store'
 import { approve, ecuStats, refreshAgents, sendFault } from '../live/client'
-import { ECU_NAMES, Icon, Panel, fmtMs, fmtT, modeTone } from '../ui/kit'
+import { ECU_NAMES, Icon, Panel, fmtMs, fmtT, modeTone, signalName } from '../ui/kit'
 import { LEVEL_NAMES, prettyAgent } from '../live/parse'
 import type { BusFrame, FaultKind, LoopRecord, PlanNode } from '../proto/types'
 import { REPLAY } from '../live/config'
+import { hot } from '../live/hot'
 import { hasServerP50, latHistory, p50 } from '../live/latency'
 
 function useNow(hz: number) {
@@ -106,6 +107,17 @@ export function SignalTrace({ focus }: { focus?: boolean }) {
   const paused = useUi((s) => s.tracePaused)
   const [machine, setMachine] = useState('all')
   const [proto, setProto] = useState('all')
+  // the noisy harness turn of the film shows EX1's real bus only, as a person would filter it
+  const beat = useUi((s) => s.storyBeat)
+  useEffect(() => {
+    if (beat === 'tour_noise' || beat === 'tour_streams') {
+      setMachine('EX1')
+      setProto('ipc')
+    } else if (beat.startsWith('tour_') || beat === '') {
+      setMachine('all')
+      setProto('all')
+    }
+  }, [beat])
   const machines = useMemo(() => [...new Set(bus.map((b) => b.machine))].sort(), [bus])
   const hasReal = useMemo(() => bus.some((b) => b.source === 'ipc'), [bus])
   const rows = useMemo(() => {
@@ -214,6 +226,12 @@ function ago(t: number | string | undefined, now: number) {
   return s < 60 ? `${s} s ago` : `${Math.round(s / 60)} min ago`
 }
 
+// on the site clock, so a recorded take reads the age it had then
+function simAgo(t: number) {
+  const s = Math.max(0, Math.round((hot.curr?.t ?? t) - t))
+  return s < 60 ? `${s} s ago` : `${Math.round(s / 60)} min ago`
+}
+
 function LoopCard({ r, web, now }: { r: LoopRecord; web?: string; now: number }) {
   const a = r.action
   const commandWords = a.signal ? `${a.signal} = ${typeof a.value === 'string' ? a.value : JSON.stringify(a.value)}` : ''
@@ -225,9 +243,9 @@ function LoopCard({ r, web, now }: { r: LoopRecord; web?: string; now: number })
       <div className="loop-step">
         <span className="loop-k">Rule</span>
         <span className="loop-t">{r.rule}</span>
-        <span className="loop-d">{r.signal ? `${r.signal.split('/').pop()} ${fmtValue(r.value)}` : r.detail}</span>
+        <span className="loop-d">{r.signal ? `${signalName(r.signal)} ${fmtValue(r.value)}` : r.detail}</span>
         <LoopSpark values={r.spark} />
-        <span className="loop-at">{ago(r.fired_at, now)}</span>
+        <span className="loop-at">{typeof (r as { t?: unknown }).t === 'number' && hot.curr ? simAgo((r as unknown as { t: number }).t) : ago(r.fired_at, now)}</span>
       </div>
       <i className={`loop-link ${r.agent.state === 'running' ? 'live' : ''}`} aria-hidden />
       <div className="loop-step">
@@ -519,6 +537,8 @@ export function PhoneDevice({ tap, max = 4 }: { tap?: boolean; max?: number }) {
   const approvals = useUi((s) => s.approvals)
   const pending = approvals.filter((a) => a.status === 'pending' || a.status === 'sending')
   const recent = [...approvals].reverse().slice(0, max)
+  // machine commands an agent asked for wait in Abenix too, the phone shows them and who decided
+  const asks = useUi((s) => s.loops).filter((r) => r.action?.approval_id && r.action.signal).slice(0, 2)
   const [buzz, setBuzz] = useState(false)
   const lastCount = useRef(0)
   useEffect(() => {
@@ -538,12 +558,28 @@ export function PhoneDevice({ tap, max = 4 }: { tap?: boolean; max?: number }) {
             <div className="phone-status"><span>{clock.getHours()}:{String(clock.getMinutes()).padStart(2, '0')}</span><span>5G ▮▮▮</span></div>
             <div className="phone-title">Approvals<small>Northgate Yard · site manager</small></div>
             <div className="phone-body">
-              {recent.length === 0 && <div className="empty" style={{ marginTop: 40 }}>Nothing waiting for you</div>}
-              {recent.map((a) => <ApprovalCard key={a.key} a={a} />)}
+              {recent.length === 0 && asks.length === 0 && <div className="empty" style={{ marginTop: 40 }}>Nothing waiting for you</div>}
+              {asks.map((r) => <CommandCard key={r.id} r={r} />)}
+              {recent.slice(0, Math.max(0, max - asks.length)).map((a) => <ApprovalCard key={a.key} a={a} />)}
             </div>
           </div>
           <div className={`thumb ${tap ? 'tap' : ''}`} />
         </div>
+  )
+}
+
+function CommandCard({ r }: { r: LoopRecord }) {
+  const a = r.action
+  const mid = (a.node || r.node || '').replace('ipc-', '').toUpperCase()
+  const by = a.decided_by || a.approved_by
+  return (
+    <div className="approval">
+      <div className="who"><span>{prettyAgent(r.agent?.name || '')}</span><span className="num">{mid}</span></div>
+      <p><b>{a.signal} = {String(a.value)}</b> on {mid}. {a.reason || ''}</p>
+      {a.state === 'waiting' && <div className="state" style={{ color: '#ffb020' }}>Waiting for a person in Abenix</div>}
+      {['approved', 'sent', 'confirmed'].includes(a.state) && <div className="state" style={{ color: '#3ee6a8' }}>Approved in Abenix{by ? ` by ${by}` : ''}{a.state === 'confirmed' ? `, ${mid}'s PC took it` : ''}</div>}
+      {a.state === 'denied' && <div className="state" style={{ color: '#ffb3bb' }}>Rejected in Abenix{by ? ` by ${by}` : ''}</div>}
+    </div>
   )
 }
 
