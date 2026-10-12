@@ -1188,6 +1188,8 @@ class EventsClient:
                             err.get("details"),
                         )
                     tries = 0
+                    # server-sent events are always UTF-8, never guessed
+                    res.encoding = "utf-8"
                     event, data, eid = "message", [], None
                     async for line in res.aiter_lines():
                         if line == "":

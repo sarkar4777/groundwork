@@ -158,6 +158,13 @@ def main() -> None:
     if a.print_json:
         print("=====JSON=====")
         print(json.dumps(out, default=str))
+    missing = [n for n in ("ipc-ex1", "ipc-tc1", "ipc-ht1", "ipc-dz1") if n not in out["nodes"]]
+    gaps = {n: v["seq_gaps"] for n, v in out["nodes"].items() if v["seq_gaps"]}
+    problems = ([f"not seen: {', '.join(missing)}"] if missing else []) + [f"{n} seq gaps {v}" for n, v in gaps.items()]
+    if problems:
+        print("FAILED, " + ", ".join(problems), file=sys.stderr)
+        sys.exit(1)
+    print("ok: all four PCs streaming, no seq gaps", file=sys.stderr)
 
 
 if __name__ == "__main__":

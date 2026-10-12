@@ -52,25 +52,44 @@ On the real ground the twin runs a matching layout, `nh108`, so haul roads, the 
 
 ### Use the real ground
 
+Set Groundwork up first, see [Run it end to end](#run-it-end-to-end). Then, from the `groundwork` folder:
+
 ```bash
-pip install -r scripts/requirements-real.txt
-python scripts/fetch-real-imagery.py        # about 45 MB, checks every file, prepares the tiles in data/real (not in git)
+.venv/bin/python scripts/fetch-real-imagery.py   # Windows (Git Bash): .venv/Scripts/python
 echo "GW_SITE=nh108" >> .env
-bash scripts/deploy-k8s.sh                  # or: bash scripts/dev.sh
+bash scripts/deploy-k8s.sh                       # or: bash scripts/dev.sh
+bash scripts/deploy-k8s.sh forward
+(cd web && npm run dev)
 ```
 
-The ground station switches to the real ground by itself when the bff runs the `nh108` site. With the industrial PCs deployed, run `bash scripts/deploy-k8s.sh edge` as well, so they drive the same layout. The twin refuses a PC set up for another one. Then `python scripts/trace_haul.py` and `python scripts/provision.py` once HT1 has driven for 20 minutes, so the geofence follows the new haul road. Remove the line from `.env` and deploy again to go back to Northgate.
+The fetch downloads about 20 MB of prepared tiles from the [real-assets-v1 release](https://github.com/sarkar4777/groundwork/releases/tag/real-assets-v1) into `data/real` (not in git), checks every file and ends with `nh108: 4 files from ..., checksums ok`. It needs only Python. `--sources` prepares the tiles from the 45 MB original GeoTIFF instead, which needs `.venv/bin/pip install -r scripts/requirements-real.txt` first. `--check` verifies what is on disk.
+
+The ground station switches to the real ground by itself when the bff runs the `nh108` site, and the feed shows the photo's REAL credit line. Remove the line from `.env` and deploy again to go back to Northgate.
+
+With the industrial PCs deployed, move them too. `deploy-k8s.sh edge` puts them on the layout `GW_SITE` names, from the environment or `.env`:
+
+```bash
+bash scripts/deploy-k8s.sh edge
+.venv/bin/python scripts/provision.py --only rules   # traces HT1's haul area on the nh108 layout
+bash scripts/deploy-k8s.sh
+```
+
+Until then the bff keeps their machines simulated and the feed says *The twin runs nh108, so EX1 stays simulated*. Keep the bff, the PCs and the rules on one site. A haul area traced for one layout fires the HT1 rule all the time on a truck driving the other. Once HT1 has driven the new layout for 20 minutes, `.venv/bin/python scripts/trace_haul.py` records where it really goes and a second `provision.py --only rules` widens the haul area to match.
 
 ### Reconstruct your own site
 
-Drone photos in, a site the machines stand on out. You need Docker for OpenDroneMap. A GPU helps the splat step, through Brush on WebGPU, so no CUDA setup.
+Drone photos in, a site the machines stand on out. You need Docker for OpenDroneMap, with as much memory as you can give it, and an hour or more for the test set. The splat step downloads Brush's Windows build and trains on the GPU through WebGPU, so no CUDA setup. It runs on Windows only, and elsewhere the script stops before OpenDroneMap starts unless you pass `--no-splat`.
 
 ```bash
-python scripts/reconstruct.py caliterra                     # the CC0 test set, 77 photos
-python scripts/reconstruct.py mysite --photos D:/flight     # your own flight
+.venv/bin/pip install -r scripts/requirements-real.txt
+.venv/bin/python scripts/fetch-real-imagery.py --only caliterra   # the published reconstruction, about 32 MB, and the CC0 test set, 77 photos, about 270 MB
+.venv/bin/python scripts/reconstruct.py caliterra
+.venv/bin/python scripts/reconstruct.py mysite --photos D:/flight  # your own flight, a folder of geotagged photos
 ```
 
-It runs OpenDroneMap for the orthophoto, the surface and terrain heights, a textured mesh and the camera poses, levels the result, then trains a Gaussian splat. Open the ground station with `?ground=caliterra&layer=splat` to put the twin on the reconstructed heights. Sources, licences, the sun calculation and what is still open are in [docs/real-imagery.md](docs/real-imagery.md).
+It runs OpenDroneMap for the orthophoto, the surface and terrain heights, a textured mesh and the camera poses, levels the result, then trains a Gaussian splat. Everything lands in `data/real/<site>/site`. Open the ground station with `?ground=caliterra` to put the twin on the reconstructed heights, and add `&layer=splat` for the splat.
+
+On macOS and Linux add `--no-splat`, which runs OpenDroneMap and the site grid only, and open `?ground=caliterra` without the splat layer. The fetch already put the published reconstruction there, so `?ground=caliterra&layer=splat` works before you reconstruct anything. Sources, licences, the sun calculation and what is still open are in [docs/real-imagery.md](docs/real-imagery.md).
 
 ## Industrial PCs and the CAN bus
 
@@ -95,13 +114,13 @@ Four machines, EX1, TC1, HT1 and DZ1, also run as simulated industrial PCs in Ku
 | The gateway, Sparkplug B and MQTT | Real. NBIRTH and DBIRTH per ECU, seq and bdSeq, NDEATH as the MQTT last will, rebirth on NCMD. Signals decode through `edge/dbc/groundwork-j1939.dbc` with cantools |
 | Commands from the site | Real J1939 on the bus. `Safety/Hold`, `Mode/Set` and `Diagnostics/InjectFault` arrive as DCMD and go to the safety PLC as proprietary A commands. The PLC acknowledges with ACKM, broadcasts its new state and takes the engine to idle with TSC1, so EEC1 follows. `Task/Assign` goes to the controller as JSON over TP.CM |
 
-No privileged containers, no NET_ADMIN, no kernel modules.
+No privileged containers, no NET_ADMIN, no kernel modules. Step 6 of [Run it end to end](#6-add-the-industrial-pcs) sets them up. The commands:
 
 ```bash
 bash scripts/deploy-k8s.sh edge                 # build the image into minikube, roll out the four PCs
 bash scripts/deploy-k8s.sh edge-status
 bash scripts/deploy-k8s.sh edge-check 30        # a test pod: rates, births, a hold, a DM1 fault, a noisy harness
-bash scripts/deploy-k8s.sh edge-candump EX1     # the bus as candump -L
+bash scripts/deploy-k8s.sh edge-candump EX1     # the bus as candump -L, machine names in capitals
 kubectl -n groundwork-edge exec deploy/ipc-ex1 -c canbus -- candump --decode
 kubectl -n groundwork-edge exec deploy/ipc-ex1 -c canbus -- candump --stats
 ```
@@ -117,19 +136,20 @@ Measured on minikube over one 30 s check, about two minutes after the PCs powere
 
 Error frames on a quiet bus come from power-on, when the first ECU up has nobody to acknowledge it. The noisy harness drove TC1's engine, telematics, slew and hoist controllers to error passive, and they came back to error active within 3 s of the noise stopping.
 
-Hop by hop, EX1: a frame's last bit to the gateway 1.9 ms, gateway to an MQTT subscriber 1.3 ms at the median and 15 ms at p99. A hold sent as DCMD reached the safety PLC's acknowledgement on the bus in 6.5 ms and the excavator's joints read still 206 ms later, braking from a full swing. The hop into Abenix comes with its 2.5.8 telemetry ingest.
+Hop by hop, EX1: a frame's last bit to the gateway 1.9 ms, gateway to an MQTT subscriber 1.3 ms at the median and 15 ms at p99. A hold sent as DCMD reached the safety PLC's acknowledgement on the bus in 6.5 ms and the excavator's joints read still 206 ms later, braking from a full swing. The hops into Abenix are below.
 
 Sample logs to open in SavvyCAN or replay with `canplayer`: [edge/samples/ipc-ex1-candump.log](edge/samples/ipc-ex1-candump.log) (power-on address claims, BAM and RTS/CTS sessions, a hold, a DM1 fault) and [edge/samples/ipc-tc1-noisy-harness.log](edge/samples/ipc-tc1-noisy-harness.log) (error frames, error passive and recovery).
 
 ### The site runs on the PCs
 
-With the PCs in Abenix (2.5.8 telemetry), the ground station runs a hybrid site. EX1, TC1, HT1 and DZ1 go where their own controllers drive them on their real buses. Every other machine stays in the twin. Each label says which: **IPC · REAL BUS** or **SIM**.
+With the PCs streaming into Abenix telemetry, the ground station runs a hybrid site. EX1, TC1, HT1 and DZ1 go where their own controllers drive them on their real buses. Every other machine stays in the twin. Each label says which: **IPC · REAL BUS** or **SIM**.
 
 - **The bff only carries data.** It follows the PCs with `forge.telemetry.stream`, polls `forge.telemetry.frames` for the raw CAN frames Abenix keeps, and hands what changed to the twin on each step. It holds no machine logic.
 - **The twin decides.** `twin/hybrid.py` in `gw-site-twin` puts the PCs' machines into the site and runs the same safety rules over the whole of it. A Simplex hold goes back as `Safety/Hold` to the PC's safety PLC, fallback as `Mode/Set safe`, a hold in the plan as `Task/Assign`, all through `forge.telemetry.command`. EX1's cycles cut the face and load the simulated trucks, HT1's count on the KPI and TC1's land the queued lifts.
 - **The signal trace shows the real bus.** The frames Abenix keeps for each PC decode with the twin's own J1939 dictionary and carry an IPC tag. Filter on *Real bus, IPC* to see only them.
 - **Two more faults on the deck.** *Unplug EX1's PC* sends `Node Control/Unplug_s`: the PC drops off MQTT without a goodbye, the broker publishes its NDEATH, Abenix marks it offline and the twin routes around it while EX1's own safety PLC holds it. *Noisy harness on EX1* sends `Bus/InjectNoise_s`: error frames, retransmits and error counters climbing on the wire.
-- `GW_IPC=0` keeps every machine simulated. A PC set up for another layout is refused with a message, its machine stays simulated.
+- `GW_IPC=0` in `.env` keeps every machine simulated. `dev.sh` reads it, and `deploy-k8s.sh` passes every `GW_*` setting in `.env` to the bff in the cluster, so deploy again after a change. A PC set up for another layout is refused with a message, its machine stays simulated.
+- The bff looks for the PCs when it starts. After you add or remove them, run `bash scripts/deploy-k8s.sh` again.
 
 <p align="center"><img src="docs/screenshots/ipc/06-nervous-system-hops.png" alt="The nervous system view with EX1's measured hops, up from the bus into Abenix and down from the twin to the PC" width="100%"></p>
 
@@ -146,8 +166,11 @@ A stop on a PC crosses the network both ways, so its time is the whole chain, ea
 The command API call itself answered in 33 ms, and Abenix showed the PC holding 105 ms after the bff sent the hold. If the machine is already still when the hold arrives there is no stop time, and the screen says *hold in force* with the PC's ACK instead. On the way up, a frame's last bit reaches the gateway in about 2 ms and Abenix stores the gateway's Sparkplug message within 3 to 8 ms at the median.
 
 ```bash
-curl -X POST localhost:8710/story/start -H 'content-type: application/json' -d '{"ipc": true}'   # the industrial PC story, live
+curl -X POST localhost:8710/story/start -H 'content-type: application/json' -d '{"ipc": true}'    # the industrial PC story, live
+curl -X POST localhost:8710/story/start -H 'content-type: application/json' -d '{"loop": true}'   # the closed loop story, live
 ```
+
+Both start only from the command line, the **Play the story** button runs the main story.
 
 **Real hardware is a configuration change.** Every ECU and the gateway read `CAN_INTERFACE`, `CAN_CHANNEL`, `CAN_HOST` and `CAN_PORT`:
 
@@ -159,11 +182,11 @@ curl -X POST localhost:8710/story/start -H 'content-type: application/json' -d '
 
 With real ECUs on the bus, run only the gateway container. Point `MQTT_URL` at the site broker and set `GW_MACHINE` to the machine it is fitted to.
 
-**The film.** `groundwork-ipc-real-story-1920x1080.mp4` and `-1080x1350.mp4`, 1 min 56 s with subtitles, in the [v1.1.1 release](https://github.com/sarkar4777/groundwork/releases/tag/v1.1.1). It runs on the real NH108 orthophoto with the PCs on the `nh108` layout: the stop over the real bus, every hop, the unplugged PC, the noisy harness, then the closed loop on EX1. The three minute wait for the oil to heat is a title card with the numbers from the take, and from a few seconds before the rule fires everything plays at real speed. Captions sit along the bottom, the clock top left and the cards on the right, one caption at a time. Then the PCs in Abenix. The first cut on the drawn site, with the wait as a time-lapse, is in [v1.1.0](https://github.com/sarkar4777/groundwork/releases/tag/v1.1.0). Screens of the Abenix side are in [docs/screenshots/ipc](docs/screenshots/ipc), named `abenix-*`.
+**The film.** `groundwork-ipc-real-story-1920x1080.mp4` and `-1080x1350.mp4`, with subtitles, in the [v1.1.1 release](https://github.com/sarkar4777/groundwork/releases/tag/v1.1.1). On the real NH108 ground, with the PCs on the `nh108` layout: the stop over the real bus, every hop, the whole ground station with the PCs' consoles and frames streaming, the unplugged PC, the noisy harness, then the closed loop on EX1 from the rule to the person's approval to the PC taking the command, and the PCs in Abenix. The drawn-site cut is in [v1.1.0](https://github.com/sarkar4777/groundwork/releases/tag/v1.1.0). Screens of the Abenix side are in [docs/screenshots/ipc](docs/screenshots/ipc), named `abenix-*`.
 
 **Backfill through an uplink cut.** The same Abenix stack takes machine data from its Edge gateway too. With the gateway's uplink cut for 123 s, it buffered 7,288 readings at the peak and drained them in under a second when the link came back: 7,449 sent, 0 lost, and 75 of 75 sequence points in order with no gaps or repeats. The truck's engine chart in Abenix shows no hole where the cut was ([abenix-backfill-1440.png](docs/screenshots/ipc/abenix-backfill-1440.png)).
 
-**About the latency numbers.** The hop table above and the loop timings were measured with the site under reduced load. On the laptop with the testbed, the Edge demo and the four PCs all running, the Abenix ingest strip showed p99 ingest delay between 117 and 580 ms, which is the CPU saturating, not the pipeline. A full-scale run is planned on Azure.
+**About the latency numbers.** The hop table above and the loop timings were measured with the site under reduced load. On the laptop with Abenix's own telemetry testbed and Edge demo (`deploy.sh testbed` and `deploy.sh edge-demo`, which Groundwork does not need) and the four PCs all running, the Abenix ingest strip showed p99 ingest delay between 117 and 580 ms, which is the CPU saturating, not the pipeline. A full-scale run is planned on Azure.
 
 ### Rules, agents and commands: the closed loop
 
@@ -177,7 +200,7 @@ The PCs' streams drive three signal rules in Abenix. Each rule runs an agent. Th
 
 The Safety officer may also ask for a `Safety/Hold`, true only and always approved. The instant stop stays in the twin's 10 ms tick and never waits for an agent.
 
-The rules are in [abenix/rules](abenix/rules). `python scripts/provision.py --only rules` creates them, names and tags the four PCs, and replays each rule on the last 6 hours first. Each was also built once by hand in the rule builder as a check, from the scope picker to the run step.
+The rules are in [abenix/rules](abenix/rules). `python scripts/provision.py --only rules` creates them, names and tags the four PCs, and replays each rule on the last 6 hours first. Run it once the PCs stream, see [step 6](#6-add-the-industrial-pcs). Each was also built once by hand in the rule builder as a check, from the scope picker to the run step.
 
 **Tuned on the streams, not for the demo.**
 - The first idea for rule 1 was pump 1 pressure 15% above normal. Replayed on an hour of normal digging, it would have fired on its own: EX1's pump pressure swings from 73 to 181 bar by the minute as it digs, swings and holds. The oil temperature stayed between 54.5 and 60 °C in the same hour, and the rule on it would have fired 0 times in 6 hours.
@@ -217,18 +240,20 @@ Plan on about an hour the first time, most of it Abenix building its images. Lat
 | | |
 |---|---|
 | Machine | 16 GB RAM, 4 CPUs, about 25 GB free disk |
-| Docker Desktop or Docker Engine | Running, with at least 10 GB of memory. On Windows with WSL 2 see [Abenix local sizing](https://github.com/sarkar4777/abenix/blob/main/docs/06-deployment/09-local-sizing.md) |
-| minikube, kubectl, Helm 3 | On your PATH |
-| Git and bash | On Windows use Git Bash for every command below |
-| Python 3.12 or later | `python --version` |
+| Docker Desktop or Docker Engine | Running, with at least 10 GB of memory, 12 GB for the industrial PCs. On Windows with WSL 2 see [Abenix local sizing](https://github.com/sarkar4777/abenix/blob/main/docs/06-deployment/09-local-sizing.md) |
+| minikube, kubectl, Helm 3 | On your PATH. Tested with minikube 1.38, kubectl 1.34 and Helm 3.17 |
+| Git, bash and curl | On Windows use Git Bash for every command below |
+| Python 3.12 or later | `python3 --version`, on Windows `python --version`. On Debian and Ubuntu also install `python3-venv` |
 | Node 20 or later | `node --version` |
-| A model for the agents | An Anthropic API key, or a Claude Pro or Max subscription signed in with Claude Code on this machine |
+| A model for the agents | An Anthropic API key, or a Claude Pro or Max subscription signed in with Claude Code on this machine, see step 1 |
+
+The four industrial PCs in step 6 ask the cluster for another half CPU and 1.4 GB. Abenix's core takes about 6 GB of its 8 GB node, so start Abenix with `MINIKUBE_MEMORY=10240` in front of the deploy command if you want them.
 
 Without a model the site, the safety rules, the ML models and the dispatch loop all run. Only the agents wait. An OpenAI key is optional: with it the agents' knowledge search is semantic, without it the search matches keywords and says so.
 
 ### 1. Start Abenix
 
-Groundwork needs Abenix 2.5.8 or later, for its telemetry, signal rules and governed commands. The core platform is enough, the other Abenix apps are not needed.
+Groundwork needs Abenix 2.5.8 or later, for its telemetry, signal rules and governed commands. 2.5.10 or later also reads a macOS subscription from the Keychain and opens the links provisioning prints straight on their item. The core platform is enough, the other Abenix apps are not needed.
 
 ```bash
 git clone https://github.com/sarkar4777/abenix.git
@@ -237,14 +262,17 @@ cp .env.example .env              # put ANTHROPIC_API_KEY=sk-ant-... here, or us
 APPS=none bash scripts/deploy.sh local
 ```
 
-The first run builds every image, which takes 45 to 90 minutes. It ends with a list of URLs. Check it:
+`APPS=none` deploys the core platform without the other apps. Add `MINIKUBE_MEMORY=10240` in front for the industrial PCs. The first run builds every image, which takes 45 to 90 minutes. It ends with a list of URLs. Check it:
 
 - http://localhost:3000 opens and you can sign in as `admin@abenix.dev` / `Admin123456`
 - `curl http://localhost:8000/api/health` answers
+- `kubectl config current-context` says `minikube`. Abenix uses minikube's default profile and Groundwork's scripts do too. On another profile set `MINIKUBE_PROFILE` to its name for every command in both folders
 
-**Subscription instead of a key:** sign in with Claude Code on this machine, then from the `abenix` folder run `bash scripts/sync-claude-subscription.sh`. The credential rotates. Run it again whenever agent runs fail with `OAuth access token has been revoked`.
+Abenix already runs everything Groundwork uses: the MQTT broker `abenix-mosquitto`, the telemetry ingest with a **Site broker** connection reading `spBv1.0/#`, the signal rules, decisions, approvals and warm code runners. Nothing needs turning on.
 
-**Port 3000 already taken:** deploy with `WEB_PORT=3100 bash scripts/deploy.sh local`, then use 3100 wherever this guide says 3000.
+**Subscription instead of a key:** sign in with Claude Code on this machine, then from the `abenix` folder run `bash scripts/sync-claude-subscription.sh`. The credential rotates. Run it again whenever agent runs fail with `OAuth access token has been revoked` or say the subscription token is not usable. The script reads `~/.claude/.credentials.json`. On macOS Claude Code keeps the credential in the Keychain, which the script reads from Abenix 2.5.10 on. On an older Abenix on macOS it stops with `No credential file`, so use an API key there.
+
+**Port 3000 already taken:** deploy with `WEB_PORT=3100 bash scripts/deploy.sh local`, then use 3100 wherever this guide says 3000, `WEB_PORT=3100 bash scripts/deploy.sh forwards` included.
 
 Leave Abenix running and open a second terminal.
 
@@ -253,7 +281,7 @@ Leave Abenix running and open a second terminal.
 ```bash
 git clone https://github.com/sarkar4777/groundwork.git
 cd groundwork
-python -m venv .venv
+python3 -m venv .venv                                 # Windows (Git Bash): python -m venv .venv
 .venv/bin/pip install -r bff/requirements.txt         # Windows (Git Bash): .venv/Scripts/pip
 (cd web && npm install)
 cp .env.example .env
@@ -267,7 +295,7 @@ Open `.env` and set `ABENIX_ADMIN_PASSWORD=Admin123456`. If you moved the Abenix
 .venv/bin/python scripts/provision.py                   # Windows (Git Bash): .venv/Scripts/python
 ```
 
-It signs in once as the admin and mints this clone's own API key, named `groundwork-<host>-<folder>`, into `.env`. Another clone on the same Abenix gets its own key and keeps working. Then it loads, through the Abenix SDK:
+It signs in once as the admin and mints this clone's own API key, named `groundwork-<host>-<6 characters from the folder path>`, into `.env`. Another clone on the same Abenix gets its own key and keeps working. Then it loads, through the Abenix SDK:
 
 - 3 code assets
 - 4 decision tables
@@ -278,13 +306,15 @@ It signs in once as the admin and mints this clone's own API key, named `groundw
 
 The safety rules are high risk, so publishing them needs sign-off in Abenix. In a workspace where you are the only admin, provisioning signs them itself with a recorded reason, and Abenix marks that as self-approved. If someone else in the workspace can approve, it names them and the rules wait in Abenix under **Approvals** until one of them signs, then run step 3 again to publish. The site holds a plan change while the crane limits are not yet in force.
 
-It finishes by training the six ML models inside Abenix on data the twin generates. It ends with a table of everything it made and a link to each in the Abenix UI. It is safe to run again. It only changes what differs, and `--retrain` trains the models again.
+It finishes by training the six ML models inside Abenix on data the twin generates, then makes one decision call and one model call as a check. It prints a row for each thing as it goes, `created`, `updated`, `same` or `published`, and ends with a link to each in the Abenix UI. The `decision evaluate` check should answer with `'action': 'stop'` and the `ml predict` check read `ok`. It is safe to run again. It only changes what differs, and `--retrain` trains the models again.
+
+On the first run four rows read `asset groundwork/ipc-... skipped ... Deploy the PCs first`. That is expected until step 6.
 
 ### 4. Start the ground station
 
 Pick one.
 
-**A. Everything inside minikube.** Recommended on Windows, and what the film was recorded with.
+**A. Everything inside minikube.** Recommended, and on Windows the smooth option.
 
 ```bash
 bash scripts/deploy-k8s.sh             # builds the bff image into minikube and rolls it out next to Abenix
@@ -292,7 +322,7 @@ bash scripts/deploy-k8s.sh forward     # one port-forward to the bff on 8710, re
 (cd web && npm run dev)                # the ground station on 5710
 ```
 
-`bash scripts/deploy-k8s.sh status` shows the bff, the forward and its health. `bash scripts/deploy-k8s.sh stop` ends the forward.
+`forward` ends with `bff healthy on http://localhost:8710`. `bash scripts/deploy-k8s.sh status` shows the bff, the forward and its health. `bash scripts/deploy-k8s.sh stop` ends the forward. Run `bash scripts/deploy-k8s.sh` again after any change in `bff/` or `.env`.
 
 **B. The bff on your machine.**
 
@@ -306,11 +336,34 @@ On Windows every twin step then crosses a `kubectl port-forward`, which adds abo
 
 http://localhost:5710. The top bar should read **LIVE** with **Computed in Abenix**, and the latency strip fills within a few seconds.
 
+### 6. Add the industrial PCs
+
+Optional. Four simulated industrial PCs on their own CAN buses, streaming into Abenix telemetry and driving the closed loop. The order matters: the rules need the PCs streaming. The bff looks for the PCs every 30 seconds until it finds them, and a fresh deploy finds them at once.
+
+```bash
+bash scripts/deploy-k8s.sh edge                       # builds groundwork-ipc:local into minikube, rolls out the four PCs
+bash scripts/deploy-k8s.sh edge-status                # every container reads =true
+bash scripts/deploy-k8s.sh edge-check 30              # a test pod listens for 30 s and prints what it saw
+.venv/bin/python scripts/provision.py --only rules    # Windows (Git Bash): .venv/Scripts/python
+bash scripts/deploy-k8s.sh                            # restarts the bff so it finds the PCs at once
+bash scripts/deploy-k8s.sh forward
+```
+
+Check it:
+
+- `edge-check` lists `ipc-ex1`, `ipc-tc1`, `ipc-ht1` and `ipc-dz1` under `nodes`, each with `mqtt_msgs_per_s` around 60 to 90 and `seq_gaps` at 0, a birth for each and the hold it sent under `hold`. It ends with `ok: all four PCs streaming, no seq gaps`, or `FAILED, ...` and a non-zero exit.
+- `provision.py --only rules` shows four `asset groundwork/ipc-...` rows `updated` and three `rule` rows.
+- In Abenix, **Telemetry** shows the four PCs online in group `groundwork`, http://localhost:3000/telemetry?group=groundwork&node=ipc-ex1 shows EX1's live signals, and **Signal rules** lists the three rules.
+- `curl -s localhost:8710/health` has `"ipc": {"stream": true, "status": "running", ...}`.
+- In the ground station EX1, TC1, HT1 and DZ1 read **IPC · REAL BUS** and the fault deck gains *Unplug EX1's PC*, *Noisy harness on EX1*, *Pump wear on EX1* and *Drive HT1 off the road*.
+
+Then run the industrial PC story or the closed loop, see [The site runs on the PCs](#the-site-runs-on-the-pcs). *Pump wear on EX1* takes about five minutes to fire its rule, and the agent's `Mode/Set safe` waits for you under **Approvals** in Abenix.
+
 ## Use it
 
 | Do this | To see |
 |---|---|
-| **Play the story** (top right, or **P**) | The 54 second day: a safety stop, a replan approved on a phone, a gust, the AI switched off, the whole ground station, an AI-written controller, Earned Autonomy |
+| **Play the story** (top right, or **P**) | The 60 second day: a safety stop, a replan approved on a phone, a gust, the AI switched off, the whole ground station, an AI-written controller, Earned Autonomy |
 | Fault deck: **Worker into swing zone** | The excavator stops in the same tick, the stop time in ms, then the Site Superintendent replans |
 | Fault deck: **Cut CAN bus**, **Drop GNSS** | That machine's controllers and signal trace go quiet, and the Simplex switch puts it in safe mode |
 | Fault deck: **Gust of wind** | The crane limits table holds the tower crane, the weather pipeline reshuffles the lifts |
@@ -321,7 +374,7 @@ http://localhost:5710. The top bar should read **LIVE** with **Computed in Abeni
 | Click a machine | Its inspector: position, load, joints and the controllers on its bus |
 | Approvals | Plan changes wait in Abenix under **Approvals**. Approve there, or on the phone in the story |
 
-Everything the site does is visible in Abenix too: runs in the Flight Recorder, the models under ML Models, the twin under Code Runner, the rules under Decisions.
+Everything the site does is visible in Abenix too: runs in the Flight Recorder, the models under ML Models, the twin under Code Runner, the rules under Decisions, the PCs under Telemetry. The sidebar starts in a short mode, click **Show all tools** for Code Runner, ML Models, Signal rules and the run history.
 
 ## When something is wrong
 
@@ -329,16 +382,21 @@ Everything the site does is visible in Abenix too: runs in the Flight Recorder, 
 |---|---|
 | `provision.py` says it cannot sign in | Check `ABENIX_URL` and `ABENIX_ADMIN_PASSWORD` in `.env`, and that http://localhost:3000 lets you sign in with them |
 | `provision.py` fails at a step | Fix what it names and run it again. `--only models` reruns one step, the steps are `key,assets,decisions,agents,pipelines,kb,autonomy,models,rules,check` |
-| `dev.sh` says Abenix is not answering | Start Abenix first. After any Abenix pod restarts, run `bash scripts/deploy.sh forwards` in the `abenix` folder |
+| `dev.sh` says Abenix is not answering | Start Abenix first. After any Abenix pod restarts, run `bash scripts/deploy.sh forwards` in the `abenix` folder, with `WEB_PORT=3100` in front if you moved the port |
 | `dev.sh` says there is no ABENIX_API_KEY in .env | Run step 3 |
 | The bff health says `401 Unauthorized` | The key in `.env` was revoked. Run step 3 again, then `bash scripts/deploy-k8s.sh` so the bff picks up the new key |
-| The ground station says the bff is offline | `bash scripts/deploy-k8s.sh status`, then `bash scripts/deploy-k8s.sh forward` |
-| Agent runs fail with `OAuth access token has been revoked` | Run `bash scripts/sync-claude-subscription.sh` in the `abenix` folder |
+| The top bar says **Sim offline** | The bff is not reachable on 8710. `bash scripts/deploy-k8s.sh status`, then `bash scripts/deploy-k8s.sh forward` |
+| Agent runs fail with `OAuth access token has been revoked`, or say the subscription token is not usable | Run `bash scripts/sync-claude-subscription.sh` in the `abenix` folder |
 | Agent runs fail with an auth or key error | Add the key in Abenix under **Admin → Tool Configuration** (`ANTHROPIC_API_KEY`). It applies within 30 seconds |
 | Agents say they matched the knowledge base by keywords | Abenix has no working OpenAI key. Add `OPENAI_API_KEY` under **Admin → Tool Configuration** for semantic search |
 | L5 in the latency strip shows a dash | No agent has run yet. Play the story or use the fault deck |
 | Motion is jerky on Windows | Use option A in step 4 |
-| Pods pending or evicted in minikube | Docker is short of memory, see [Abenix local sizing](https://github.com/sarkar4777/abenix/blob/main/docs/06-deployment/09-local-sizing.md) |
+| Pods pending or evicted in minikube | Docker is short of memory, see [Abenix local sizing](https://github.com/sarkar4777/abenix/blob/main/docs/06-deployment/09-local-sizing.md). The industrial PCs need `MINIKUBE_MEMORY=10240`, see What you need |
+| `ipc-*` pods show `ErrImageNeverPull` | The image was built into another minikube profile. Check `MINIKUBE_PROFILE`, then `bash scripts/deploy-k8s.sh edge` |
+| `provision.py` says `skipped ... Deploy the PCs first` | The PCs are not streaming into Abenix yet. Run step 6 in order, then `--only rules` again |
+| `edge-check` sees the PCs but Abenix Telemetry does not | In Abenix open **Telemetry**, tab **Sources**. **Site broker** must be there and enabled, reading `spBv1.0/#` from `mqtt://abenix-mosquitto.abenix.svc.cluster.local:1883` |
+| The PCs stream but no machine reads **IPC · REAL BUS** and `/health` has `"ipc": null` | The bff looks again every 30 seconds. To skip the wait run `bash scripts/deploy-k8s.sh` |
+| The feed says *The twin runs ..., so EX1 stays simulated* | The bff and the PCs run different sites, see [Use the real ground](#use-the-real-ground) |
 
 ## How it fits together
 
@@ -424,15 +482,17 @@ On a laptop with Abenix on minikube.
 .venv/bin/pip install -r bff/requirements-dev.txt && (cd bff && ../.venv/bin/python -m pytest -q)
 ```
 
+On Windows (Git Bash) use `.venv/Scripts/python` and `.venv/Scripts/pip`.
+
 ## Layout
 
 ```
-abenix/        what goes into Abenix: code-assets, agents, pipelines, decisions, kb, autonomy, models
+abenix/        what goes into Abenix: code-assets, agents, pipelines, decisions, kb, autonomy, rules, specs
 bff/           the backend for the frontend, its tests and the vendored Abenix SDK
 web/           the ground station
 edge/          the industrial PCs: ECU containers, gateway, canbus sidecar, DBC and sample bus logs
 deploy/k8s/    the bff and the PCs in minikube next to Abenix
-scripts/       provision.py, dev.sh, deploy-k8s.sh, capture.mjs, capture-ipc.mjs, capture-abenix.mjs, bench_twin.py, record_story.py
+scripts/       provision.py, dev.sh, deploy-k8s.sh, fetch-real-imagery.py, reconstruct.py, bench_twin.py, record_story.py, record-take.mjs, capture*.mjs
 docs/          architecture, signals, story, real imagery, brand, screenshots
 data/          real imagery, tiles and reconstructions, fetched by script and never committed
 ```

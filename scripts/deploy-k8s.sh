@@ -48,9 +48,17 @@ deploy() {
   # links from the ground station into Abenix, 3000 unless .env moves it
   local web="${ABENIX_WEB_URL:-$(grep -s '^ABENIX_WEB_URL=' .env | cut -d= -f2- || true)}"
   $K -n groundwork set env deploy/groundwork-bff ABENIX_WEB_URL="${web:-http://localhost:3000}" >/dev/null
-  # northgate is the painted site, nh108 the real drone orthophoto (fetch it first, see docs/real-imagery.md)
-  local site="${GW_SITE:-$(grep -s '^GW_SITE=' .env | cut -d= -f2- || true)}"
-  $K -n groundwork set env deploy/groundwork-bff GW_SITE="${site:-northgate}" >/dev/null
+  # the bff's GW_* settings from .env, the shell overriding it, GW_SITE northgate unless set
+  local vars=() name val
+  for name in $( (grep -so '^GW_[A-Z_]*' .env; env | grep -o '^GW_[A-Z_]*') | sort -u); do
+    case "$name" in GW_BFF_PORT|GW_BROKER_PORT) continue ;; esac
+    val="${!name:-$(grep -s "^$name=" .env | tail -n 1 | cut -d= -f2- || true)}"
+    [ -n "$val" ] && vars+=("$name=$val")
+  done
+  printf '%s
+' "${vars[@]}" | grep -q '^GW_SITE=' || vars+=("GW_SITE=northgate")
+  $K -n groundwork set env deploy/groundwork-bff "${vars[@]}" >/dev/null
+  say "bff settings: ${vars[*]}"
   $K -n groundwork rollout restart deploy/groundwork-bff
   $K -n groundwork rollout status deploy/groundwork-bff --timeout=180s
   say "bff running in the cluster with a fixed 20 Hz step"
@@ -167,7 +175,8 @@ edge_check() {
 }
 
 edge_candump() {
-  local m="${1:-EX1}" n="${2:-200}"
+  local m n="${2:-200}"
+  m="$(echo "${1:-EX1}" | tr a-z A-Z)"
   local pod
   pod="$($K -n groundwork-edge get pod -l machine="$m" -o jsonpath='{.items[0].metadata.name}')"
   $K -n groundwork-edge exec "$pod" -c canbus -- sh -c "tail -n $n /var/log/candump/ipc-$(echo "$m" | tr A-Z a-z).log"

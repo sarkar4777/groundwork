@@ -18,6 +18,7 @@ from .ipc import Ipc
 from .loop import Loop
 from .lanes import Lane, Open, Rolling
 
+IPC_RETRY_S = 30
 log = logging.getLogger("gw.bff")
 
 AGENTS = ["gw-site-superintendent", "gw-safety-officer", "gw-crane-coordinator", "gw-fleet-dispatcher", "gw-maintenance-tech",
@@ -252,6 +253,31 @@ class Engine:
 
     # the loop
 
+    async def attach_ipc(self) -> bool:
+        """The PCs, when Abenix knows any, and the closed loop over them."""
+        ipc = Ipc(self.forge)
+        if not await ipc.start():
+            return False
+        self.ipc = ipc
+        # the closed loop: rules in Abenix run agents on the PCs, the site hears every step
+        self.loop = Loop(self.forge, self.emit, self.loop_answer, self.t)
+        try:
+            await self.loop.start({s: self.ids[s] for s in AGENTS if s in self.ids})
+        except Exception as e:  # noqa: BLE001
+            log.warning("closed loop not started: %s", e)
+            self.loop = None
+        return True
+
+    async def find_ipc(self) -> None:
+        # PCs deployed after the bff started are picked up without a restart
+        while self.ipc is None:
+            await asyncio.sleep(IPC_RETRY_S)
+            try:
+                if await self.attach_ipc():
+                    await self.event("story", "Industrial PCs found in Abenix", "Their machines now follow the PCs on their real buses")
+            except Exception as e:  # noqa: BLE001
+                log.info("looking for industrial PCs: %s", e)
+
     async def run(self) -> None:
         while True:
             try:
@@ -263,19 +289,9 @@ class Engine:
                 log.warning(self.status)
                 await self.emit({"type": "event", "t": 0.0, "kind": "fault", "title": "Abenix unreachable", "detail": str(e)[:300]})
                 await asyncio.sleep(5)
-        if str(self.cfg.get("ipc", "auto")) != "0":
-            self.ipc = Ipc(self.forge)
-            if not await self.ipc.start():
-                log.info("no industrial PCs, every machine simulated")
-                self.ipc = None
-        if self.ipc is not None:
-            # the closed loop: rules in Abenix run agents on the PCs, the site hears every step
-            self.loop = Loop(self.forge, self.emit, self.loop_answer, self.t)
-            try:
-                await self.loop.start({s: self.ids[s] for s in AGENTS if s in self.ids})
-            except Exception as e:  # noqa: BLE001
-                log.warning("closed loop not started: %s", e)
-                self.loop = None
+        if str(self.cfg.get("ipc", "auto")) != "0" and not await self.attach_ipc():
+            log.info("no industrial PCs yet, every machine simulated, looking again every %s s", IPC_RETRY_S)
+            self.spawn(self.find_ipc())
         self.ready = True
         self.status = "running"
         await self.event("story", "Site twin running in Abenix", f"gw-site-twin code asset, {len(self.ids)} Abenix resources resolved")
@@ -411,7 +427,7 @@ class Engine:
             hops = ", ".join(f"{h['hop']} {h['ms']:.1f} ms" for h in s["hops"] if h["ms"] is not None)
             e = {"type": "event", "t": round(self.t(), 3), "kind": "ipc_stop", "machine": s["machine"],
                  "title": f"{s['machine']} {'still' if s['moving'] else 'held'} in {s['stop_ms']:.0f} ms over its real bus",
-                 "detail": f"{hops}. ACK on the bus at {s['hold_ack_ms']} ms, command API answered in {s['api_ms']:.0f} ms, seen back in Abenix after {s['confirm_ms']} ms",
+                 "detail": f"{hops}. {'ACK on the bus at ' + str(s['hold_ack_ms']) + ' ms, ' if s.get('hold_ack_ms') is not None else ''}command API answered in {s['api_ms']:.0f} ms, seen back in Abenix after {s['confirm_ms']} ms",
                  "ms": s["stop_ms"], **s}
             e["type"] = "event"
             await self.emit(e)

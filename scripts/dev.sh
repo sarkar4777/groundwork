@@ -18,8 +18,8 @@ PORT="${GW_BFF_PORT:-8710}"
 say() { printf '\033[1;36m[groundwork]\033[0m %s\n' "$*"; }
 fail() { printf '\033[1;31m[groundwork]\033[0m %s\n' "$*"; exit 1; }
 
-"$PY" -c "import fastapi, uvicorn, httpx, yaml" 2>/dev/null || fail "Python packages missing. Run: python -m venv .venv && .venv/bin/pip install -r bff/requirements.txt"
-grep -qs '^ABENIX_API_KEY=' .env || fail "No ABENIX_API_KEY in .env. Run: $PY scripts/provision.py"
+"$PY" -c "import fastapi, uvicorn, httpx, yaml" 2>/dev/null || fail "Python packages missing. Run: python3 -m venv .venv && .venv/bin/pip install -r bff/requirements.txt"
+grep -qs '^ABENIX_API_KEY=..*' .env || fail "No ABENIX_API_KEY in .env. Run: $PY scripts/provision.py"
 curl -fsS -m 5 "$ABENIX_URL/api/health" >/dev/null || fail "Abenix is not answering at $ABENIX_URL. Start it first, the twin runs inside it."
 [ -d web/node_modules ] || (say "installing web packages" && (cd web && npm install --no-audit --no-fund))
 

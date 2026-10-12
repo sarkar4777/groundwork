@@ -389,7 +389,7 @@ async def rules(f: Abenix, rep: Report, agent_ids: dict) -> None:
             else:
                 rep.add("asset", f"groundwork/{node}", "same", f"/telemetry?group=groundwork&node={node}", label)
         except AbenixError as e:
-            rep.add("asset", f"groundwork/{node}", "skipped", "", f"not streaming yet ({e.message[:80]}). Deploy the PCs first")
+            rep.add("asset", f"groundwork/{node}", "skipped", "", f"not streaming yet ({e.message[:80]}). Deploy the PCs first, then run --only rules again")
     have = {r["name"]: r for r in await f.telemetry.rules()}
     for p in sorted((AB / "rules").glob("*.yaml")):
         spec = yaml.safe_load(p.read_text())
@@ -447,7 +447,7 @@ async def kb(f: Abenix, rep: Report) -> None:
                 continue
             await f.knowledge.upload(kid, str(p))
             added += 1
-        rep.add("kb", k["name"], "updated" if added else "same", f"/knowledge/{kid}", f"{added} new documents, granted to {', '.join(k['agents'])}")
+        rep.add("kb", k["name"], "updated" if added else "same", f"/knowledge?id={kid}", f"{added} new documents, granted to {', '.join(k['agents'])}")
 
 
 # earned autonomy

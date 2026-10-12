@@ -5,6 +5,7 @@
     python scripts/reconstruct.py nh108 --photos D:/flight  # your own photos, any folder of geotagged JPEGs
     python scripts/reconstruct.py caliterra --from splat    # pick up from a stage
     python scripts/reconstruct.py caliterra --only dem
+    python scripts/reconstruct.py caliterra --no-splat      # macOS and Linux: the splat step needs Brush's Windows build
 
 Stages, in order:
   odm      OpenDroneMap in Docker (opendronemap/odm): SfM, dense cloud, DSM, DTM, orthophoto, textured mesh
@@ -417,11 +418,17 @@ def main() -> None:
     ap.add_argument("--max-splats", type=int, default=1_500_000)
     ap.add_argument("--keep", type=int, default=900_000, help="gaussians kept in the packed splat")
     ap.add_argument("--half", type=float, default=110.0, help="half size of the site square in metres")
+    ap.add_argument("--no-splat", action="store_true", help="heights and orthophoto only, the way to run it on macOS and Linux")
     a = ap.parse_args()
     site_dir = DATA / a.site
     photos = Path(a.photos) if a.photos else site_dir / "photos"
     odm, colmap, splat_dir, out = site_dir / "odm", site_dir / "colmap", site_dir / "brush", site_dir / "site"
     todo = [a.only] if a.only else STAGES[STAGES.index(a.start):]
+    if a.no_splat:
+        todo = [st for st in todo if st not in ("splat", "pack")]
+    # the pinned Brush build is Windows only, so say so before an hour of OpenDroneMap rather than after
+    if ("splat" in todo or "pack" in todo) and sys.platform != "win32":
+        sys.exit("The splat step uses Brush's Windows build. On macOS and Linux run with --no-splat and open ?ground=<site> without the splat layer")
     for st in todo:
         log("stage", st)
         if st == "odm":

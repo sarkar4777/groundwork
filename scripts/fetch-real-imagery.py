@@ -4,7 +4,7 @@
     pip install -r scripts/requirements-real.txt
     python scripts/fetch-real-imagery.py                    # tiles from the release, or the sources prepared here
     python scripts/fetch-real-imagery.py --sources          # skip the release, download and prepare the sources
-    python scripts/fetch-real-imagery.py --only caliterra   # one site, here the 77 photos for scripts/reconstruct.py
+    python scripts/fetch-real-imagery.py --only caliterra   # the published reconstruction and its 77 photos for scripts/reconstruct.py
     python scripts/fetch-real-imagery.py --check            # verify what is already on disk
 
 Nothing here is committed. Sources land in data/real/src, prepared tiles in data/real/<site>. The release is
@@ -290,6 +290,9 @@ def main() -> None:
         if not a.only:
             # the photo set is only needed to run the reconstruction, ask for it by name
             continue
+        # the published reconstruction first, so ?ground=<site> works without running one
+        if not a.sources:
+            from_release(key, a.release.rstrip("/"))
         fetch_photos(key, listing)
 
 
